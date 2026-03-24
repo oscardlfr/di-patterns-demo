@@ -1,0 +1,5 @@
+com.grinwich.sdk.daggerc.EncryptionInit
+com.grinwich.sdk.daggerc.AuthInit
+com.grinwich.sdk.daggerc.StorageInit
+com.grinwich.sdk.daggerc.AnalyticsInit
+com.grinwich.sdk.daggerc.SyncInit
