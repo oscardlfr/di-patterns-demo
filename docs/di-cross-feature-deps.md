@@ -6,6 +6,7 @@ Cada approach de DI responde de forma diferente.
 Para approaches Dagger, ver [dagger2-sdk-selective-init.md](dagger2-sdk-selective-init.md).
 Para conceptos DI, ver [di-sdk-consumer-isolation.md](di-sdk-consumer-isolation.md).
 Para el approach hybrid, ver [di-hybrid-koin-sdk-dagger-app.md](di-hybrid-koin-sdk-dagger-app.md).
+Para análisis multi-módulo api/impl/integration, ver [di-multimodule-api-impl-analysis.md](di-multimodule-api-impl-analysis.md).
 
 ---
 
@@ -27,9 +28,9 @@ En el proyecto real (`sdk/impl-common/`), `DefaultSyncService` recibe
 
 ## Grafo Único: Resolución Automática
 
-**Funciona en:** Dagger Monolítico (A), Koin, Dagger D (Component Dependencies)
+**Funciona en:** Dagger Monolítico (A), Koin, Dagger D (Component Dependencies), Dagger E (Component Registry)
 
-Todos los servicios están en UN contenedor. Cualquier servicio puede pedir cualquier otro.
+Todos los servicios están en UN contenedor (o registry). Cualquier servicio puede pedir cualquier otro.
 
 ### Koin (`sdk/impl-koin/KoinSdk.kt`)
 
@@ -88,6 +89,30 @@ internal interface SynComponent {
 
 Dagger ve `dependencies=[EncComponent]` y resuelve `EncryptionService` desde
 `EncComponent.encryption()` automáticamente. Sin CoreApis, sin wiring manual.
+
+### Dagger E — Component Registry (`sdk/impl-dagger-e/`)
+
+```kotlin
+// Misma jerarquía de Components que D, pero registrados vía FeatureEntry
+internal val syncEntry = FeatureEntry(
+    componentClass = SynComponent::class.java,
+    dependencies = setOf(CoreComponent::class.java, EncComponent::class.java,
+                         AuthComponent::class.java, StorComponent::class.java),
+    build = { registry ->
+        DaggerSynComponent.builder()
+            .core(registry.component(CoreComponent::class.java))
+            .enc(registry.component(EncComponent::class.java))
+            .auth(registry.component(AuthComponent::class.java))
+            .storage(registry.component(StorComponent::class.java))
+            .build()
+    },
+    services = { comp -> mapOf(SyncService::class.java to comp.sync()) },
+)
+```
+
+Dagger E usa `dependencies=[...]` igual que D para resolver cross-deps.
+La diferencia es que el registry gestiona el orden de registro (topo-sort)
+y desacopla el facade de los builders DaggerXxx — viable en multi-módulo.
 
 ---
 
@@ -155,10 +180,15 @@ todo el SDK — es un God Object que anula el propósito del aislamiento per-fea
 |----------|--------------|-----------|-----------|
 | **Dagger A** (1 Component) | ✅ Automático | Mismo grafo @Component | Todo compilado en binario |
 | **Dagger D** (Component Deps) | ✅ Automático | `dependencies=[Parent]` | Todo compilado en binario |
+| **Dagger E** (Component Registry) | ✅ Automático | `dependencies=[...]` + registry topo-sort | Registry overhead (~20 ns/lookup) |
+| **Dagger E2** (Auto-Init Registry) | ✅ Automático | `dependencies=[...]` + DFS on-demand | ~25 ns/lookup, API más simple |
+| **Dagger F** (Multi-Module Deps) | ✅ Automático | = D con CoreComponent en módulo separado | when blocks no escalan |
 | **Koin** (1 koinApplication) | ✅ Automático | `get()` desde el mismo grafo | Resolución runtime |
 | **Dagger B** (per-feature) | ⚠️ Manual | CoreApis extendido | God Object a escala |
 | **Dagger C** (ServiceLoader) | ⚠️ Manual | ServiceResolver runtime | God Object + JVM only |
 
 **Conclusión práctica:** Si las features dependen unas de otras, un grafo único
-(Dagger A, Dagger D o Koin) resuelve todo automáticamente. Per-feature (B, C)
+(Dagger A, D, E, E2, F o Koin) resuelve todo automáticamente. Per-feature (B, C)
 funciona bien cuando las features son verdaderamente independientes.
+E2 es la evolución de E para escalar a 50+ módulos: auto-init on `get<T>()`, sin Feature enum.
+F = D en runtime con CoreComponent en módulo separado (multi-módulo viable, pero no escala).

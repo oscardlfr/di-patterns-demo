@@ -7,6 +7,9 @@ import com.grinwich.benchmark.daggera.*
 import com.grinwich.benchmark.daggerb.*
 import com.grinwich.benchmark.daggerc.*
 import com.grinwich.benchmark.daggerd.*
+import com.grinwich.benchmark.daggere.*
+import com.grinwich.benchmark.daggere2.*
+import com.grinwich.benchmark.daggerf.*
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.common.*
 import com.grinwich.sdk.impl.*
@@ -366,6 +369,311 @@ class DiBenchmark {
         val sync = g.sync.sync()  // resolve once outside loop
         benchmarkRule.measureRepeated {
             sync.sync()
+        }
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 5c. DAGGER E — Component Registry
+    //     Same component-dependency hierarchy as D, but services
+    //     resolved via explicit registry instead of hardcoded when.
+    //     Measures the overhead of ConcurrentHashMap-based registry
+    //     vs direct component method calls.
+    // ════════════════════════════════════════════════════════
+
+    private fun buildECore() = DaggerECoreComponent.builder()
+        .config(config).logger(noopLogger).build()
+
+    private fun buildDaggerERegistry(): BenchComponentRegistry {
+        val reg = BenchComponentRegistry()
+        reg.register(eCoreEntry(config, noopLogger))
+        reg.register(eEncEntry)
+        reg.register(eAuthEntry)
+        reg.register(eStorageEntry)
+        reg.register(eAnalyticsEntry)
+        reg.register(eSyncEntry)
+        return reg
+    }
+
+    @Test
+    fun initCold_daggerE_registry() = benchmarkRule.measureRepeated {
+        val reg = buildDaggerERegistry()
+        // Force service resolution (same as other approaches)
+        reg.get(EncryptionService::class.java)
+        reg.get(HashService::class.java)
+        reg.get(AuthService::class.java)
+        reg.get(SecureStorageService::class.java)
+        reg.get(AnalyticsService::class.java)
+        reg.get(SyncService::class.java)
+    }
+
+    @Test
+    fun resolveFirst_daggerE() {
+        val reg = BenchComponentRegistry()
+        reg.register(eCoreEntry(config, noopLogger))
+        reg.register(eEncEntry)
+        benchmarkRule.measureRepeated {
+            reg.get(EncryptionService::class.java)
+        }
+    }
+
+    @Test
+    fun lazyInit_noDeps_daggerE_analytics() {
+        // Base graph: core + encryption
+        val reg = BenchComponentRegistry()
+        reg.register(eCoreEntry(config, noopLogger))
+        reg.register(eEncEntry)
+        benchmarkRule.measureRepeated {
+            // Lazy add analytics via registry
+            val localReg = BenchComponentRegistry()
+            // Copy existing components
+            localReg.components.putAll(reg.components)
+            localReg.services.putAll(reg.services)
+            localReg.register(eAnalyticsEntry)
+            localReg.get(AnalyticsService::class.java)
+        }
+    }
+
+    @Test
+    fun lazyInit_cascade_daggerE_sync() {
+        // Base graph: core + encryption
+        val reg = BenchComponentRegistry()
+        reg.register(eCoreEntry(config, noopLogger))
+        reg.register(eEncEntry)
+        benchmarkRule.measureRepeated {
+            val localReg = BenchComponentRegistry()
+            localReg.components.putAll(reg.components)
+            localReg.services.putAll(reg.services)
+            // Cascade: Auth + Storage + Sync
+            localReg.register(eAuthEntry)
+            localReg.register(eStorageEntry)
+            localReg.register(eSyncEntry)
+            localReg.get(SyncService::class.java)
+        }
+    }
+
+    @Test
+    fun crossFeatureOp_daggerE_sync() {
+        val reg = buildDaggerERegistry()
+        reg.get(AuthService::class.java).login("bench", "pass")
+        val sync = reg.get(SyncService::class.java)
+        benchmarkRule.measureRepeated {
+            sync.sync()
+        }
+    }
+
+    @Test
+    fun resolveAll_daggerE_viaRegistry() {
+        // Full graph already built — measure registry lookup overhead for all 6 services
+        val reg = buildDaggerERegistry()
+        benchmarkRule.measureRepeated {
+            reg.get(EncryptionService::class.java)
+            reg.get(HashService::class.java)
+            reg.get(AuthService::class.java)
+            reg.get(SecureStorageService::class.java)
+            reg.get(AnalyticsService::class.java)
+            reg.get(SyncService::class.java)
+        }
+    }
+
+    @Test
+    fun resolveAll_daggerD_direct() {
+        // Same as above but via direct component method calls (D pattern) for comparison
+        val core = buildDaggerDCore()
+        val g = buildDaggerD(core)
+        benchmarkRule.measureRepeated {
+            g.enc.encryption()
+            g.enc.hash()
+            g.auth.auth()
+            g.storage.storage()
+            g.analytics.analytics()
+            g.sync.sync()
+        }
+    }
+
+    @Test
+    fun resolveCached_daggerE_singleService() {
+        // Full graph built, same service resolved repeatedly — measures raw ConcurrentHashMap.get
+        val reg = buildDaggerERegistry()
+        benchmarkRule.measureRepeated {
+            reg.get(EncryptionService::class.java)
+        }
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 5d. DAGGER F — Multi-Module Component Dependencies
+    //     Identical to D at runtime. CoreComponent from :sdk:di-core
+    //     (separate Gradle module). Proves zero overhead from module split.
+    //     Uses pure @BindsInstance CoreComponent (no @Module).
+    // ════════════════════════════════════════════════════════
+
+    private data class DaggerFFullGraph(
+        val core: FCoreComponent, val enc: FEncComponent, val auth: FAuthComponent,
+        val storage: FStorageComponent, val analytics: FAnalyticsComponent, val sync: FSyncComponent,
+    )
+
+    private fun buildDaggerFCore() = DaggerFCoreComponent.builder()
+        .config(config).logger(noopLogger).build()
+
+    private fun buildDaggerF(core: FCoreComponent): DaggerFFullGraph {
+        val enc = DaggerFEncComponent.builder().core(core).build()
+        val auth = DaggerFAuthComponent.builder().core(core).enc(enc).build()
+        val storage = DaggerFStorageComponent.builder().core(core).enc(enc).build()
+        val analytics = DaggerFAnalyticsComponent.builder().core(core).build()
+        val sync = DaggerFSyncComponent.builder().core(core).enc(enc).auth(auth).storage(storage).build()
+        return DaggerFFullGraph(core, enc, auth, storage, analytics, sync)
+    }
+
+    @Test
+    fun initCold_daggerF_modular() = benchmarkRule.measureRepeated {
+        val core = buildDaggerFCore()
+        val g = buildDaggerF(core)
+        g.enc.encryption(); g.auth.auth(); g.storage.storage(); g.analytics.analytics(); g.sync.sync()
+    }
+
+    @Test
+    fun resolveFirst_daggerF() {
+        val core = buildDaggerFCore()
+        val enc = DaggerFEncComponent.builder().core(core).build()
+        benchmarkRule.measureRepeated {
+            enc.encryption()
+        }
+    }
+
+    @Test
+    fun lazyInit_noDeps_daggerF_analytics() {
+        val core = buildDaggerFCore()
+        DaggerFEncComponent.builder().core(core).build()
+        benchmarkRule.measureRepeated {
+            val comp = DaggerFAnalyticsComponent.builder().core(core).build()
+            comp.analytics()
+        }
+    }
+
+    @Test
+    fun lazyInit_cascade_daggerF_sync() {
+        val core = buildDaggerFCore()
+        val enc = DaggerFEncComponent.builder().core(core).build()
+        benchmarkRule.measureRepeated {
+            val auth = DaggerFAuthComponent.builder().core(core).enc(enc).build()
+            val storage = DaggerFStorageComponent.builder().core(core).enc(enc).build()
+            val sync = DaggerFSyncComponent.builder().core(core).enc(enc).auth(auth).storage(storage).build()
+            sync.sync()
+        }
+    }
+
+    @Test
+    fun crossFeatureOp_daggerF_sync() {
+        val core = buildDaggerFCore()
+        val g = buildDaggerF(core)
+        g.auth.auth().login("bench", "pass")
+        val sync = g.sync.sync()  // resolve once outside loop
+        benchmarkRule.measureRepeated {
+            sync.sync()
+        }
+    }
+
+    @Test
+    fun resolveAll_daggerF_direct() {
+        val core = buildDaggerFCore()
+        val g = buildDaggerF(core)
+        benchmarkRule.measureRepeated {
+            g.enc.encryption()
+            g.enc.hash()
+            g.auth.auth()
+            g.storage.storage()
+            g.analytics.analytics()
+            g.sync.sync()
+        }
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 5e. DAGGER E2 — Auto-Init Registry
+    //     Evolution of E: entries installed lazily, built on demand.
+    //     get<T>() auto-discovers and builds the component chain.
+    //     No Feature enum, no topo-sort at init — DFS on demand.
+    // ════════════════════════════════════════════════════════
+
+    private fun buildE2FullRegistry(): BenchAutoRegistry {
+        val reg = BenchAutoRegistry()
+        reg.installAll(allE2Entries(config, noopLogger))
+        return reg
+    }
+
+    @Test
+    fun initCold_daggerE2_autoRegistry() = benchmarkRule.measureRepeated {
+        // Install all entries (cheap catalog) + force all service builds via get
+        val reg = buildE2FullRegistry()
+        reg.get(EncryptionService::class.java)
+        reg.get(HashService::class.java)
+        reg.get(AuthService::class.java)
+        reg.get(SecureStorageService::class.java)
+        reg.get(AnalyticsService::class.java)
+        reg.get(SyncService::class.java)
+    }
+
+    @Test
+    fun resolveFirst_daggerE2() {
+        // Registry installed, nothing built yet — first get triggers build
+        val reg = BenchAutoRegistry()
+        reg.installAll(allE2Entries(config, noopLogger))
+        benchmarkRule.measureRepeated {
+            reg.get(EncryptionService::class.java)
+        }
+    }
+
+    @Test
+    fun lazyInit_noDeps_daggerE2_analytics() {
+        // Core + Encryption already built, Analytics not yet
+        val reg = BenchAutoRegistry()
+        reg.installAll(allE2Entries(config, noopLogger))
+        reg.get(EncryptionService::class.java) // builds Core + Enc
+        benchmarkRule.measureRepeated {
+            val localReg = BenchAutoRegistry()
+            localReg.installAll(allE2Entries(config, noopLogger))
+            // Copy built components to simulate "running graph"
+            localReg.components.putAll(reg.components)
+            localReg.services.putAll(reg.services)
+            // Auto-build analytics on demand
+            localReg.get(AnalyticsService::class.java)
+        }
+    }
+
+    @Test
+    fun lazyInit_cascade_daggerE2_sync() {
+        // Core + Encryption already built, Sync triggers Auth + Storage cascade
+        val reg = BenchAutoRegistry()
+        reg.installAll(allE2Entries(config, noopLogger))
+        reg.get(EncryptionService::class.java) // builds Core + Enc
+        benchmarkRule.measureRepeated {
+            val localReg = BenchAutoRegistry()
+            localReg.installAll(allE2Entries(config, noopLogger))
+            localReg.components.putAll(reg.components)
+            localReg.services.putAll(reg.services)
+            // Auto-cascade: Sync → Auth + Storage (Enc already built)
+            localReg.get(SyncService::class.java)
+        }
+    }
+
+    @Test
+    fun crossFeatureOp_daggerE2_sync() {
+        val reg = buildE2FullRegistry()
+        reg.get(AuthService::class.java).login("bench", "pass")
+        val sync = reg.get(SyncService::class.java)
+        benchmarkRule.measureRepeated {
+            sync.sync()
+        }
+    }
+
+    @Test
+    fun resolveAll_daggerE2_viaAutoRegistry() {
+        val reg = buildE2FullRegistry()
+        benchmarkRule.measureRepeated {
+            reg.get(EncryptionService::class.java)
+            reg.get(HashService::class.java)
+            reg.get(AuthService::class.java)
+            reg.get(SecureStorageService::class.java)
+            reg.get(AnalyticsService::class.java)
+            reg.get(SyncService::class.java)
         }
     }
 

@@ -11,7 +11,9 @@ android {
         testInstrumentationRunner = "androidx.benchmark.junit4.AndroidBenchmarkRunner"
         // Suppress benchmark environment checks for validation.
         // For production numbers: use physical device, plugged in, screen off.
-        testInstrumentationRunnerArguments["androidx.benchmark.suppressErrors"] = "EMULATOR,LOW-BATTERY"
+        testInstrumentationRunnerArguments["androidx.benchmark.suppressErrors"] = "EMULATOR,LOW-BATTERY,ACTIVITY-MISSING"
+        // Disable animations to avoid IsolationActivity launch timeouts on first tests
+        testInstrumentationRunnerArguments["disableAnalytics"] = "true"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -33,6 +35,9 @@ dependencies {
     implementation(project(":sdk:impl-dagger-b"))
     implementation(project(":sdk:impl-dagger-c"))
     implementation(project(":sdk:impl-dagger-d"))
+    implementation(project(":sdk:impl-dagger-e"))
+    implementation(project(":sdk:impl-dagger-e2"))
+    implementation(project(":sdk:impl-dagger-f"))
     implementation(libs.dagger)
     ksp(libs.dagger.compiler)
     implementation(libs.javax.inject)

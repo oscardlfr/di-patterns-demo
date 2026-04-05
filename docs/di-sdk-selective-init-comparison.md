@@ -12,17 +12,20 @@ Para el approach hybrid, ver [di-hybrid-koin-sdk-dagger-app.md](di-hybrid-koin-s
 
 ## Lado a Lado
 
-| Criterio | Koin | Dagger B | Dagger C | Dagger D | |
-|----------|------|----------|----------|----------|---|
-| **Paradigma DI** | Service Locator | DI puro | DI puro | DI puro | |
-| **Aislamiento máximo** | Nivel 2 | Nivel 1 | Nivel 1 | Nivel 1 | 🟢 Koin |
-| **Cross-feature** | ✅ | ❌ | ❌ | ✅ | 🔴 B, C |
-| **Binario lean** | ✅ | ✅ | ✅ | ❌ | 🔴 D |
-| **Compile-time** | ❌ | ⚠️ | ⚠️ | ✅ | 🟢 D · 🔴 Koin |
-| **KMP** | ✅ | ❌ | ❌ | ❌ | 🟢 Koin |
-| **Auto-discovery** | ✅ | ❌ | ✅ | ❌ | |
-| **Velocidad build** | ✅ | ❌ KSP | ❌ KSP | ❌ KSP | 🟢 Koin |
-| **Singletons** | koinApplication | CoreApis ⚠️ | CoreApis ⚠️ | Provision methods | 🔴 B, C |
+| Criterio | Koin | Dagger B | Dagger C | Dagger D | Dagger E | Dagger E2 | Dagger F | |
+|----------|------|----------|----------|----------|----------|-----------|----------|----|
+| **Paradigma DI** | Service Locator | DI puro | DI puro | DI puro | DI + Registry | DI + AutoRegistry | DI puro | |
+| **Aislamiento máximo** | Nivel 2 | Nivel 1 | Nivel 1 | Nivel 1 | Nivel 1 | Nivel 1 | Nivel 1 | 🟢 Koin |
+| **Cross-feature** | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | 🔴 B, C |
+| **Binario lean** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ⚠️ | 🔴 D, E, E2 |
+| **Compile-time** | ❌ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ | ✅ | 🟢 D-F · 🔴 Koin |
+| **KMP** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | 🟢 Koin |
+| **Auto-discovery** | ✅ | ❌ | ✅ | ❌ | ⚠️ topo-sort | ✅ DFS on-demand | ❌ | |
+| **Multi-módulo** | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | 🔴 D |
+| **Escala 50+** | ✅ | ❌ | ⚠️ | ❌ | ❌ | **✅** | ❌ | 🟢 Koin, E2 |
+| **Feature enum** | N/A | Expuesto | N/A | Expuesto | Expuesto | **Oculto** | Expuesto | 🟢 E2 |
+| **Build speed** | ✅ | ❌ KSP | ❌ KSP | ❌ KSP | ❌ KSP | ❌ KSP | ❌ KSP | 🟢 Koin |
+| **Singletons** | koinApp | CoreApis ⚠️ | CoreApis ⚠️ | Provision | Registry | AutoRegistry | Provision | 🔴 B, C |
 
 ---
 
@@ -35,6 +38,8 @@ val service = SecurityServiceImpl(network)
 
 // ✅ Depende de interfaz — todos los SDKs de este proyecto
 val service = DaggerSdk.get<SecurityService>()     // Dagger D
+val service = RegistrySdk.get<SecurityService>()   // Dagger E
+val service = AutoSdk.get<SecurityService>()       // Dagger E2
 val service = DaggerBSdk.get<SecurityService>()    // Dagger B
 val service = DaggerCSdk.get<SecurityService>()    // Dagger C
 val service = KoinSdk.get<SecurityService>()       // Koin

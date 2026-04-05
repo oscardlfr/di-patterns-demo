@@ -7,6 +7,7 @@ Para implementaciones Dagger, ver [dagger2-sdk-selective-init.md](dagger2-sdk-se
 Para comparación de frameworks, ver [di-sdk-selective-init-comparison.md](di-sdk-selective-init-comparison.md).
 Para dependencias cruzadas, ver [di-cross-feature-deps.md](di-cross-feature-deps.md).
 Para el approach hybrid, ver [di-hybrid-koin-sdk-dagger-app.md](di-hybrid-koin-sdk-dagger-app.md).
+Para análisis multi-módulo api/impl/integration, ver [di-multimodule-api-impl-analysis.md](di-multimodule-api-impl-analysis.md).
 
 ---
 
@@ -122,6 +123,9 @@ El consumidor nunca importa ningún módulo impl en código. Solo la dependencia
 | **Dagger Per-Feature (B)** | 1 | Facade por feature, consumidor importa facade |
 | **Dagger + ServiceLoader (C)** | 1-2 | ServiceLoader descubre, pero limitado a JVM |
 | **Dagger Component Deps (D)** | 1 | Facade con internal Components |
+| **Dagger Component Registry (E)** | 1 | Facade con Feature enum. Entries, registry y Components son internal |
+| **Dagger Auto-Init Registry (E2)** | 1 | Facade sin Feature enum. API mínima: init() + get<T>(). Auto-build on demand |
+| **Dagger Multi-Module Deps (F)** | 1 | = D con CoreComponent en módulo Gradle separado |
 | **Koin** | 2 | Descubrimiento runtime vía Class.forName / @EagerInit |
 | **kotlin-inject** | 1 | Consumidor compone components explícitamente |
 
@@ -139,6 +143,7 @@ Resumen:
 - **Grafo único (A / Koin):** Automático — declara dependencias, el framework resuelve.
 - **Per-feature (B / C):** Manual — a través de CoreApis (God Object a escala) o init ordenado.
 - **Component Dependencies (D):** Automático — `dependencies=[ParentComponent]`.
+- **Component Registry (E):** Automático — `dependencies=[...]` + registry topo-sort.
 
 ---
 
