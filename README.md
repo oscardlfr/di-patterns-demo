@@ -1,13 +1,14 @@
 # DI Patterns Demo
 
-Proyecto de demostracion que implementa 8 approaches de inyeccion de dependencias
+Proyecto de demostracion que implementa 7 approaches de inyeccion de dependencias
 para SDKs modulares Android. Incluye benchmarks con Jetpack Benchmark en dispositivo real
 (Samsung Galaxy S22 Ultra, Android 16) y documentacion analitica neutral en espanol.
 
 ## Estructura
 
 ```
-observability-api/        -> SdkLogger + AndroidSdkLogger (zero deps)
+observability-api/              -> SdkLogger (interface)
+feature-observability-impl/     -> AndroidSdkLogger (impl)
 
 feature-core-api/         -> SdkConfig
 feature-enc-api/          -> EncryptionApi, HashApi
@@ -37,8 +38,6 @@ sdk/
   impl-dagger-d/          -> DaggerSdk (Component Dependencies - cross-deps automaticas)
   impl-dagger-e/          -> RegistrySdk (Component Registry - explicit bindings, auto topo-sort)
   impl-dagger-e2/         -> AutoSdk (Auto-Init Registry - evolucion de E, sin Feature enum)
-  di-core/                -> CoreComponent compartido (F educativo)
-  impl-dagger-f/          -> ModularSdk (F educativo: @Component sharing directo vs provision interfaces)
 
 sample-dagger-a/    -> Educativo: @Component monolitico
 sample-dagger-b/    -> Consumidor de DaggerBSdk
@@ -46,11 +45,10 @@ sample-dagger-c/    -> Consumidor de DaggerCSdk
 sample-dagger-d/    -> Consumidor de DaggerSdk (D)
 sample-dagger-e/    -> Consumidor de RegistrySdk (E)
 sample-dagger-e2/   -> Consumidor de AutoSdk (E2)
-sample-dagger-f/    -> Consumidor de ModularSdk (F)
 sample-hybrid/      -> KoinSdk + puente Dagger 2
 sample-multimodule/ -> Consumidor de MultiModuleSdk (provision interfaces)
 
-benchmark/          -> 70 Jetpack Microbenchmarks (50 monoliticos + 20 multi-modulo)
+benchmark/          -> 64 Jetpack Microbenchmarks (44 monoliticos + 20 multi-modulo)
 
 docs/               -> 8 documentos tecnicos (espanol)
 ```
@@ -68,10 +66,11 @@ modulo api con las interfaces publicas:
 :feature-syn-api   -> SyncApi, SyncResult
 ```
 
-`:observability-api` es un modulo separado con `SdkLogger` + `AndroidSdkLogger` (zero deps).
+`:observability-api` es un modulo separado con `SdkLogger` (interface).
+`:feature-observability-impl` contiene `AndroidSdkLogger` (impl).
 `:feature-core-api` contiene solo `SdkConfig` (zero deps).
 `:sdk:api` es un umbrella que re-exporta todas las feature-apis + observability-api, asi que
-los patrones monoliticos (B-F, Koin) siguen dependiendo de `:sdk:api` sin cambios.
+los patrones monoliticos (B-E2, Koin) siguen dependiendo de `:sdk:api` sin cambios.
 Los feature-impl contienen sus propias `Default*Service` internamente (sin dependencia de impl-common).
 `impl-common` solo se usa en los patrones monoliticos.
 
@@ -167,7 +166,7 @@ Resultados en `benchmark/build/outputs/connected_android_test_additional_output/
 |-----------|-----------|
 | [Analisis de arquitecturas DI](docs/analisis-arquitecturas-di.md) | Requisitos, cumplimiento, benchmarks S22 Ultra, matriz de decision |
 | [Analisis de complejidad y mantenimiento](docs/analisis-complejidad-mantenimiento.md) | Coste por feature, metricas, equipo interno vs consumidores |
-| [Dagger 2: approaches A-F](docs/dagger2-sdk-selective-init.md) | Monolitico, Per-Feature, ServiceLoader, Component Dependencies, Registry, Auto-Init, Multi-Module |
+| [Dagger 2: approaches A-E2](docs/dagger2-sdk-selective-init.md) | Monolitico, Per-Feature, ServiceLoader, Component Dependencies, Registry, Auto-Init, Multi-Module |
 | [Conceptos DI](docs/di-sdk-consumer-isolation.md) | DI vs Service Locator, niveles de aislamiento, singleton survival |
 | [Dependencias cruzadas](docs/di-cross-feature-deps.md) | Como resuelve cada approach las cross-deps con ejemplos |
 | [Hybrid: Koin SDK + Dagger 2 app](docs/di-hybrid-koin-sdk-dagger-app.md) | Bridge pattern, puente unidireccional, features lazy |

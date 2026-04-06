@@ -6,7 +6,7 @@ Análisis orientado a dos audiencias:
 
 Basado en métricas reales del proyecto `di-patterns-demo` con 5 features
 (Encryption, Auth, Storage, Analytics, Sync) y dependencias cruzadas entre ellas.
-Incluye 8 approaches monolíticos (Dagger A, B, C, D, E, E2, F y Koin) más 4 variantes
+Incluye 7 approaches monolíticos (Dagger A, B, C, D, E, E2 y Koin) más 4 variantes
 multi-módulo con provision interfaces (sdk-wiring, wiring-e, wiring-e2, wiring-g).
 
 ---
@@ -15,21 +15,20 @@ multi-módulo con provision interfaces (sdk-wiring, wiring-e, wiring-e2, wiring-
 
 ### Métricas de complejidad por approach
 
-| Métrica | Dagger B | Dagger C | Dagger D | Dagger E | Dagger E2 | Dagger F | Koin | |
-|---------|----------|----------|----------|----------|-----------|----------|------|---|
-| **Ficheros Kotlin** | 2 | 2 | 2 | 3 | 3 | 2+1 | 1 | 🟢 Koin |
-| **Líneas de código** | 244 | 276 | 251 | 344 | ~320 | ~260 | 274 | 🟢 B · 🔴 E |
-| **Anotaciones DI** | 25 | 25 | 33 | 33 | 33 | 33 | 0 | 🟢 Koin |
-| **Ficheros Java generados (KSP)** | 22 | 22 | 28 | 28 | 28 | 28+1 | 0 | 🟢 Koin |
-| **Scopes personalizados** | 4 | 5 | 5 | 5 | 5 | 5 | 0 | 🟢 Koin |
-| **Interfaces CoreApis extendidas** | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 🔴 B (4) |
-| **META-INF/services** | 0 | 1 | 0 | 0 | 0 | 0 | 0 | |
-| **Clases infra propias** | 0 | 0 | 0 | 3 | 3 | 0 | 0 | 🔴 E/E2 |
-| **Feature selector** | enum | string | enum | enum | **ninguno** | enum | sealed | 🟢 E2 |
-| **Escala a 50+ módulos** | ❌ | ⚠️ | ❌ | ❌ | **✅** | ❌ | ✅ | 🟢 E2, Koin |
+| Métrica | Dagger B | Dagger C | Dagger D | Dagger E | Dagger E2 | Koin | |
+|---------|----------|----------|----------|----------|-----------|------|---|
+| **Ficheros Kotlin** | 2 | 2 | 2 | 3 | 3 | 1 | 🟢 Koin |
+| **Líneas de código** | 244 | 276 | 251 | 344 | ~320 | 274 | 🟢 B · 🔴 E |
+| **Anotaciones DI** | 25 | 25 | 33 | 33 | 33 | 0 | 🟢 Koin |
+| **Ficheros Java generados (KSP)** | 22 | 22 | 28 | 28 | 28 | 0 | 🟢 Koin |
+| **Scopes personalizados** | 4 | 5 | 5 | 5 | 5 | 0 | 🟢 Koin |
+| **Interfaces CoreApis extendidas** | 4 | 0 | 0 | 0 | 0 | 0 | 🔴 B (4) |
+| **META-INF/services** | 0 | 1 | 0 | 0 | 0 | 0 | |
+| **Clases infra propias** | 0 | 0 | 0 | 3 | 3 | 0 | 🔴 E/E2 |
+| **Feature selector** | enum | string | enum | enum | **ninguno** | sealed | 🟢 E2 |
+| **Escala a 50+ módulos** | ❌ | ⚠️ | ❌ | ❌ | **✅** | ✅ | 🟢 E2, Koin |
 
 **Lectura:** E2 tiene complejidad similar a E (~320 líneas) pero elimina el Feature enum.
-F añade un módulo Gradle extra (`:sdk:di-core`) pero el código es idéntico a D.
 E2 es el único approach Dagger que escala a 50+ módulos sin tocar el facade.
 Koin sigue siendo el más ligero en complejidad estructural (0 anotaciones, 0 codegen).
 
@@ -133,7 +132,6 @@ En un SDK real con 15 módulos, el fichero tiene ~180 líneas. Manejable.
 | **Dagger E** | 5 | 3 | +1 Component, +1 FeatureEntry | `Feature` enum crece | |
 | **Dagger E2** | **3** | **2** | +1 Component, +1 AutoFeatureEntry | **Ninguno** | 🟢 mejor Dagger |
 | **Dagger D** | 4 | 3 | +1 Component | `when` block crece | |
-| **Dagger F** | 4 | 3 | +1 Component | `when` block crece (= D) | |
 | **Koin** | 4 | 3 | 0 | Errores runtime | 🟢 menos coste |
 
 ### Depuración: ¿qué pasa cuando algo falla?
@@ -306,10 +304,9 @@ en el consumidor es:
 
 | Cambio | Impacto en consumidor |
 |--------|----------------------|
-| Koin → Dagger D/E/E2/F | Cambiar dependencia Gradle. API idéntica (E2 aún más simple). |
+| Koin → Dagger D/E/E2 | Cambiar dependencia Gradle. API idéntica (E2 aún más simple). |
 | Dagger B → Dagger D/E/E2 | Cambiar dependencia Gradle. API idéntica. |
 | Dagger D → Dagger E/E2 | Cambiar dependencia Gradle. API idéntica. |
-| Dagger D → Dagger F | Cambiar dependencia Gradle. Misma API. CoreComponent en módulo separado. |
 | Dagger E → Dagger E2 | Cambiar dependencia. Consumidor elimina Feature enum — API más simple. |
 | Koin → Hybrid | Consumidor debe crear bridge Component |
 | Cualquier Dagger → Koin | Cambiar dependencia Gradle. API idéntica. |
@@ -350,13 +347,13 @@ La complejidad de mantenimiento depende del tamaño del SDK y la frecuencia de c
 
 | Escenario | Menor complejidad |
 |-----------|------------------|
-| SDK pequeño (≤5 features), equipo Dagger | Dagger D o F |
+| SDK pequeño (≤5 features), equipo Dagger | Dagger D |
 | SDK grande (20+ features), adiciones frecuentes | Koin o **Dagger E2** |
 | SDK escalable a 50+ módulos | **Dagger E2** o Koin |
 | Features con muchas dependencias cruzadas | Dagger D, E, E2 o Koin |
 | Equipo sin experiencia Dagger | Koin |
 | Compile-time safety prioritaria | Dagger D, E o E2 |
-| Multi-módulo Gradle corporativo (api/impl) | Dagger E, E2 o F |
+| Multi-módulo Gradle corporativo (api/impl) | Dagger E o E2 |
 | API mínima para consumidor | **Dagger E2** (sin Feature enum) |
 
 ### Para los equipos consumidores
@@ -392,6 +389,6 @@ El coste de wiring es puramente código de integración — no afecta a los feat
 ni a los contratos. Añadir una feature nueva en E2 multi-módulo requiere crear el
 feature-impl, su contrato, y añadir **una línea** al fichero de entries.
 
-70 benchmarks totales (50 monolíticos + 20 multi-módulo) confirman que la separación
+64 benchmarks totales (44 monolíticos + 20 multi-módulo) confirman que la separación
 en módulos Gradle no introduce overhead en runtime. Para el análisis detallado, ver
 [di-multimodule-api-impl-analysis.md](di-multimodule-api-impl-analysis.md).

@@ -1,6 +1,6 @@
 # Dagger 2: Inicialización Modular de SDKs
 
-Siete approaches para construir un SDK Android donde los consumidores seleccionan
+Seis approaches para construir un SDK Android donde los consumidores seleccionan
 qué features activar. Cada uno usa Dagger 2 para DI en compilación pero difiere
 en cómo se organizan, descubren e inicializan las features.
 
@@ -467,7 +467,7 @@ Añadir un módulo nuevo en E:
 3. Añadir `requiredDependencies` al `when` block
 
 Con 50+ módulos, E2 escala linealmente sin tocar el facade. E requiere editar
-el enum y el when block (misma limitación que D/F).
+el enum y el when block (misma limitación que D).
 
 ### Por qué elegir E2
 
@@ -488,88 +488,21 @@ el enum y el when block (misma limitación que D/F).
 
 ---
 
-## Approach F: Multi-Module Component Dependencies
-
-```
-:sdk:di-core/              :sdk:impl-dagger-f/
-┌────────────────┐         ┌──────────────────────────────┐
-│ CoreComponent  │◄────────│ EncComponent                 │
-│  logger()      │         │ AuthComponent                │
-│  config()      │         │ StorComponent                │
-│  @BindsInstance│         │ AnaComponent                 │
-└────────────────┘         │ SyncComponent                │
-                           │                              │
-                           │ ModularSdk (facade + when)   │
-                           └──────────────────────────────┘
-```
-
-Pattern D aplicado a multi-módulo Gradle real. `CoreComponent` vive en un módulo
-separado (`:sdk:di-core`) para romper la dependencia circular: si el facade importa
-CoreComponent y las features dependen del facade → ciclo.
-
-**Código real del proyecto** — ver `sdk/di-core/` y `sdk/impl-dagger-f/`:
-
-```kotlin
-// :sdk:di-core — CoreComponent con pure @BindsInstance (sin @Module)
-@Singleton @Component
-interface CoreComponent {
-    fun logger(): SdkLogger
-    fun config(): SdkConfig
-    @Component.Builder interface Builder {
-        @dagger.BindsInstance fun config(config: SdkConfig): Builder
-        @dagger.BindsInstance fun logger(logger: SdkLogger): Builder
-        fun build(): CoreComponent
-    }
-}
-
-// :sdk:impl-dagger-f — feature components con dependencies=[CoreComponent]
-@EncScope @Component(dependencies = [CoreComponent::class], modules = [EncModule::class])
-internal interface EncComponent { ... }
-```
-
-### F = D en runtime
-
-Los benchmarks lo confirman: F y D tienen rendimiento idéntico (±2%).
-La separación en módulos Gradle es invisible en runtime — Dagger genera
-el mismo código sin importar cómo estén organizados los módulos.
-
-### Por qué elegir F
-
-- **Multi-módulo Gradle real.** CoreComponent compartido entre N módulos feature sin ciclos.
-- **Zero overhead.** Idéntico a D en runtime (benchmarks lo prueban).
-- **Publicación independiente.** CoreComponent es un artefacto Maven reutilizable.
-
-### Por qué NO elegir F
-
-- **No escala.** Mismo `when` block que D — crece linealmente con features.
-  Con 50+ módulos, el facade se vuelve inmanejable.
-- **`Feature` enum expuesto.** El consumidor ve y selecciona features — API más compleja que E2.
-- **No evoluciona.** Para escalar hay que migrar a E o E2 (registry).
-
-### Evolución: F no puede evolucionar
-
-F es estructuralmente D con CoreComponent separado. Su esencia son los `when` blocks
-y variables per-component. Eliminar esos `when` blocks = eliminar F y convertirlo en E/E2.
-F es un approach de transición para equipos que necesitan multi-módulo con Dagger
-pero aún no requieren la escala que demanda un registry.
-
----
-
 ## Comparación
 
-|  | A | B | C | D | E | E2 | F |
-|---|---|---|---|---|---|---|---|
-| **Arquitectura** | 1 Component global | N Components + CoreApis | N Components + ServiceLoader | N Components `dependencies=[]` | N Components + Registry + topo-sort | N Components + AutoRegistry + DFS | D en multi-módulo Gradle |
-| **Cross-feature** | ✅ Auto | ❌ CoreApis | ❌ CoreApis | ✅ Auto | ✅ Auto | ✅ Auto | ✅ Auto |
-| **Singletons** | ✅ @Singleton | ⚠️ Manual | ⚠️ Manual | ✅ Provision | ✅ Registry | ✅ Registry | ✅ Provision |
-| **Binario lean** | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ⚠️ Core separado |
-| **Lazy init** | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ On-demand | ✅ |
-| **Añadir feature** | Editar @Component | +CoreApis +when | +META-INF | +deps +when | +Entry +enum | **+Entry (1 línea)** | +deps +when |
-| **Compile-time** | ✅ Completo | ⚠️ Per-feature | ⚠️ Runtime | ✅ Con deps | ✅ Explicit | ✅ Explicit | ✅ Con deps |
-| **Multi-módulo** | ❌ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ |
-| **Feature enum** | N/A | ✅ Expuesto | N/A | ✅ Expuesto | ✅ Expuesto | **❌ Oculto** | ✅ Expuesto |
-| **Escala 50+** | ❌ | ❌ God Object | ⚠️ Cross-deps | ❌ when blocks | ❌ enum+when | **✅** | ❌ when blocks |
-| **Complejidad** | Baja | Media | Alta | Media | Media-Alta | Media-Alta | Media |
+|  | A | B | C | D | E | E2 |
+|---|---|---|---|---|---|---|
+| **Arquitectura** | 1 Component global | N Components + CoreApis | N Components + ServiceLoader | N Components `dependencies=[]` | N Components + Registry + topo-sort | N Components + AutoRegistry + DFS |
+| **Cross-feature** | ✅ Auto | ❌ CoreApis | ❌ CoreApis | ✅ Auto | ✅ Auto | ✅ Auto |
+| **Singletons** | ✅ @Singleton | ⚠️ Manual | ⚠️ Manual | ✅ Provision | ✅ Registry | ✅ Registry |
+| **Binario lean** | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **Lazy init** | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ On-demand |
+| **Añadir feature** | Editar @Component | +CoreApis +when | +META-INF | +deps +when | +Entry +enum | **+Entry (1 línea)** |
+| **Compile-time** | ✅ Completo | ⚠️ Per-feature | ⚠️ Runtime | ✅ Con deps | ✅ Explicit | ✅ Explicit |
+| **Multi-módulo** | ❌ | ✅ | ✅ | ❌ | ✅ | ✅ |
+| **Feature enum** | N/A | ✅ Expuesto | N/A | ✅ Expuesto | ✅ Expuesto | **❌ Oculto** |
+| **Escala 50+** | ❌ | ❌ God Object | ⚠️ Cross-deps | ❌ when blocks | ❌ enum+when | **✅** |
+| **Complejidad** | Baja | Media | Alta | Media | Media-Alta | Media-Alta |
 
 ### Cuándo usar
 
@@ -581,7 +514,6 @@ pero aún no requieren la escala que demanda un registry.
 | Cross-deps complejas + compile-time safety | **D**, **E**, o **E2** |
 | Multi-módulo Gradle corporativo (api/impl por feature) | **E** o **E2** |
 | API mínima para consumidor (sin Feature enum) | **E2** |
-| Multi-módulo pero <15 features (transición) | **F** |
 | SDK escalable a 50+ módulos | **E2** o Koin |
 | Consumidor necesita excluir features explícitamente | **E** (Feature enum) |
 | KMP necesario | Ninguno — ver Koin en [comparación](di-sdk-selective-init-comparison.md) |
@@ -609,12 +541,6 @@ Las cuatro variantes comparten los **mismos** módulos de feature-impl (`feature
 Cada feature-impl depende de contratos específicos (e.g. `feature-auth-impl` depende de
 `feature-enc-contracts` para obtener `EncProvisions`), NO de otros feature-impl. Esto
 garantiza que las implementaciones nunca ven los `@Component` de otras features.
-
-**F es educativo:** Comparte `@Component` interfaces directamente entre módulos Gradle
-(e.g. `EncComponent` como tipo en `dependencies=[...]`). Este acoplamiento a nivel de
-Component es el anti-patrón que motiva las provision interfaces — en F, cambiar la
-firma de `EncComponent` rompe todos los módulos que lo importan. Las provision interfaces
-(`EncProvisions`) aíslan ese cambio.
 
 **G vs D:** Ambos usan el mismo patrón lazy `ensure*()`. La diferencia es que en G,
 los `DaggerXxxComponent` quedan `internal` dentro de cada feature-impl y el wiring

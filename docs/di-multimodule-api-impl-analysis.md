@@ -4,7 +4,8 @@ Análisis de compatibilidad de cada approach DI con una arquitectura multi-módu
 donde las features se organizan en módulos `api`, `impl` e `integration`.
 
 **Ejemplo realista implementado** en este proyecto:
-- `observability-api/` — SdkLogger + AndroidSdkLogger (zero deps)
+- `observability-api/` — SdkLogger (interface)
+- `feature-observability-impl/` — AndroidSdkLogger (impl)
 - `feature-core-api/` — SdkConfig (zero deps)
 - `feature-*-api/` — interfaces públicas per-feature (módulos top-level)
 - `sdk/di-contracts/` — Provisions + Scopes + RegistryInfra
@@ -22,7 +23,8 @@ Para el approach hybrid, ver [di-hybrid-koin-sdk-dagger-app.md](di-hybrid-koin-s
 ## La Arquitectura
 
 ```
-observability-api/           → SdkLogger + AndroidSdkLogger (zero deps)
+observability-api/              → SdkLogger (interface)
+feature-observability-impl/     → AndroidSdkLogger (impl)
 
 feature-core-api/            → SdkConfig
 feature-enc-api/             → EncryptionApi, HashApi
@@ -294,7 +296,7 @@ sdk/sdk-wiring/
 ```
 
 **Lo que cambia vs el demo del proyecto:**
-- En el demo, `CoreComponent` es un `@Component` en `sdk/di-core` y las features lo importan directamente.
+- En el demo, los patrones monolíticos (`impl-dagger-d`, etc.) importan Components directamente.
   Esto funciona porque el demo es educativo y todo vive en pocos módulos.
 - En una arquitectura real api/impl/integration, las features importan **provision interfaces**
   (`CoreProvisions`, `EncProvisions`), no `@Component` classes. Los Components quedan `internal`.
@@ -595,61 +597,6 @@ de escalabilidad que D.
 
 ---
 
-### Dagger F — Multi-Module Component Dependencies
-
-**Compatibilidad: ALTA (es D con organización Gradle correcta)**
-
-F = D en runtime (benchmarks lo prueban: 0% overhead). Usa las mismas
-provision interfaces per-feature (`feature-*-contracts/`). La diferencia con D es que el
-demo del proyecto pone `CoreComponent` en un módulo Gradle separado (`sdk/di-core`);
-en la arquitectura real, los contratos per-feature contienen las provision interfaces
-y cada feature-impl las implementa — idéntico a D.
-
-**Anti-pattern educativo:** F comparte `@Component` directamente entre módulos en vez de
-usar provision interfaces como contrato. Esto funciona en el demo pero en producción
-acoplaría los feature-impl a tipos Dagger de otros módulos.
-
-```
-feature-*-contracts/               ← provision interfaces + scopes per-feature (= D)
-  interface CoreProvisions { ... }     (en feature-core-contracts)
-  interface EncProvisions { ... }      (en feature-enc-contracts)
-
-feature-core-impl/
-  @Component interface CoreComponent : CoreProvisions { ... }
-
-feature-enc-impl/
-  @Component(dependencies = [CoreProvisions::class])   ← contrato, no impl
-  internal interface EncComponent : EncProvisions { ... }
-
-sdk-wiring/
-  // Idéntico a D — construye en orden, facade con when blocks
-```
-
-**Nota sobre el demo vs la arquitectura real:**
-
-En el demo (`sdk/di-core`), `CoreComponent` es un `@Component` público que los
-features importan directamente. Esto funciona porque el demo no tiene separación
-api/impl real. En la arquitectura api/impl/integration, los features importarían
-`CoreProvisions` (provision interface en `di-contracts`), no el `@Component`.
-
-| Requisito | Cumple | Nota |
-|-----------|--------|------|
-| R1 Compilación aislada | ✅ | Provision interfaces en módulo compartido, features compilan solo |
-| R2 App no importa impl | ✅ | App ve solo facade |
-| R3 Features solo ven apis | ✅ | **Provision interfaces, no Components** |
-| R4 Cross-feature | ✅ | `dependencies=[EncProvisions]` de Dagger |
-| R5 Lean binary | ✅ | Solo `:impl` incluidos |
-| R6 Escalabilidad | ❌ | **`when` blocks en facade no escalan** |
-| R7 Compile-time safety | ✅ | Compile-time completo |
-| R8 Módulo wiring | ✅ | `sdk-wiring` |
-
-**Pro:** Es D con la organización Gradle correcta. Zero overhead runtime. Compile-time safety completo. Cross-deps automáticas.
-**Contra:** `when` blocks en el facade crecen linealmente. A 50+ features, el facade es un mantenimiento pesado. Requiere módulos `feature-*-contracts` (o umbrella `di-contracts`). Como anti-pattern educativo, F comparte `@Component` directamente en vez de provision interfaces.
-
-**Indicado para:** SDKs medianos (10–30 features) donde compile-time safety y zero overhead runtime son la prioridad absoluta.
-
----
-
 ### Koin — Service Locator
 
 **Compatibilidad: MUY ALTA (diseñado para este patrón)**
@@ -751,7 +698,6 @@ y un `@Component` bridge conecta servicios del SDK al grafo Dagger de la app.
 | **E** | 🟢 Alta | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ |
 | **E2** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **G** | 🟢 Alta | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
-| **F** | 🟢 Alta | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
 | **Koin** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
 | **Hybrid** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ |
 
@@ -770,7 +716,6 @@ y un `@Component` bridge conecta servicios del SDK al grafo Dagger de la app.
 | **E** | Feature enum + `when` blocks | `sdk-wiring` + api | Enum de 50+ entries |
 | **E2** | `allEntries()` list | `sdk-wiring` | 1 línea por feature — manejable |
 | **G** | `ensure*()` en facade | `wiring-g` | = D (sin imports de DaggerXxx) |
-| **F** | `when` blocks en facade | `sdk-wiring` | = D |
 | **Koin** | `sdkModules()` list | `sdk-wiring` | 1 línea por feature — manejable |
 | **Hybrid** | = Koin + bridge @Provides | `sdk-wiring` + app bridge | Bridge crece 1 línea/servicio |
 
@@ -786,7 +731,7 @@ y un `@Component` bridge conecta servicios del SDK al grafo Dagger de la app.
     ┌───────────────────────────────────┐
     │  FUNCIONA HASTA ~30 FEATURES      │
     │                                    │
-    │  D    E    F    G                  │
+    │  D    E    G                       │
     │  (when blocks, enum maintenance)   │
     └───────────────────────────────────┘
 
@@ -901,12 +846,12 @@ val authEntry = AutoFeatureEntry(
 | Escenario | Approach recomendado | Alternativa |
 |-----------|---------------------|-------------|
 | SDK KMP (iOS + Android + Desktop) | **Koin** | Hybrid (si app usa Dagger) |
-| SDK Android-only, < 15 features, independientes | **D**, **F** o **G** | B (si zero cross-deps) |
-| SDK Android-only, 15–30 features, con cross-deps | **F**, **G** o **E** | E2 (si quieres futuro-proof) |
+| SDK Android-only, < 15 features, independientes | **D** o **G** | B (si zero cross-deps) |
+| SDK Android-only, 15–30 features, con cross-deps | **G** o **E** | E2 (si quieres futuro-proof) |
 | SDK Android-only, 30+ features, cross-deps pesadas | **E2** | Koin (si compile-time no es crítico) |
 | SDK Android-only, 50+ features | **E2** o **Koin** | Híbrido (ambos mundos) |
 | App consumidora usa Dagger, SDK debe ser KMP | **Hybrid** | — |
-| Máxima compile-time safety, < 20 features | **D** / **F** / **G** | — |
+| Máxima compile-time safety, < 20 features | **D** / **G** | — |
 | Encapsulamiento máximo de Components (internal) | **G** o **E2** | — |
 | Máxima velocidad de desarrollo | **Koin** | — |
 | Features 100% independientes (zero cross-deps) | **B** | C (si auto-discovery importa) |
@@ -945,7 +890,8 @@ Para evitarlo, `SdkConfig` se extrajo a `feature-core-api/` y `SdkLogger` a `obs
 
 ```
 feature-core-api/              → SdkConfig (zero deps)
-observability-api/             → SdkLogger + AndroidSdkLogger (zero deps)
+observability-api/             → SdkLogger (interface)
+feature-observability-impl/    → AndroidSdkLogger (impl)
 feature-core-contracts/    → CoreProvisions (depende solo de core-api, no de sdk/api)
 ```
 
@@ -970,13 +916,6 @@ feature-impl solo ve las provision interfaces que necesita. `feature-auth-impl` 
 Esto significa que el grafo de dependencias DI esta correctamente acotado, incluso si el grafo
 de APIs de negocio es mas permisivo.
 
-### F como anti-pattern educativo
-
-El approach F comparte `@Component` directamente entre modulos (via `sdk/di-core`) en vez de
-usar provision interfaces como contrato. Esto acopla los feature-impl a tipos Dagger de otros
-modulos — en produccion violaria la regla "features solo conocen apis". F se mantiene en el demo
-como anti-pattern educativo para demostrar por que las provision interfaces son necesarias.
-
 ---
 
 ## Conclusion
@@ -987,11 +926,11 @@ Para la arquitectura **api / impl / integration** con visibilidad estricta:
    - **Koin:** si el equipo acepta resolución runtime (mitigable con `checkModules()` en tests).
    - **E2:** si compile-time safety es requisito duro (Dagger valida cada Component).
 
-2. **D, F y G son sólidos hasta ~30 features.** F es la organización Gradle correcta de D.
-   G es D con factory functions (Components `internal`). En los tres, el wiring manual
+2. **D y G son sólidos hasta ~30 features.**
+   G es D con factory functions (Components `internal`). En ambos, el wiring manual
    en el facade es el cuello de botella a escala.
 
-3. **E mejora sobre D/F/G** eliminando `when` blocks, pero el Feature enum expuesto
+3. **E mejora sobre D/G** eliminando `when` blocks, pero el Feature enum expuesto
    al consumidor y su crecimiento lineal lo limitan.
 
 4. **B y C son para features independientes.** Si las features tienen cross-deps
@@ -1002,7 +941,7 @@ Para la arquitectura **api / impl / integration** con visibilidad estricta:
 
 6. **Hybrid** es la respuesta cuando el SDK es KMP pero la app consumidora es Dagger.
 
-7. **Provision interfaces son el enabler** para D, E, E2, G y F en multi-módulo.
+7. **Provision interfaces son el enabler** para D, E, E2 y G en multi-módulo.
    Sin ellas, los features dependerían de `@Component` classes (implementaciones)
    de otros features — violando la regla de "features solo conocen apis".
    Dagger acepta cualquier interfaz en `dependencies=[...]`, no requiere `@Component`.

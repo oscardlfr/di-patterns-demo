@@ -12,20 +12,20 @@ Para el approach hybrid, ver [di-hybrid-koin-sdk-dagger-app.md](di-hybrid-koin-s
 
 ## Lado a Lado
 
-| Criterio | Koin | Dagger B | Dagger C | Dagger D | Dagger E | Dagger E2 | Dagger F | |
-|----------|------|----------|----------|----------|----------|-----------|----------|----|
-| **Paradigma DI** | Service Locator | DI puro | DI puro | DI puro | DI + Registry | DI + AutoRegistry | DI puro | |
-| **Aislamiento máximo** | Nivel 2 | Nivel 1 | Nivel 1 | Nivel 1 | Nivel 1 | Nivel 1 | Nivel 1 | 🟢 Koin |
-| **Cross-feature** | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | 🔴 B, C |
-| **Binario lean** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ⚠️ | 🔴 D, E, E2 |
-| **Compile-time** | ❌ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ | ✅ | 🟢 D-F · 🔴 Koin |
-| **KMP** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | 🟢 Koin |
-| **Auto-discovery** | ✅ | ❌ | ✅ | ❌ | ⚠️ topo-sort | ✅ DFS on-demand | ❌ | |
-| **Multi-módulo** | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | 🔴 D |
-| **Escala 50+** | ✅ | ❌ | ⚠️ | ❌ | ❌ | **✅** | ❌ | 🟢 Koin, E2 |
-| **Feature enum** | N/A | Expuesto | N/A | Expuesto | Expuesto | **Oculto** | Expuesto | 🟢 E2 |
-| **Build speed** | ✅ | ❌ KSP | ❌ KSP | ❌ KSP | ❌ KSP | ❌ KSP | ❌ KSP | 🟢 Koin |
-| **Singletons** | koinApp | CoreApis ⚠️ | CoreApis ⚠️ | Provision | Registry | AutoRegistry | Provision | 🔴 B, C |
+| Criterio | Koin | Dagger B | Dagger C | Dagger D | Dagger E | Dagger E2 | |
+|----------|------|----------|----------|----------|----------|-----------|---|
+| **Paradigma DI** | Service Locator | DI puro | DI puro | DI puro | DI + Registry | DI + AutoRegistry | |
+| **Aislamiento máximo** | Nivel 2 | Nivel 1 | Nivel 1 | Nivel 1 | Nivel 1 | Nivel 1 | 🟢 Koin |
+| **Cross-feature** | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | 🔴 B, C |
+| **Binario lean** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | 🔴 D, E, E2 |
+| **Compile-time** | ❌ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ | 🟢 D-E2 · 🔴 Koin |
+| **KMP** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | 🟢 Koin |
+| **Auto-discovery** | ✅ | ❌ | ✅ | ❌ | ⚠️ topo-sort | ✅ DFS on-demand | |
+| **Multi-módulo** | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | 🔴 D |
+| **Escala 50+** | ✅ | ❌ | ⚠️ | ❌ | ❌ | **✅** | 🟢 Koin, E2 |
+| **Feature enum** | N/A | Expuesto | N/A | Expuesto | Expuesto | **Oculto** | 🟢 E2 |
+| **Build speed** | ✅ | ❌ KSP | ❌ KSP | ❌ KSP | ❌ KSP | ❌ KSP | 🟢 Koin |
+| **Singletons** | koinApp | CoreApis ⚠️ | CoreApis ⚠️ | Provision | Registry | AutoRegistry | 🔴 B, C |
 
 ### Variantes multi-módulo
 

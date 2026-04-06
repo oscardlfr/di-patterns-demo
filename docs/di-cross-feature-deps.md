@@ -182,17 +182,15 @@ todo el SDK — es un God Object que anula el propósito del aislamiento per-fea
 | **Dagger D** (Component Deps) | ✅ Automático | `dependencies=[Parent]` | Todo compilado en binario |
 | **Dagger E** (Component Registry) | ✅ Automático | `dependencies=[...]` + registry topo-sort | Registry overhead (~20 ns/lookup) |
 | **Dagger E2** (Auto-Init Registry) | ✅ Automático | `dependencies=[...]` + DFS on-demand | ~25 ns/lookup, API más simple |
-| **Dagger F** (Multi-Module Deps) | ✅ Automático | = D con CoreComponent en módulo separado | when blocks no escalan |
 | **Dagger G** (Factory Functions) | ✅ Automático | Factory functions reciben provision interfaces | ensure*() no escalan (= D) |
 | **Koin** (1 koinApplication) | ✅ Automático | `get()` desde el mismo grafo | Resolución runtime |
 | **Dagger B** (per-feature) | ⚠️ Manual | CoreApis extendido | God Object a escala |
 | **Dagger C** (ServiceLoader) | ⚠️ Manual | ServiceResolver runtime | God Object + JVM only |
 
 **Conclusión práctica:** Si las features dependen unas de otras, un grafo único
-(Dagger A, D, E, E2, F, G o Koin) resuelve todo automáticamente. Per-feature (B, C)
+(Dagger A, D, E, E2, G o Koin) resuelve todo automáticamente. Per-feature (B, C)
 funciona bien cuando las features son verdaderamente independientes.
 E2 es la evolución de E para escalar a 50+ módulos: auto-init on `get<T>()`, sin Feature enum.
-F = D en runtime con CoreComponent en módulo separado (multi-módulo viable, pero no escala).
 G = D con factory functions (Components `internal`, mejor encapsulamiento, misma limitación de escalabilidad).
 
 ### Multi-módulo: Provision Interfaces

@@ -125,7 +125,6 @@ El consumidor nunca importa ningún módulo impl en código. Solo la dependencia
 | **Dagger Component Deps (D)** | 1 | Facade con internal Components |
 | **Dagger Component Registry (E)** | 1 | Facade con Feature enum. Entries, registry y Components son internal |
 | **Dagger Auto-Init Registry (E2)** | 1 | Facade sin Feature enum. API mínima: init() + get<T>(). Auto-build on demand |
-| **Dagger Multi-Module Deps (F)** | 1 | = D con CoreComponent en módulo Gradle separado |
 | **Koin** | 2 | Descubrimiento runtime vía Class.forName / @EagerInit |
 | **kotlin-inject** | 1 | Consumidor compone components explícitamente |
 
