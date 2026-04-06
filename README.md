@@ -32,6 +32,7 @@ sdk/
   wiring-e/               -> Pattern E multi-modulo: ProvisionRegistry + topo-sort
   wiring-e2/              -> Pattern E2 multi-modulo: AutoProvisionRegistry + DFS lazy
   wiring-g/               -> Pattern G multi-modulo: Factory Functions (Components internal)
+  wiring-h/               -> Pattern H multi-modulo: Auto-Discovery FeatureProviders (DFS resolver)
   impl-common/            -> Implementaciones compartidas (solo patrones monoliticos)
   impl-koin/              -> KoinSdk (koinApplication aislado, loadModules, auto-discovery)
   impl-dagger-b/          -> DaggerBSdk (Per-Feature Components + CoreApis)
@@ -43,7 +44,7 @@ sample-dagger-c/    -> Consumidor de DaggerCSdk
 sample-hybrid/      -> KoinSdk + puente Dagger 2
 sample-multimodule/ -> Consumidor de MultiModuleSdk (provision interfaces)
 
-benchmark/          -> 39 Jetpack Microbenchmarks (19 monoliticos via facades + 20 multi-modulo via facades)
+benchmark/          -> 44 Jetpack Microbenchmarks (19 monoliticos via facades + 25 multi-modulo via facades)
 
 docs/               -> 8 documentos tecnicos (espanol)
 ```
@@ -81,7 +82,7 @@ MultiModuleSdk.init(SdkConfig(debug = true))
 val auth: AuthApi = MultiModuleSdk.get()    // builds: Core -> Enc -> Auth
 val sync: SyncApi = MultiModuleSdk.get()    // builds: Stor + Syn (rest cached)
 
-// La app SOLO depende de :sdk:sdk-wiring (o wiring-e/wiring-e2/wiring-g). Zero imports de feature-impl.
+// La app SOLO depende de :sdk:sdk-wiring (o wiring-e/wiring-e2/wiring-g/wiring-h). Zero imports de feature-impl.
 MultiModuleSdk.shutdown()
 ```
 
@@ -96,6 +97,16 @@ Cada `feature-xxx-impl` compila independientemente -- solo necesita su `feature-
 MultiModuleSdkG.init(SdkConfig(debug = true))
 val sync: SyncApi = MultiModuleSdkG.get()  // lazy ensure*() via factory functions
 MultiModuleSdkG.shutdown()
+```
+
+### Multi-Module Pattern H (Auto-Discovery FeatureProviders)
+
+```kotlin
+// Wiring inmutable — descubre FeatureProviders, resuelve deps via DFS.
+// Zero edicion central al anadir features.
+MultiModuleSdkH.init(SdkConfig(debug = true))
+val sync: SyncApi = MultiModuleSdkH.get()  // resolver.provision() auto-builds chain
+MultiModuleSdkH.shutdown()
 ```
 
 ### Multi-Module Pattern E2 (Registry + auto-init)
@@ -127,12 +138,12 @@ Resultados en `benchmark/build/outputs/connected_android_test_additional_output/
 |-----------|-----------|
 | [Analisis de arquitecturas DI](docs/analisis-arquitecturas-di.md) | Requisitos, cumplimiento, benchmarks S22 Ultra, matriz de decision |
 | [Analisis de complejidad y mantenimiento](docs/analisis-complejidad-mantenimiento.md) | Coste por feature, metricas, equipo interno vs consumidores |
-| [Dagger 2: approaches A-C + multi-modulo D/E/E2/G](docs/dagger2-sdk-selective-init.md) | Monolitico (A, B, C), Multi-Module (D, E, E2, G) |
+| [Dagger 2: approaches A-C + multi-modulo D/E/E2/G/H](docs/dagger2-sdk-selective-init.md) | Monolitico (A, B, C), Multi-Module (D, E, E2, G, H) |
 | [Conceptos DI](docs/di-sdk-consumer-isolation.md) | DI vs Service Locator, niveles de aislamiento, singleton survival |
 | [Dependencias cruzadas](docs/di-cross-feature-deps.md) | Como resuelve cada approach las cross-deps con ejemplos |
 | [Hybrid: Koin SDK + Dagger 2 app](docs/di-hybrid-koin-sdk-dagger-app.md) | Bridge pattern, puente unidireccional, features lazy |
 | [Comparacion rapida](docs/di-sdk-selective-init-comparison.md) | Tabla lado-a-lado de frameworks |
-| [Multi-modulo api/impl/integration](docs/di-multimodule-api-impl-analysis.md) | Approaches para separacion Gradle estricta + ejemplo realista con provision interfaces |
+| [Multi-modulo api/impl/integration](docs/di-multimodule-api-impl-analysis.md) | Approaches para separacion Gradle estricta + ejemplo realista con provision interfaces (D/E/E2/G/H) |
 
 ## Stack
 

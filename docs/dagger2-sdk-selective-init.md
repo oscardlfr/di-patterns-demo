@@ -1,7 +1,7 @@
 # Dagger 2: Inicialización Modular de SDKs
 
 Approaches para construir un SDK Android donde los consumidores seleccionan
-qué features activar. Incluye patrones monolíticos (A, B, C) y multi-módulo (D, E, E2, G).
+qué features activar. Incluye patrones monolíticos (A, B, C) y multi-módulo (D, E, E2, G, H).
 Todos usan Dagger 2 para DI en compilación pero difieren en cómo se organizan,
 descubren e inicializan las features.
 
@@ -499,21 +499,22 @@ el enum y el when block (misma limitación que D).
 
 ## Comparación
 
-|  | A | B | C | D (multi) | E (multi) | E2 (multi) |
-|---|---|---|---|---|---|---|
-| **Arquitectura** | 1 Component global | N Components + CoreApis | N Components + ServiceLoader | N Components `dependencies=[]` + provision interfaces | N Components + Registry + topo-sort | N Components + AutoRegistry + DFS |
-| **Cross-feature** | ✅ Auto | ❌ CoreApis | ❌ CoreApis | ✅ Auto | ✅ Auto | ✅ Auto |
-| **Singletons** | ✅ @Singleton | ⚠️ Manual | ⚠️ Manual | ✅ Provision | ✅ Registry | ✅ Registry |
-| **Binario lean** | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Lazy init** | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ On-demand |
-| **Añadir feature** | Editar @Component | +CoreApis +when | +META-INF | +deps +when | +Entry +enum | **+Entry (1 línea)** |
-| **Compile-time** | ✅ Completo | ⚠️ Per-feature | ⚠️ Runtime | ✅ Con deps | ✅ Explicit | ✅ Explicit |
-| **Multi-módulo** | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Feature enum** | N/A | ✅ Expuesto | N/A | N/A | ✅ Expuesto | **❌ Oculto** |
-| **Escala 50+** | ❌ | ❌ God Object | ⚠️ Cross-deps | ❌ when blocks | ❌ enum+when | **✅** |
-| **Complejidad** | Baja | Media | Alta | Media | Media-Alta | Media-Alta |
+|  | A | B | C | D (multi) | E (multi) | E2 (multi) | G (multi) | H (multi) |
+|---|---|---|---|---|---|---|---|---|
+| **Arquitectura** | 1 Component global | N Components + CoreApis | N Components + ServiceLoader | N Components `dependencies=[]` + provision interfaces | N Components + Registry + topo-sort | N Components + AutoRegistry + DFS | N Components + factory functions | N Components + FeatureProviders + DFS resolver |
+| **Cross-feature** | ✅ Auto | ❌ CoreApis | ❌ CoreApis | ✅ Auto | ✅ Auto | ✅ Auto | ✅ Auto | ✅ Auto |
+| **Singletons** | ✅ @Singleton | ⚠️ Manual | ⚠️ Manual | ✅ Provision | ✅ Registry | ✅ Registry | ✅ Provision | ✅ Resolver cache |
+| **Binario lean** | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Lazy init** | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ On-demand | ✅ | ✅ On-demand |
+| **Añadir feature** | Editar @Component | +CoreApis +when | +META-INF | +deps +when | +Entry +enum | **+Entry (1 línea)** | +factory +ensure | **+Provider (~8 líneas)** |
+| **Compile-time** | ✅ Completo | ⚠️ Per-feature | ⚠️ Runtime | ✅ Con deps | ✅ Explicit | ✅ Explicit | ✅ Con deps | ⚠️ Per-Component |
+| **Multi-módulo** | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Feature enum** | N/A | ✅ Expuesto | N/A | N/A | ✅ Expuesto | **❌ Oculto** | N/A | **❌ Oculto** |
+| **Escala 50+** | ❌ | ❌ God Object | ⚠️ Cross-deps | ❌ when blocks | ❌ enum+when | **✅** | ❌ ensure*() | **✅** |
+| **Complejidad** | Baja | Media | Alta | Media | Media-Alta | Media-Alta | Media | Media |
+| **Wiring inmutable** | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | **✅** |
 
-**Nota:** D, E y E2 solo existen como variantes multi-módulo con provision interfaces.
+**Nota:** D, E, E2 y H solo existen como variantes multi-módulo con provision interfaces.
 
 ### Cuándo usar
 
@@ -525,7 +526,8 @@ el enum y el when block (misma limitación que D).
 | Cross-deps complejas + compile-time safety | **D**, **E**, o **E2** (multi-módulo) |
 | Multi-módulo Gradle corporativo (api/impl por feature) | **E** o **E2** (vía wiring-e / wiring-e2) |
 | API mínima para consumidor (sin Feature enum) | **E2** (multi-módulo) |
-| SDK escalable a 50+ módulos | **E2** o Koin |
+| SDK escalable a 50+ módulos | **E2**, **H** o Koin |
+| Equipos grandes (10+), zero edición central | **H** (wiring inmutable, FeatureProviders) |
 | Consumidor necesita excluir features explícitamente | **E** (Feature enum, multi-módulo) |
 | KMP necesario | Ninguno — ver Koin en [comparación](di-sdk-selective-init-comparison.md) |
 
@@ -533,7 +535,7 @@ el enum y el when block (misma limitación que D).
 
 ### Multi-módulo con Provision Interfaces
 
-Los approaches D, E, E2 y G tienen variantes multi-módulo reales que separan api/impl
+Los approaches D, E, E2, G y H tienen variantes multi-módulo reales que separan api/impl
 por feature usando **provision interfaces** como contratos Gradle:
 
 - **sdk-wiring** — variante multi-módulo de D. Un fichero de wiring con `when` blocks
@@ -544,8 +546,13 @@ por feature usando **provision interfaces** como contratos Gradle:
   una función pública `buildXxxProvisions(deps): XxxProvisions`. Los `DaggerXxxComponent`
   quedan `internal` — el wiring module nunca los importa. Mismo patrón lazy `ensure*()`
   que D, pero llama factory functions en vez de builders Dagger.
+- **wiring-h** — variante multi-módulo con auto-discovery. Cada feature-impl declara un
+  `FeatureProvider` (~8 líneas) con dependencias implícitas. El wiring module es inmutable:
+  descubre providers, los registra y resuelve dependencias vía DFS
+  (`resolver.provision(CoreProvisions::class.java)` dentro de `build()`). Usa factory
+  functions de G internamente. Zero `@Suppress("UNCHECKED_CAST")` — todo `Class.cast()`.
 
-Las cuatro variantes comparten los **mismos** módulos de feature-impl (`feature-enc-impl`,
+Las cinco variantes comparten los **mismos** módulos de feature-impl (`feature-enc-impl`,
 `feature-auth-impl`, etc.) y los mismos contratos per-feature (`feature-enc-contracts`,
 `feature-auth-contracts`, etc.). La diferencia es exclusivamente el código de wiring.
 
@@ -559,7 +566,14 @@ llama factory functions (`buildEncProvisions(core)`) en vez de `DaggerEncCompone
 Esto mejora el encapsulamiento, pero el wiring sigue conociendo el orden de dependencias
 (misma limitación de escalabilidad que D).
 
-Los 20 benchmarks multi-módulo en `MultiModuleBenchmark.kt` confirman que las cuatro
+**H vs G:** H usa factory functions de G internamente, pero envuelve cada feature en un
+`FeatureProvider` (~8 líneas) que declara dependencias implícitas. El resolver las
+construye automáticamente vía DFS. El wiring module es inmutable — zero edición al
+añadir features. Trade-off: ~3,5x más lento en init (3,5 µs vs 966 ns) por overhead de
+HashMap + registro de providers. Indicado para equipos grandes (10+) donde zero edición
+central importa más que sub-microsegundo de init.
+
+Los 25 benchmarks multi-módulo en `MultiModuleBenchmark.kt` confirman que las cinco
 variantes de wiring tienen rendimiento comparable — la separación en módulos Gradle
 es invisible en runtime.
 

@@ -65,8 +65,9 @@ No todos tienen el mismo peso — depende del contexto del proyecto.
 | **E: Component Registry** | `sdk/wiring-e` | Dagger 2 | ProvisionRegistry + topo-sort, explicit bindings |
 | **E2: Auto-Init Registry** | `sdk/wiring-e2` | Dagger 2 | AutoProvisionRegistry + DFS lazy on-demand, sin Feature enum |
 | **G: Factory Functions** | `sdk/wiring-g` | Dagger 2 | Factory functions, Components `internal` |
+| **H: Auto-Discovery FeatureProviders** | `sdk/wiring-h` | Dagger 2 | FeatureProviders + DFS resolver, wiring inmutable |
 
-D, E y E2 solo existen como variantes multi-modulo. No tienen modulos SDK monoliticos.
+D, E, E2 y H solo existen como variantes multi-modulo. No tienen modulos SDK monoliticos.
 
 Cada SDK expone una **API publica similar**:
 
@@ -114,6 +115,7 @@ sdk/
   wiring-e/               → Pattern E multi-módulo: ProvisionRegistry + topo-sort
   wiring-e2/              → Pattern E2 multi-módulo: AutoProvisionRegistry + DFS lazy
   wiring-g/               → Pattern G multi-módulo: Factory Functions (Components internal)
+  wiring-h/               → Pattern H multi-módulo: Auto-Discovery FeatureProviders (DFS resolver)
   impl-common/            → Shared implementations (solo patrones monolíticos)
   impl-koin/              → KoinSdk
   impl-dagger-b/          → DaggerBSdk (Per-Feature + CoreApis)
@@ -125,7 +127,7 @@ sample-dagger-c/    → Consumidor de DaggerCSdk
 sample-hybrid/      → Consumidor de KoinSdk + puente Dagger 2
 sample-multimodule/ → Consumidor de MultiModuleSdk (provision interfaces)
 
-benchmark/          → 39 Jetpack Microbenchmarks (19 monolíticos vía facades + 20 multi-módulo vía facades)
+benchmark/          → 44 Jetpack Microbenchmarks (19 monolíticos vía facades + 25 multi-módulo vía facades)
 ```
 
 Cada sample app tiene **2 ficheros Kotlin**: `Application.kt` + `MainActivity.kt`.
@@ -240,23 +242,38 @@ Todo el wiring interno está encapsulado en el módulo SDK correspondiente.
 | 9 | Seguridad en compilación | ⚠️ | Koin runtime + Dagger compile-time en el bridge |
 | 10 | KMP | ✅ | SDK KMP, bridge solo Android |
 
+### Dagger H — Auto-Discovery FeatureProviders (multi-módulo: wiring-h)
+
+| # | Requisito | Estado | Notas |
+|---|-----------|--------|-------|
+| 1 | Inicialización selectiva | ⚠️ | Todos los providers instalados; la "selección" es implícita (solo construye lo que se pide) |
+| 2 | Aislamiento del consumidor | ✅ | API mínima: `init()` + `get<T>()`. Wiring inmutable |
+| 3 | Singletons compartidos | ✅ | CoreComponent vía provision methods + resolver cache |
+| 4 | Instanciación lazy | ✅ | `get<T>()` dispara DFS vía `resolver.provision()` |
+| 5 | Independencia del core | ✅ | Cada feature-impl compila independientemente con provision interfaces |
+| 6 | Auto-registro | ✅ | Wiring inmutable — descubre providers, registra, done. Zero edición central |
+| 7 | Binario eficiente | ✅ | Solo los feature-impl incluidos en Gradle |
+| 8 | Dependencias cruzadas | ✅ | DFS automático vía `resolver.provision(CoreProvisions::class.java)` |
+| 9 | Seguridad en compilación | ⚠️ | Dagger valida cada Component, pero provider faltante es error runtime |
+| 10 | KMP | ❌ | Dagger es JVM |
+
 ### Resumen
 
-| Requisito | B | C | D (multi) | E (multi) | E2 (multi) | Koin | Hybrid |
-|-----------|---|---|-----------|-----------|------------|------|--------|
-| 1. Selectiva | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ |
-| 2. Aislamiento | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 3. Singletons | ⚠️ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 4. Lazy | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 5. Core indep. | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 6. Auto-registro | ❌ | ✅ | ❌ | ⚠️ | ✅ | ✅ | ✅ |
-| 7. Binario lean | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 8. Cross-deps | ⚠️ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 9. Compile-time | ⚠️ | ⚠️ | ✅ | ✅ | ✅ | ❌ | ⚠️ |
-| 10. KMP | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
-| **Total ✅** | **4** 🔴 | **5** | **8** | **8** | **8** | **9** 🟢 | **9** 🟢 |
+| Requisito | B | C | D (multi) | E (multi) | E2 (multi) | G (multi) | H (multi) | Koin | Hybrid |
+|-----------|---|---|-----------|-----------|------------|-----------|-----------|------|--------|
+| 1. Selectiva | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ✅ | ✅ |
+| 2. Aislamiento | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 3. Singletons | ⚠️ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 4. Lazy | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 5. Core indep. | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 6. Auto-registro | ❌ | ✅ | ❌ | ⚠️ | ✅ | ❌ | ✅ | ✅ | ✅ |
+| 7. Binario lean | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 8. Cross-deps | ⚠️ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 9. Compile-time | ⚠️ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ❌ | ⚠️ |
+| 10. KMP | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| **Total ✅** | **4** 🔴 | **5** | **8** | **8** | **8** | **8** | **8** | **9** 🟢 | **9** 🟢 |
 
-**Nota:** D, E y E2 son exclusivamente multi-módulo (provision interfaces en módulos Gradle separados).
+**Nota:** D, E, E2 y H son exclusivamente multi-módulo (provision interfaces en módulos Gradle separados).
 No existen como SDKs monolíticos.
 
 ---
@@ -264,7 +281,7 @@ No existen como SDKs monolíticos.
 ## Resultados de benchmarks
 
 Dispositivo: Samsung Galaxy S22 Ultra (SM-S908B) — Snapdragon 8 Gen 1, 8 cores, 2.8 GHz, Android 16.
-Framework: Jetpack Benchmark 1.4.0 con warmup automático. 39 tests en total (19 monolíticos vía facades + 20 multi-módulo vía facades).
+Framework: Jetpack Benchmark 1.4.0 con warmup automático. 44 tests en total (19 monolíticos vía facades + 25 multi-módulo vía facades).
 El benchmark no contiene Components internos propios — todos los tests usan las facades reales de los SDKs
 (DaggerBSdk, DaggerCSdk, KoinSdk, Hybrid bridge para monolíticos; MultiModuleSdk/E/E2/G para multi-módulo).
 
@@ -282,7 +299,7 @@ Solo patrones monolíticos (A educativo, B, C, Koin, Hybrid).
 | Koin | 51.708 | 🔴 peor |
 
 **Observación:** B es el Dagger monolítico más rápido en cold init.
-Los approaches D, E y E2 se miden exclusivamente en la sección multi-módulo.
+Los approaches D, E, E2, G y H se miden exclusivamente en la sección multi-módulo.
 
 ### Primera resolución de un singleton — Monolíticos
 
@@ -355,17 +372,18 @@ el framework DI no participa.
 
 **Nota importante:** Koin es 🔴 en casi todas las métricas de plumbing,
 pero la diferencia absoluta máxima es 52 µs — imperceptible en una aplicación real.
-Los approaches D, E y E2 se miden exclusivamente en los benchmarks multi-módulo (sección siguiente).
+Los approaches D, E, E2, G y H se miden exclusivamente en los benchmarks multi-módulo (sección siguiente).
 
 ### Benchmarks multi-módulo (wiring patterns)
 
-20 tests adicionales comparan las cuatro estrategias de wiring multi-módulo — D, E, E2 y G —
+25 tests adicionales comparan las cinco estrategias de wiring multi-módulo — D, E, E2, G y H —
 utilizando los mismos Dagger Components (`feature-*-impl/`) con diferentes orquestadores:
 
 - **sdk-wiring/** (Pattern D): `ensure*()` directo con lazy delegates
 - **wiring-e/** (Pattern E): `ProvisionRegistry` con topo-sort explícito
 - **wiring-e2/** (Pattern E2): `AutoProvisionRegistry` con DFS lazy on-demand
 - **wiring-g/** (Pattern G): Factory functions (`buildXxxProvisions()`) con lazy delegates
+- **wiring-h/** (Pattern H): Auto-Discovery FeatureProviders con DFS resolver
 
 Los tests cubren:
 
@@ -379,21 +397,20 @@ Los tests cubren:
 
 Resultados multi-módulo:
 
-| Test | D | E | E2 | G |
-|------|---|---|----|----|
-| initCold | 20,4 µs | 73,2 µs | 39,2 µs | 18,2 µs |
-| resolveFirst | 9,2 ns | 15,7 ns | 10,5 ns | 3,2 ns |
-| lazyInit noDeps | 24,4 µs | 36,8 µs | 25,7 µs | 23,7 µs |
-| lazyInit cascade | 28,2 µs | 61,8 µs | 33,8 µs | 73,1 µs |
-| crossFeatureOp | 356,9 µs | 375,9 µs | 316,8 µs | 379,9 µs |
+| Test | D | G | H | E2 | E |
+|------|---|---|---|----|----|
+| initCold | 947 ns | 966 ns | 3,5 µs | 5,4 µs | 10,2 µs |
+| resolveFirst | 10,6 ns | 14,2 ns | 23,3 ns | 23,3 ns | 20,1 ns |
+| lazyInit noDeps | 211 ns | 216 ns | 482 ns | 545 ns | 1,8 µs |
+| lazyInit cascade | 600 ns | 606 ns | 1,4 µs | 1,8 µs | 5,8 µs |
+| crossFeatureOp | 102,5 µs | 102,3 µs | 103,2 µs | 103,0 µs | 101,7 µs |
 
-**Observación:** G es el más rápido en initCold y resolveFirst (acceso directo a campos,
-sin registry). En lazyInit cascade, G es el más lento porque las factory functions
-reconstruyen el grafo en cada iteración del benchmark (sin cache compartido entre
-iteraciones). En crossFeatureOp, las diferencias son atribuibles a variabilidad térmica
-— el trabajo real es idéntico en los cuatro patterns.
+**Observación:** D y G son los más rápidos — acceso directo a campos, sin registry.
+H paga ~3,5x sobre G en initCold por overhead de HashMap + registro de providers,
+pero escala mejor (wiring inmutable). En crossFeatureOp, las diferencias son atribuibles
+a variabilidad térmica — el trabajo real es idéntico en los cinco patterns.
 
-Los cuatro wiring patterns comparten los mismos `feature-*-impl` Components. La diferencia
+Los cinco wiring patterns comparten los mismos `feature-*-impl` Components. La diferencia
 está exclusivamente en cómo el orquestador gestiona el orden de construcción y la resolución
 de dependencias entre features. Esto permite aislar el coste del wiring del coste del DI.
 
@@ -416,6 +433,8 @@ Solo necesita `CoreApis` (logger, config). No depende de ninguna otra feature.
 | Dagger D (multi) | ✅ | `ensure*()` con lazy delegates en sdk-wiring |
 | Dagger E (multi) | ✅ | `registry.register(analyticsEntry)` — Component build + eager service binding |
 | Dagger E2 (multi) | ✅ | `get<AnalyticsApi>()` — auto-build on demand (DFS) |
+| Dagger G (multi) | ✅ | `ensure*()` vía factory functions |
+| Dagger H (multi) | ✅ | `resolver.provision()` auto-build on demand (DFS) |
 | Koin | ✅ | `koin.loadModules(listOf(analyticsModule))` |
 | Hybrid | ✅ | Koin `loadModules` (features lazy bypasean el bridge Dagger) |
 | Dagger A | ⚠️ | No real — el código ya está compilado en el @Component |
@@ -432,6 +451,8 @@ e inicializa las dependencias en cascada.
 | Dagger D (multi) | ✅ | `dependencies=[EncProvisions, CoreProvisions]` — Dagger automático |
 | Dagger E (multi) | ✅ | `dependencies=[...]` + `expandDependencies()` topo-sort automático |
 | Dagger E2 (multi) | ✅ | `dependencies=[...]` + `ensureBuilt()` DFS recursivo automático |
+| Dagger G (multi) | ✅ | Factory functions con lazy `ensure*()` (= D) |
+| Dagger H (multi) | ✅ | FeatureProviders + DFS vía `resolver.provision()` automático |
 | Koin | ✅ | `loadModules` + `get()` desde el mismo grafo — automático |
 | Hybrid | ✅ | Hereda de Koin |
 | Dagger A | N/A | Todo en un @Component — no hay cascada porque todo existe siempre |
@@ -442,7 +463,7 @@ e inicializa las dependencias en cascada.
 
 Cada approach está documentado en detalle con código del proyecto en los docs de referencia:
 
-- **Dagger A/B/C/D/E/E2:** [dagger2-sdk-selective-init.md](dagger2-sdk-selective-init.md) — arquitectura, código, pros/contras, cuándo usar
+- **Dagger A/B/C/D/E/E2/G/H:** [dagger2-sdk-selective-init.md](dagger2-sdk-selective-init.md) — arquitectura, código, pros/contras, cuándo usar
 - **Koin:** [di-sdk-consumer-isolation.md](di-sdk-consumer-isolation.md) — paradigma Service Locator, niveles de aislamiento
 - **Hybrid:** [di-hybrid-koin-sdk-dagger-app.md](di-hybrid-koin-sdk-dagger-app.md) — bridge, puente unidireccional, features lazy
 - **Cross-feature:** [di-cross-feature-deps.md](di-cross-feature-deps.md) — cómo resuelve cada approach las dependencias cruzadas
@@ -456,6 +477,8 @@ Resumen rápido:
 | **Dagger D** (multi-módulo) | N Components con `dependencies=[]` + provision interfaces | ✅ Automático | `when` blocks crecen linealmente |
 | **Dagger E** (multi-módulo) | N Components + Registry + topo-sort | ✅ Automático | Feature enum crece, registry overhead (~20 ns/lookup) |
 | **Dagger E2** (multi-módulo) | N Components + AutoRegistry + DFS | ✅ Automático | API mínima, escala a 50+, ~25 ns/lookup |
+| **Dagger G** (multi-módulo) | N Components + factory functions | ✅ Automático | ensure*() no escalan (= D), Components `internal` |
+| **Dagger H** (multi-módulo) | N Components + FeatureProviders + DFS resolver | ✅ Automático | Wiring inmutable, ~3,5x más lento init que G |
 | **Koin** | Un `koinApplication` aislado | ✅ Automático | Errores runtime |
 | **Hybrid** | Koin SDK + Dagger bridge | ✅ Automático | Bridge unidireccional, features lazy bypasean |
 
@@ -466,22 +489,23 @@ Resumen rápido:
 | Restricción del proyecto | Approach más adecuado |
 |--------------------------|----------------------|
 | Compile-time safety máxima | Dagger D, E o E2 (multi-módulo) |
-| Pure DI (no service locator) | Dagger B, C (monolítico) o D, E, E2 (multi-módulo) |
-| Features con dependencias cruzadas fuertes | Dagger D, E, E2 (multi-módulo) o Koin |
+| Pure DI (no service locator) | Dagger B, C (monolítico) o D, E, E2, G, H (multi-módulo) |
+| Features con dependencias cruzadas fuertes | Dagger D, E, E2, G, H (multi-módulo) o Koin |
 | Features verdaderamente independientes | Dagger B o C (monolítico) |
 | KMP necesario | Koin o Hybrid |
 | Android exclusivo, equipo con experiencia Dagger | Dagger D o E2 (multi-módulo) |
 | Multi-módulo Gradle corporativo (api/impl por feature) | Dagger E o E2 (vía wiring-e / wiring-e2) |
 | Publicación per-feature en Maven | Dagger B, C o E, E2 (multi-módulo) |
 | 20+ features, adiciones frecuentes | Dagger E2 o Koin |
-| SDK escalable a 50+ módulos sin tocar facade | **Dagger E2** o Koin |
-| API mínima para consumidor (sin Feature enum) | **Dagger E2** o Koin |
+| SDK escalable a 50+ módulos sin tocar facade | **Dagger E2**, **H** o Koin |
+| API mínima para consumidor (sin Feature enum) | **Dagger E2**, **H** o Koin |
 | Zero codegen, builds más rápidos | Koin |
 | SDK KMP consumido por app Dagger existente | Hybrid |
 | Tamaño de binario crítico | Koin o Dagger B/C |
 | Equipo pequeño, mínima ceremonia | Koin |
 | Multi-módulo con Components internos (factory functions) | Dagger G (sin registry, Components `internal`) |
-| Multi-módulo con per-feature contracts | Dagger D/E/E2/G vía sdk-wiring / wiring-e / wiring-e2 / wiring-g |
+| Equipos grandes (10+), zero edición central, wiring inmutable | **Dagger H** (Auto-Discovery FeatureProviders) |
+| Multi-módulo con per-feature contracts | Dagger D/E/E2/G/H vía sdk-wiring / wiring-e / wiring-e2 / wiring-g / wiring-h |
 
 ---
 
@@ -503,9 +527,9 @@ Resumen rápido:
 ## Referencias
 
 - [Análisis de complejidad y mantenimiento](analisis-complejidad-mantenimiento.md) — Coste por feature, equipo interno vs consumidores
-- [dagger2-sdk-selective-init.md](dagger2-sdk-selective-init.md) — Implementaciones Dagger A, B, C, D, E, E2 con código
+- [dagger2-sdk-selective-init.md](dagger2-sdk-selective-init.md) — Implementaciones Dagger A, B, C, D, E, E2, G, H con código
 - [di-sdk-consumer-isolation.md](di-sdk-consumer-isolation.md) — Niveles de aislamiento, DI vs Service Locator
 - [di-sdk-selective-init-comparison.md](di-sdk-selective-init-comparison.md) — Tablas de comparación por requisito
 - [di-cross-feature-deps.md](di-cross-feature-deps.md) — Dependencias cruzadas con ejemplos concretos
 - [di-hybrid-koin-sdk-dagger-app.md](di-hybrid-koin-sdk-dagger-app.md) — Arquitectura hybrid completa
-- [di-multimodule-api-impl-analysis.md](di-multimodule-api-impl-analysis.md) — Arquitectura multi-módulo con per-feature contracts (provision interfaces, wiring patterns D/E/E2/G)
+- [di-multimodule-api-impl-analysis.md](di-multimodule-api-impl-analysis.md) — Arquitectura multi-módulo con per-feature contracts (provision interfaces, wiring patterns D/E/E2/G/H)

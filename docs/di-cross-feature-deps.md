@@ -183,20 +183,24 @@ todo el SDK — es un God Object que anula el propósito del aislamiento per-fea
 | **Dagger E** (multi-módulo) | ✅ Automático | `dependencies=[...]` + registry topo-sort | Registry overhead (~20 ns/lookup) |
 | **Dagger E2** (multi-módulo) | ✅ Automático | `dependencies=[...]` + DFS on-demand | ~25 ns/lookup, API más simple |
 | **Dagger G** (multi-módulo) | ✅ Automático | Factory functions reciben provision interfaces | ensure*() no escalan (= D) |
+| **Dagger H** (multi-módulo) | ✅ Automático | FeatureProviders + DFS vía `resolver.provision()` | ~3,5x más lento init que G, wiring inmutable |
 | **Koin** (1 koinApplication) | ✅ Automático | `get()` desde el mismo grafo | Resolución runtime |
 | **Dagger B** (monolítico) | ⚠️ Manual | CoreApis extendido | God Object a escala |
 | **Dagger C** (monolítico) | ⚠️ Manual | ServiceResolver runtime | God Object + JVM only |
 
 **Conclusión práctica:** Si las features dependen unas de otras, un grafo único
-(Dagger A, D, E, E2, G o Koin) resuelve todo automáticamente. Per-feature monolítico (B, C)
+(Dagger A, D, E, E2, G, H o Koin) resuelve todo automáticamente. Per-feature monolítico (B, C)
 funciona bien cuando las features son verdaderamente independientes.
-D, E, E2 y G solo existen como variantes multi-módulo con provision interfaces.
+D, E, E2, G y H solo existen como variantes multi-módulo con provision interfaces.
 E2 es la evolución de E para escalar a 50+ módulos: auto-init on `get<T>()`, sin Feature enum.
 G = D con factory functions (Components `internal`, mejor encapsulamiento, misma limitación de escalabilidad).
+H = G con auto-discovery: cada feature declara un FeatureProvider (~8 líneas), el resolver
+construye dependencias vía DFS (`resolver.provision()`). El wiring module es inmutable.
+Indicado para equipos grandes (10+) donde zero edición central es prioritario.
 
 ### Multi-módulo: Provision Interfaces
 
-En las variantes multi-módulo (sdk-wiring, wiring-e, wiring-e2, wiring-g), las dependencias
+En las variantes multi-módulo (sdk-wiring, wiring-e, wiring-e2, wiring-g, wiring-h), las dependencias
 cruzadas se resuelven mediante **provision interfaces** — contratos Kotlin planos
 que exponen los servicios de una feature sin acoplar al `@Component` concreto.
 
@@ -222,6 +226,12 @@ val encComponent = DaggerEncComponent.builder().core(coreProvisions).build()
 // En wiring-g — factory functions, Components internos
 val enc = buildEncProvisions(coreProvisions)  // DaggerEncComponent queda internal
 val auth = buildAuthProvisions(coreProvisions, enc)  // recibe EncProvisions
+
+// En wiring-h — DFS resolver, wiring inmutable
+// Dentro del FeatureProvider de Auth:
+val core = resolver.provision(CoreProvisions::class.java)  // DFS auto-build
+val enc = resolver.provision(EncProvisions::class.java)    // DFS auto-build
+buildAuthProvisions(core, enc)
 ```
 
 El umbrella `di-contracts` re-exporta todos los contratos per-feature más

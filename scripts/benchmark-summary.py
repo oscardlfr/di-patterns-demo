@@ -47,7 +47,7 @@ def classify_benchmark(name):
     name = name.replace("EMULATOR_", "")
 
     # Multi-module patterns
-    for suffix in ["_multiModuleD", "_multiModuleE2", "_multiModuleE", "_multiModuleG"]:
+    for suffix in ["_multiModuleD", "_multiModuleE2", "_multiModuleE", "_multiModuleG", "_multiModuleH"]:
         if suffix in name:
             op = name.replace(suffix, "").replace("_sync", "").replace("_analytics", "")
             pattern = suffix.replace("_", "").replace("multiModule", "MM-")
@@ -119,7 +119,7 @@ def main():
 
     # Order patterns: monolithic first, then multi-module
     mono_order = ["Dagger-A", "Dagger-B", "Dagger-C", "Dagger-D", "Dagger-E", "Dagger-E2", "Dagger-F", "Koin", "Hybrid"]
-    mm_order = ["MM-D", "MM-E", "MM-E2", "MM-G"]
+    mm_order = ["MM-D", "MM-E", "MM-E2", "MM-G", "MM-H"]
     pattern_order = [p for p in mono_order + mm_order if p in all_patterns]
 
     print("=" * 100)
@@ -223,6 +223,13 @@ def main():
         else:
             print(f"  G is {ratio:.1f}x D ({format_time(mm_g_init)} vs {format_time(mm_d_init)})")
         print(f"  G advantage: DaggerXxxComponent stays internal (better encapsulation)")
+
+    mm_h_init = mm_init.get("MM-H")
+    if mm_h_init and mm_g_init:
+        print(f"\nH vs G (multi-module):")
+        ratio = mm_h_init / mm_g_init
+        print(f"  H is {ratio:.1f}x G ({format_time(mm_h_init)} vs {format_time(mm_g_init)})")
+        print(f"  H advantage: zero central editing (each feature self-registers)")
 
     print()
 

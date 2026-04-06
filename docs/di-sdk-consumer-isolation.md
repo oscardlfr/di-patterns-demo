@@ -125,6 +125,8 @@ El consumidor nunca importa ningún módulo impl en código. Solo la dependencia
 | **Dagger D (multi-módulo)** | 1 | Facade con provision interfaces. Components internos en feature-impl |
 | **Dagger E (multi-módulo)** | 1 | Facade con Feature enum. Entries, registry y Components son internal |
 | **Dagger E2 (multi-módulo)** | 1 | Facade sin Feature enum. API mínima: init() + get<T>(). Auto-build on demand |
+| **Dagger G (multi-módulo)** | 1 | Facade con factory functions. Components `internal` |
+| **Dagger H (multi-módulo)** | 1 | Facade con FeatureProviders + DFS resolver. Wiring inmutable |
 | **Koin** | 2 | Descubrimiento runtime vía Class.forName / @EagerInit |
 | **kotlin-inject** | 1 | Consumidor compone components explícitamente |
 
@@ -143,6 +145,8 @@ Resumen:
 - **Per-feature (B / C):** Manual — a través de CoreApis (God Object a escala) o init ordenado.
 - **Component Dependencies D (multi-módulo):** Automático — `dependencies=[ProvisionInterface]`.
 - **Component Registry E (multi-módulo):** Automático — `dependencies=[...]` + registry topo-sort.
+- **Factory Functions G (multi-módulo):** Automático — factory functions reciben provision interfaces.
+- **Auto-Discovery H (multi-módulo):** Automático — DFS vía `resolver.provision()`, wiring inmutable.
 
 ---
 
@@ -191,7 +195,7 @@ El puente es unidireccional: app ← SDK.
 
 ## Provision Interfaces: Aislamiento a Nivel Gradle
 
-Las variantes multi-módulo (sdk-wiring, wiring-e, wiring-e2, wiring-g) introducen un nivel
+Las variantes multi-módulo (sdk-wiring, wiring-e, wiring-e2, wiring-g, wiring-h) introducen un nivel
 adicional de aislamiento mediante **provision interfaces** y contratos per-feature.
 
 Cada feature-impl depende de contratos específicos (`feature-enc-contracts`,
@@ -205,8 +209,10 @@ El mecanismo es Gradle-level: el módulo `feature-auth-impl` declara dependencia
 (que contiene `@Component` + `@Module` + implementaciones). Solo los módulos de
 wiring (`sdk-wiring`, `wiring-e`, `wiring-e2`) importan los `DaggerXxxComponent`
 builders — son el único punto que conoce las implementaciones concretas de Dagger.
-En `wiring-g`, ni siquiera el wiring importa los builders: cada feature-impl expone
+En `wiring-g` y `wiring-h`, ni siquiera el wiring importa los builders: cada feature-impl expone
 una factory function (`buildXxxProvisions()`) que oculta el `DaggerXxxComponent` interno.
+En H, además, el wiring module es inmutable — descubre FeatureProviders y resuelve
+dependencias vía DFS sin `ensure*()` manuales.
 
 Este aislamiento garantiza que cambios internos en la implementación de una feature
 (renombrar un `@Module`, añadir un `@Provides`) no rompen otras features — solo

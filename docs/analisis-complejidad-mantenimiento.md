@@ -6,9 +6,9 @@ Análisis orientado a dos audiencias:
 
 Basado en métricas reales del proyecto `di-patterns-demo` con 5 features
 (Encryption, Auth, Storage, Analytics, Sync) y dependencias cruzadas entre ellas.
-Incluye patrones monolíticos (Dagger A educativo, B, C y Koin) más 4 variantes
-multi-módulo con provision interfaces (sdk-wiring D, wiring-e, wiring-e2, wiring-g).
-D, E y E2 solo existen como variantes multi-módulo — no tienen módulos SDK monolíticos.
+Incluye patrones monolíticos (Dagger A educativo, B, C y Koin) más 5 variantes
+multi-módulo con provision interfaces (sdk-wiring D, wiring-e, wiring-e2, wiring-g, wiring-h).
+D, E, E2 y H solo existen como variantes multi-módulo — no tienen módulos SDK monolíticos.
 
 ---
 
@@ -30,8 +30,8 @@ D, E y E2 solo existen como variantes multi-módulo — no tienen módulos SDK m
 | **Feature selector** | enum | string | sealed | |
 | **Escala a 50+ módulos** | ❌ | ⚠️ | ✅ | 🟢 Koin |
 
-**Nota:** D, E y E2 no tienen módulos SDK monolíticos. Existen exclusivamente como variantes
-multi-módulo (sdk-wiring, wiring-e, wiring-e2). Para sus métricas, ver la sección
+**Nota:** D, E, E2 y H no tienen módulos SDK monolíticos. Existen exclusivamente como variantes
+multi-módulo (sdk-wiring, wiring-e, wiring-e2, wiring-h). Para sus métricas, ver la sección
 [Multi-módulo: Complejidad del Wiring](#multi-módulo-complejidad-del-wiring).
 
 Koin sigue siendo el más ligero en complejidad estructural (0 anotaciones, 0 codegen).
@@ -270,8 +270,8 @@ en el consumidor es:
 
 | Cambio | Impacto en consumidor |
 |--------|----------------------|
-| Koin → Dagger D/E/E2 (multi-módulo) | Cambiar dependencia Gradle. API idéntica (E2 aún más simple). |
-| Dagger B → Dagger D/E/E2 (multi-módulo) | Cambiar dependencia Gradle. API idéntica. |
+| Koin → Dagger D/E/E2/G/H (multi-módulo) | Cambiar dependencia Gradle. API idéntica (E2/H aún más simple). |
+| Dagger B → Dagger D/E/E2/G/H (multi-módulo) | Cambiar dependencia Gradle. API idéntica. |
 | Dagger D multi → E/E2 multi | Cambiar dependencia Gradle. API idéntica. |
 | Dagger E multi → E2 multi | Cambiar dependencia. Consumidor elimina Feature enum — API más simple. |
 | Koin → Hybrid | Consumidor debe crear bridge Component |
@@ -314,13 +314,14 @@ La complejidad de mantenimiento depende del tamaño del SDK y la frecuencia de c
 | Escenario | Menor complejidad |
 |-----------|------------------|
 | SDK pequeño (≤5 features), equipo Dagger | Dagger B (monolítico) o D (multi-módulo) |
-| SDK grande (20+ features), adiciones frecuentes | Koin o **Dagger E2** (multi-módulo) |
-| SDK escalable a 50+ módulos | **Dagger E2** (multi-módulo) o Koin |
-| Features con muchas dependencias cruzadas | Dagger D, E, E2 (multi-módulo) o Koin |
+| SDK grande (20+ features), adiciones frecuentes | Koin, **Dagger E2** o **H** (multi-módulo) |
+| SDK escalable a 50+ módulos | **Dagger E2**, **H** (multi-módulo) o Koin |
+| Features con muchas dependencias cruzadas | Dagger D, E, E2, H (multi-módulo) o Koin |
 | Equipo sin experiencia Dagger | Koin |
 | Compile-time safety prioritaria | Dagger D, E o E2 (multi-módulo) |
 | Multi-módulo Gradle corporativo (api/impl) | Dagger E o E2 (vía wiring-e / wiring-e2) |
-| API mínima para consumidor | **Dagger E2** (sin Feature enum) |
+| Equipos grandes (10+), zero edición central | **Dagger H** (wiring inmutable) |
+| API mínima para consumidor | **Dagger E2** o **H** (sin Feature enum) |
 
 ### Para los equipos consumidores
 
@@ -335,7 +336,7 @@ La API pública es idéntica independientemente del motor DI interno.
 
 ## Multi-módulo: Complejidad del Wiring
 
-Las variantes multi-módulo (sdk-wiring, wiring-e, wiring-e2, wiring-g) usan los **mismos**
+Las variantes multi-módulo (sdk-wiring, wiring-e, wiring-e2, wiring-g, wiring-h) usan los **mismos**
 módulos feature-impl y los mismos contratos per-feature. La única diferencia es
 el código de wiring que conecta los `DaggerXxxComponent` builders con el facade público.
 
@@ -345,16 +346,23 @@ el código de wiring que conecta los `DaggerXxxComponent` builders con el facade
 | E (wiring-e) | 2 (Entries + Facade) | ~170 | `Feature` enum crece |
 | E2 (wiring-e2) | 2 (Entries + Facade) | ~100 | 1 línea por feature |
 | G (wiring-g) | 1 (Facade) | ~95 | `when` blocks crecen (igual que D) |
+| H (wiring-h) | 1 (Facade) | ~50 | Inmutable — zero edición |
 
 G tiene menos líneas que D porque llama factory functions (`buildXxxProvisions(deps)`)
 en vez de importar `DaggerXxxComponent` builders directamente. Los Components quedan
 `internal` en cada feature-impl. El trade-off es el mismo que D: el wiring module
 sigue conociendo el orden de dependencias y crece linealmente con cada feature.
 
+H tiene menos código de wiring que cualquier otro pattern porque el módulo wiring es
+inmutable: descubre FeatureProviders, los registra y resuelve dependencias via DFS.
+No hay `when` blocks, no hay `ensureXxx()`, no hay edición central al añadir features.
+Internamente usa factory functions de G (`buildXxxProvisions`). El trade-off es ~3,5x
+más lento en init que G (3,5 µs vs 966 ns) por overhead de HashMap + registro de providers.
+
 El coste de wiring es puramente código de integración — no afecta a los feature-impl
 ni a los contratos. Añadir una feature nueva en E2 multi-módulo requiere crear el
 feature-impl, su contrato, y añadir **una línea** al fichero de entries.
 
-39 benchmarks totales (19 monolíticos vía facades + 20 multi-módulo vía facades) confirman que
+44 benchmarks totales (19 monolíticos vía facades + 25 multi-módulo vía facades) confirman que
 la separación en módulos Gradle no introduce overhead en runtime. Para el análisis detallado, ver
 [di-multimodule-api-impl-analysis.md](di-multimodule-api-impl-analysis.md).
