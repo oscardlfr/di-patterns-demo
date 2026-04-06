@@ -25,7 +25,7 @@ import org.junit.runner.RunWith
  * - Koin: Service Locator (KoinSdk)
  * - Hybrid: Koin SDK + Dagger bridge (KoinSdk + BenchBridgeComponent)
  *
- * Multi-module patterns (D, E, E2, G) are in MultiModuleBenchmark.kt.
+ * Multi-module patterns (D, E, E2, G, H) are in MultiModuleBenchmark.kt.
  *
  * Run: ./gradlew :benchmark:connectedReleaseAndroidTest
  */

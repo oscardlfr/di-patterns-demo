@@ -198,14 +198,14 @@ El puente es unidireccional: app ← SDK.
 Las variantes multi-módulo (sdk-wiring, wiring-e, wiring-e2, wiring-g, wiring-h) introducen un nivel
 adicional de aislamiento mediante **provision interfaces** y contratos per-feature.
 
-Cada feature-impl depende de contratos específicos (`feature-enc-contracts`,
-`feature-auth-contracts`, etc.) en vez de importar los `@Component` de otras features.
+Cada feature-impl depende de `sdk/di-contracts/` (que contiene todas las provision interfaces)
+en vez de importar los `@Component` de otras features.
 Esto significa que `feature-auth-impl` obtiene `EncryptionApi` y `HashApi`
 a través de `EncProvisions` (interfaz Kotlin plana), sin ver `EncComponent` ni
 `DaggerEncComponent`.
 
 El mecanismo es Gradle-level: el módulo `feature-auth-impl` declara dependencia en
-`feature-enc-contracts` (que solo contiene interfaces), NO en `feature-enc-impl`
+`sdk/di-contracts` (que solo contiene interfaces), NO en `feature-enc-impl`
 (que contiene `@Component` + `@Module` + implementaciones). Solo los módulos de
 wiring (`sdk-wiring`, `wiring-e`, `wiring-e2`) importan los `DaggerXxxComponent`
 builders — son el único punto que conoce las implementaciones concretas de Dagger.

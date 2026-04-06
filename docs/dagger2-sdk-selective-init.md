@@ -493,7 +493,7 @@ el enum y el when block (misma limitación que D).
 - **initCold más lento que E.** Install + on-demand builds vs eager register.
   Diferencia de pocos µs — irrelevante en producción.
 - **JVM exclusivo.** Dagger no soporta KMP.
-- **Requiere módulos contracts per-feature.** Cada feature necesita su `feature-*-contracts/` (provision interfaces).
+- **Requiere módulo de contratos.** Las provision interfaces viven en `sdk/di-contracts/`.
 
 ---
 
@@ -514,7 +514,7 @@ el enum y el when block (misma limitación que D).
 | **Complejidad** | Baja | Media | Alta | Media | Media-Alta | Media-Alta | Media | Media |
 | **Wiring inmutable** | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | **✅** |
 
-**Nota:** D, E, E2 y H solo existen como variantes multi-módulo con provision interfaces.
+**Nota:** D, E, E2, G y H solo existen como variantes multi-módulo con provision interfaces.
 
 ### Cuándo usar
 
@@ -553,12 +553,12 @@ por feature usando **provision interfaces** como contratos Gradle:
   functions de G internamente. Zero `@Suppress("UNCHECKED_CAST")` — todo `Class.cast()`.
 
 Las cinco variantes comparten los **mismos** módulos de feature-impl (`feature-enc-impl`,
-`feature-auth-impl`, etc.) y los mismos contratos per-feature (`feature-enc-contracts`,
-`feature-auth-contracts`, etc.). La diferencia es exclusivamente el código de wiring.
+`feature-auth-impl`, etc.) y los mismos contratos en `sdk/di-contracts/` (Provisions, Scopes,
+RegistryInfra, FeatureProvider, Resolver). La diferencia es exclusivamente el código de wiring.
 
-Cada feature-impl depende de contratos específicos (e.g. `feature-auth-impl` depende de
-`feature-enc-contracts` para obtener `EncProvisions`), NO de otros feature-impl. Esto
-garantiza que las implementaciones nunca ven los `@Component` de otras features.
+Cada feature-impl depende de `sdk/di-contracts/` para obtener las provision interfaces que necesita
+(e.g. `feature-auth-impl` obtiene `EncProvisions` de `di-contracts`), NO de otros feature-impl.
+Esto garantiza que las implementaciones nunca ven los `@Component` de otras features.
 
 **G vs D:** Ambos usan el mismo patrón lazy `ensure*()`. La diferencia es que en G,
 los `DaggerXxxComponent` quedan `internal` dentro de cada feature-impl y el wiring
@@ -573,7 +573,7 @@ añadir features. Trade-off: ~3,5x más lento en init (3,5 µs vs 966 ns) por ov
 HashMap + registro de providers. Indicado para equipos grandes (10+) donde zero edición
 central importa más que sub-microsegundo de init.
 
-Los 25 benchmarks multi-módulo en `MultiModuleBenchmark.kt` confirman que las cinco
+Los 55 benchmarks multi-módulo (25 core + 30 stress) en `MultiModuleBenchmark.kt` confirman que las cinco
 variantes de wiring tienen rendimiento comparable — la separación en módulos Gradle
 es invisible en runtime.
 

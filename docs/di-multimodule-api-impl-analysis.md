@@ -5,13 +5,13 @@ donde las features se organizan en módulos `api`, `impl` e `integration`.
 
 **Ejemplo realista implementado** en este proyecto:
 - `observability-api/` — SdkLogger (interface)
-- `feature-observability-impl/` — AndroidSdkLogger (impl)
+- `feature-observability-impl/` — AndroidSdkLogger + ObservabilityComponent
 - `feature-core-api/` — SdkConfig (zero deps)
 - `feature-*-api/` — interfaces públicas per-feature (módulos top-level)
-- `sdk/di-contracts/` — Provisions + Scopes + RegistryInfra
-- `feature-*-impl/` — Dagger Components con Default*Service interno (módulos top-level, sin dependencia de impl-common)
+- `sdk/di-contracts/` — Provisions + Scopes + RegistryInfra + FeatureProvider + Resolver
+- `feature-*-impl/` — Dagger Components + Default*Service + buildXxxProvisions() + XxxProvider (módulos top-level)
 - 5 variantes de wiring: `sdk/sdk-wiring/` (D), `sdk/wiring-e/` (E), `sdk/wiring-e2/` (E2), `sdk/wiring-g/` (G), `sdk/wiring-h/` (H)
-- `sample-multimodule/` — app consumidora que solo depende de `sdk-wiring`
+- `sample-multimodule/` — app consumidora que solo depende de `sdk/wiring-h` (Pattern H)
 
 Para implementaciones Dagger, ver [dagger2-sdk-selective-init.md](dagger2-sdk-selective-init.md).
 Para conceptos DI, ver [di-sdk-consumer-isolation.md](di-sdk-consumer-isolation.md).
@@ -24,7 +24,7 @@ Para el approach hybrid, ver [di-hybrid-koin-sdk-dagger-app.md](di-hybrid-koin-s
 
 ```
 observability-api/              → SdkLogger (interface)
-feature-observability-impl/     → AndroidSdkLogger (impl)
+feature-observability-impl/     → AndroidSdkLogger + ObservabilityComponent
 
 feature-core-api/            → SdkConfig
 feature-enc-api/             → EncryptionApi, HashApi
@@ -33,23 +33,23 @@ feature-stor-api/            → StorageApi
 feature-ana-api/             → AnalyticsApi
 feature-syn-api/             → SyncApi, SyncResult
 
-feature-core-impl/           → CoreComponent : CoreProvisions
-feature-enc-impl/            → EncComponent + DefaultEncryptionService (internal)
-feature-auth-impl/           → AuthComponent + DefaultAuthService (internal)
-feature-stor-impl/           → StorComponent + DefaultSecureStorageService (internal)
-feature-ana-impl/            → AnaComponent + DefaultAnalyticsService (internal)
-feature-syn-impl/            → SynComponent + DefaultSyncService (internal)
+feature-core-impl/           → CoreComponent + buildCoreProvisions()
+feature-enc-impl/            → EncComponent + DefaultEncryptionService + buildEncProvisions() + EncProvider
+feature-auth-impl/           → AuthComponent + DefaultAuthService + buildAuthProvisions() + AuthProvider
+feature-stor-impl/           → StorComponent + DefaultSecureStorageService + buildStorProvisions() + StorProvider
+feature-ana-impl/            → AnaComponent + DefaultAnalyticsService + buildAnaProvisions() + AnaProvider
+feature-syn-impl/            → SynComponent + DefaultSyncService + buildSynProvisions() + SynProvider
 
 sdk/
   api/                       → Umbrella: CoreApis + re-exports all feature-apis + observability-api
-  di-contracts/              → Provisions + Scopes + RegistryInfra
+  di-contracts/              → Provisions + Scopes + RegistryInfra + FeatureProvider + Resolver
   sdk-wiring/                → Pattern D: direct lazy ensure*()
   wiring-e/                  → Pattern E: ProvisionRegistry + topo-sort
   wiring-e2/                 → Pattern E2: AutoProvisionRegistry + DFS lazy
   wiring-g/                  → Pattern G: Factory Functions (Components internal)
   wiring-h/                  → Pattern H: Auto-Discovery FeatureProviders (DFS resolver)
 
-sample-multimodule/          → App consumidora que solo depende de sdk-wiring
+sample-multimodule/          → App consumidora que solo depende de sdk/wiring-h (Pattern H)
 ```
 
 ### Reglas de visibilidad Gradle
@@ -235,40 +235,39 @@ Dagger 2 no requiere que `dependencies=[...]` sea un `@Component` — acepta
 **cualquier interfaz** con provision methods. Esto es lo que permite la separación limpia.
 
 ```
-feature-core-contracts/            ← contrato CoreProvisions (plain Kotlin, depends on core-api)
+sdk/di-contracts/                  ← contrato CoreProvisions (plain Kotlin, depends on core-api)
   interface CoreProvisions {
     fun config(): SdkConfig
-    fun logger(): SdkLogger
+  }
+  interface ObservabilityProvisions {
+    fun logger(): SdkLogger             // logger separado de Core
   }
 
-feature-enc-contracts/             ← contrato EncProvisions + scope (depends on feature-enc-api)
-  interface EncProvisions {
+  interface EncProvisions {            // (depends on feature-enc-api)
     fun encryption(): EncryptionApi
     fun hash(): HashApi
   }
   @Scope annotation class EncScope
 
-feature-auth-contracts/            ← contrato AuthProvisions + scope (depends on feature-auth-api)
-  interface AuthProvisions {
+  interface AuthProvisions {           // (depends on feature-auth-api)
     fun auth(): AuthApi
   }
   @Scope annotation class AuthScope
 
-sdk/di-contracts/                      ← umbrella: re-exports all contracts + RegistryInfra
-  // No define interfaces propias — solo api() dependencies hacia feature-*-contracts
+  // + RegistryInfra, FeatureProvider, Resolver, Scopes per-feature
 
-feature-core-impl/                 ← IMPLEMENTA CoreProvisions
+feature-core-impl/                 ← IMPLEMENTA CoreProvisions + ObservabilityProvisions
   @Singleton
   @Component
   interface CoreComponent : CoreProvisions {  // ← hereda provision methods
     @Component.Builder interface Builder {
       @BindsInstance fun config(config: SdkConfig): Builder
-      @BindsInstance fun logger(logger: SdkLogger): Builder
+      @BindsInstance fun logger(logger: SdkLogger): Builder  // logger vía @BindsInstance
       fun build(): CoreComponent
     }
   }
 
-feature-enc-impl/                  ← depende de feature-core-contracts (CoreProvisions), NO de feature-core-impl
+feature-enc-impl/                  ← depende de sdk/di-contracts (CoreProvisions), NO de feature-core-impl
   @EncScope
   @Component(dependencies = [CoreProvisions::class], modules = [EncModule::class])
   internal interface EncComponent : EncProvisions {
@@ -278,7 +277,7 @@ feature-enc-impl/                  ← depende de feature-core-contracts (CorePr
     }
   }
 
-feature-auth-impl/                 ← depende de feature-core-contracts + feature-enc-contracts
+feature-auth-impl/                 ← depende de sdk/di-contracts (CoreProvisions, EncProvisions)
   @AuthScope
   @Component(dependencies = [CoreProvisions::class, EncProvisions::class])
   internal interface AuthComponent : AuthProvisions {
@@ -305,11 +304,9 @@ no `@Component` classes de otros feature-impl. Los Components quedan `internal`
 
 ```
 feature-auth-impl
-  ├── api(feature-auth-contracts)      → AuthProvisions, AuthScope
-  ├── api(feature-core-contracts)      → CoreProvisions
-  ├── api(feature-enc-contracts)       → EncProvisions (cross-dep contract)
-  ├── implementation(impl-common)      → DefaultAuthApi (solo patrones monolíticos)
-  ✘ NO depende de feature-enc-impl, feature-core-impl, NI di-contracts umbrella
+  ├── api(sdk:di-contracts)            → AuthProvisions, AuthScope, CoreProvisions, EncProvisions
+  ├── implementation(impl-common)      → DefaultAuthService (solo patrones monolíticos)
+  ✘ NO depende de feature-enc-impl, feature-core-impl
 
 sdk-wiring
   ├── implementation(feature-core-impl)       → DaggerCoreComponent
@@ -320,7 +317,7 @@ sdk-wiring
 
 | Requisito | Cumple | Nota |
 |-----------|--------|------|
-| R1 Compilación aislada | ✅ | Cada `:impl` depende solo de `feature-*-contracts` específicos + `:api` modules |
+| R1 Compilación aislada | ✅ | Cada `:impl` depende solo de `sdk/di-contracts` (provision interfaces) + `:api` modules |
 | R2 App no importa impl | ✅ | App ve solo facade |
 | R3 Features solo ven apis | ✅ | **Provision interfaces, no Components** |
 | R4 Cross-feature | ✅ | **Automático — `dependencies=[EncProvisions]` resuelve todo** |
@@ -363,15 +360,13 @@ interface AuthComponent {  // público, pero tipado como AuthProvisions en sdk-w
 
 **Compatibilidad: ALTA**
 
-Usa las mismas provision interfaces per-feature (`feature-*-contracts/`) que D. La diferencia
+Usa las mismas provision interfaces de `sdk/di-contracts/` que D. La diferencia
 es que cada feature provee un `FeatureEntry` en vez de requerir wiring manual en el facade.
 El wiring vive en `sdk/wiring-e/`.
 
 ```
-feature-*-contracts/
-  // Mismas provision interfaces + scopes per-feature que en D
 sdk/di-contracts/
-  // Umbrella: re-exports all contracts + FeatureEntry, ComponentRegistry (infra del registry)
+  // Provision interfaces + scopes + FeatureEntry, ComponentRegistry (infra del registry)
 
 feature-auth:impl/
   internal interface AuthComponent : AuthProvisions { ... }
@@ -428,10 +423,8 @@ DFS recursivo que construye solo lo necesario. Sin Feature enum.
 El wiring vive en `sdk/wiring-e2/`.
 
 ```
-feature-*-contracts/
-  // Provision interfaces + scopes per-feature (= D/E)
 sdk/di-contracts/
-  // Umbrella: re-exports all contracts + AutoFeatureEntry, AutoRegistry (infra)
+  // Provision interfaces + scopes + AutoFeatureEntry, AutoRegistry (infra)
 
 feature-auth:impl/
   internal interface AuthComponent : AuthProvisions { ... }
@@ -472,17 +465,15 @@ El registry solo ve `Class<*>` y lambdas. `sdk-wiring` nunca importa Components.
 **Cómo mapea a la arquitectura api/impl/integration:**
 
 ```
-feature-*-contracts/
-  → CoreProvisions, EncProvisions, AuthProvisions... (plain interfaces per-feature)
-  → @EncScope, @AuthScope... (scopes per-feature)
 sdk/di-contracts/
-  → Umbrella: re-exports all contracts
+  → CoreProvisions, EncProvisions, AuthProvisions... (plain interfaces)
+  → @EncScope, @AuthScope... (scopes per-feature)
   → AutoFeatureEntry, AutoRegistry (infra)
 
 feature-auth-impl/
   → AuthComponent (internal, implements AuthProvisions)
   → authEntry (AutoFeatureEntry — público, es solo data + lambda)
-  → depends on: feature-auth-contracts, feature-core-contracts, feature-enc-contracts
+  → depends on: sdk/di-contracts (CoreProvisions, EncProvisions)
 
 sdk/wiring-e2/
   → depends on: ALL feature-*-impl
@@ -519,7 +510,7 @@ El Component es `internal`. El entry es público pero no expone tipos Dagger —
 - DFS resuelve en runtime — si una dependencia no fue installed, falla en runtime.
 - ~3 µs overhead vs D en init cold (negligible: 0.0002 frames).
 - 3 clases de infraestructura propias (DiComponent, AutoFeatureEntry, AutoRegistry).
-- Requiere módulos `feature-*-contracts/` (provision interfaces per-feature) + `sdk/di-contracts/` (umbrella + infra registry).
+- Requiere `sdk/di-contracts/` (provision interfaces + infra registry).
 
 **Indicado para:** SDKs que escalan a 50+ features con cross-deps abundantes. El approach Dagger que mejor mapea a esta arquitectura.
 
@@ -536,10 +527,8 @@ nunca lo importa. El wiring usa el mismo patrón lazy `ensure*()` que D, pero ll
 factory functions en vez de builders Dagger.
 
 ```
-feature-*-contracts/
-  // Provision interfaces + scopes per-feature (= D/E/E2)
 sdk/di-contracts/
-  // Umbrella: re-exports all contracts
+  // Provision interfaces + scopes (= D/E/E2)
 
 feature-enc-impl/
   internal interface EncComponent : EncProvisions { ... }
@@ -611,10 +600,8 @@ Usa factory functions de G internamente (`buildXxxProvisions`). Zero `@Suppress(
 — todas las conversiones usan `Class.cast()`.
 
 ```
-feature-*-contracts/
-  // Provision interfaces + scopes per-feature (= D/E/E2/G)
 sdk/di-contracts/
-  // Umbrella: re-exports all contracts + FeatureProvider, ProvisionResolver (infra)
+  // Provision interfaces + scopes + FeatureProvider, ProvisionResolver (infra)
 
 feature-enc-impl/
   internal interface EncComponent : EncProvisions { ... }
@@ -685,7 +672,7 @@ zero `@Suppress("UNCHECKED_CAST")`. Ambos escalan a 50+ sin editar el facade.
 **Contra:**
 - ~3,5x más lento en init que G (3,5 µs vs 966 ns) — overhead de HashMap + registro de providers.
 - Provider faltante es error runtime (no compile-time a nivel de grafo completo).
-- Requiere módulos `feature-*-contracts/` (= D/E/E2/G).
+- Requiere `sdk/di-contracts/` (= D/E/E2/G).
 - JVM exclusivo (Dagger).
 
 **Indicado para:** Equipos grandes (10+) y SDKs corporativos donde zero edición central
@@ -959,31 +946,30 @@ val authEntry = AutoFeatureEntry(
 
 ## Implementacion Real: Per-Feature Contracts
 
-### Por que se dividio di-contracts en contratos per-feature
+### Estructura de sdk/di-contracts
 
-Originalmente, `sdk/di-contracts/` contenia TODAS las provision interfaces y scopes en un solo
-modulo. Esto tenia un problema Gradle: cualquier feature-impl que dependiera de `di-contracts`
-veia transitivamente TODAS las provision interfaces de TODAS las features, incluso las que no
-necesitaba. Cada cambio en cualquier contrato invalidaba la compilacion de todos los feature-impl.
-
-La solucion fue extraer cada contrato a su propio modulo:
+Todas las provision interfaces, scopes, y la infraestructura del registry viven en un unico
+modulo `sdk/di-contracts/`. Cada feature-impl depende de este modulo para obtener las
+provision interfaces que necesita (CoreProvisions, EncProvisions, etc.).
 
 ```
-feature-enc-contracts/     → solo EncProvisions + EncScope
-feature-auth-contracts/    → solo AuthProvisions + AuthScope
-sdk/di-contracts/              → umbrella: api() hacia todos los contracts + RegistryInfra
+sdk/di-contracts/
+  → CoreProvisions (solo config() — NO logger)
+  → ObservabilityProvisions (logger() — separado de Core)
+  → EncProvisions, AuthProvisions, StorProvisions, AnaProvisions, SynProvisions
+  → Scopes: @EncScope, @AuthScope, @StorScope, @AnaScope, @SynScope
+  → RegistryInfra, FeatureProvider, Resolver
 ```
 
-Ahora `feature-auth-impl` depende de `feature-auth-contracts` + `feature-core-contracts` +
-`feature-enc-contracts` (cross-dep). Si `feature-ana-contracts` cambia, `feature-auth-impl`
-**no recompila** — aislamiento Gradle real.
+**Limitacion conocida:** todos los feature-impl ven todas las provision interfaces
+transitivamente. En produccion se podria separar en modulos per-feature para aislamiento
+Gradle estricto, pero en este demo se mantiene un unico modulo por simplicidad.
 
 ### Por que se extrajo core-api
 
-`CoreProvisions` (en `feature-core-contracts`) expone `SdkConfig` y `SdkLogger`. Si esos tipos
-vivieran en `sdk/api` (umbrella de todas las feature-apis), entonces `feature-core-contracts`
-dependeria del umbrella, y cualquier feature-impl que dependiera de `feature-core-contracts`
-veria transitivamente todas las APIs de todas las features.
+`CoreProvisions` expone `SdkConfig`. Si ese tipo viviera en `sdk/api` (umbrella de todas las
+feature-apis), entonces `sdk/di-contracts` dependeria del umbrella, y cualquier feature-impl
+que dependiera de `di-contracts` veria transitivamente todas las APIs de todas las features.
 
 Para evitarlo, `SdkConfig` se extrajo a `feature-core-api/` y `SdkLogger` a `observability-api/`:
 
@@ -991,7 +977,7 @@ Para evitarlo, `SdkConfig` se extrajo a `feature-core-api/` y `SdkLogger` a `obs
 feature-core-api/              → SdkConfig (zero deps)
 observability-api/             → SdkLogger (interface)
 feature-observability-impl/    → AndroidSdkLogger (impl)
-feature-core-contracts/    → CoreProvisions (depende solo de core-api, no de sdk/api)
+sdk/di-contracts/              → CoreProvisions (depende solo de feature-core-api, no de sdk/api)
 ```
 
 ### Limitacion conocida: impl-common y sdk/api
@@ -1009,11 +995,10 @@ depender directamente de los feature-*-api especificos que necesiten.
 
 ### Insight clave: aislamiento a nivel de contratos
 
-Aunque impl-common filtre todas las APIs, lo importante es que **a nivel de contratos DI** cada
-feature-impl solo ve las provision interfaces que necesita. `feature-auth-impl` depende de
-`feature-core-contracts` + `feature-enc-contracts` — nunca ve `AnaProvisions` ni `SynProvisions`.
-Esto significa que el grafo de dependencias DI esta correctamente acotado, incluso si el grafo
-de APIs de negocio es mas permisivo.
+Aunque impl-common filtre todas las APIs, lo importante es que **a nivel de contratos DI** el
+grafo de dependencias se expresa sobre provision interfaces tipadas. Cada feature-impl declara
+`dependencies=[CoreProvisions::class, EncProvisions::class]` — el compilador Dagger valida
+que esas provision interfaces tengan los metodos requeridos.
 
 ---
 
@@ -1049,7 +1034,7 @@ Para la arquitectura **api / impl / integration** con visibilidad estricta:
    factory functions que retornan provision interfaces.
    H lleva esto un paso más allá que G: el wiring module es inmutable y resuelve
    dependencias vía DFS, eliminando la necesidad de `ensure*()` manuales.
-   Ver implementación real en `feature-*-contracts/` (per-feature) + `sdk/di-contracts/` (umbrella) + `feature-*-impl/`.
+   Ver implementación real en `sdk/di-contracts/` (provision interfaces) + `feature-*-impl/`.
 
 **No hay approach universalmente mejor.** La elección depende de: tamaño del SDK,
 cantidad de cross-deps, requisito de KMP, compile-time safety, y equipo disponible

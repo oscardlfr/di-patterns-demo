@@ -9,7 +9,7 @@ analitica neutral en espanol.
 
 ```
 observability-api/              -> SdkLogger (interface)
-feature-observability-impl/     -> AndroidSdkLogger (impl)
+feature-observability-impl/     -> AndroidSdkLogger + ObservabilityComponent
 
 feature-core-api/         -> SdkConfig
 feature-enc-api/          -> EncryptionApi, HashApi
@@ -18,16 +18,16 @@ feature-stor-api/         -> StorageApi
 feature-ana-api/          -> AnalyticsApi
 feature-syn-api/          -> SyncApi, SyncResult
 
-feature-core-impl/        -> CoreComponent : CoreProvisions
-feature-enc-impl/         -> EncComponent + DefaultEncryptionService (internal)
-feature-auth-impl/        -> AuthComponent + DefaultAuthService (internal)
-feature-stor-impl/        -> StorComponent + DefaultSecureStorageService (internal)
-feature-ana-impl/         -> AnaComponent + DefaultAnalyticsService (internal)
-feature-syn-impl/         -> SynComponent + DefaultSyncService (internal)
+feature-core-impl/        -> CoreComponent + buildCoreProvisions()
+feature-enc-impl/         -> EncComponent + DefaultEncryptionService + buildEncProvisions() + EncProvider
+feature-auth-impl/        -> AuthComponent + DefaultAuthService + buildAuthProvisions() + AuthProvider
+feature-stor-impl/        -> StorComponent + DefaultSecureStorageService + buildStorProvisions() + StorProvider
+feature-ana-impl/         -> AnaComponent + DefaultAnalyticsService + buildAnaProvisions() + AnaProvider
+feature-syn-impl/         -> SynComponent + DefaultSyncService + buildSynProvisions() + SynProvider
 
 sdk/
   api/                    -> Umbrella: CoreApis + re-exports all feature-apis + observability-api
-  di-contracts/           -> Provisions + Scopes + RegistryInfra
+  di-contracts/           -> Provisions + Scopes + RegistryInfra + FeatureProvider + Resolver
   sdk-wiring/             -> Pattern D multi-modulo: direct lazy ensure*()
   wiring-e/               -> Pattern E multi-modulo: ProvisionRegistry + topo-sort
   wiring-e2/              -> Pattern E2 multi-modulo: AutoProvisionRegistry + DFS lazy
@@ -42,11 +42,11 @@ sample-dagger-a/    -> Educativo: @Component monolitico
 sample-dagger-b/    -> Consumidor de DaggerBSdk
 sample-dagger-c/    -> Consumidor de DaggerCSdk
 sample-hybrid/      -> KoinSdk + puente Dagger 2
-sample-multimodule/ -> Consumidor de MultiModuleSdk (provision interfaces)
+sample-multimodule/ -> Consumidor de MultiModuleSdkH (Pattern H, provision interfaces)
 
-benchmark/          -> 44 Jetpack Microbenchmarks (19 monoliticos via facades + 25 multi-modulo via facades)
+benchmark/          -> 74 Jetpack Microbenchmarks (19 monoliticos via facades + 55 multi-modulo via facades)
 
-docs/               -> 8 documentos tecnicos (espanol)
+docs/               -> 10 documentos tecnicos (espanol)
 ```
 
 ## Feature-API Modules
@@ -87,7 +87,7 @@ MultiModuleSdk.shutdown()
 ```
 
 Features dependen de **provision interfaces** (contratos), no de `@Component` (impl).
-Cada `feature-xxx-impl` compila independientemente -- solo necesita su `feature-xxx-contracts` + `feature-xxx-api`.
+Cada `feature-xxx-impl` compila independientemente -- solo necesita `sdk:di-contracts` (provision interfaces) + `feature-xxx-api`.
 
 ### Multi-Module Pattern G (Factory Functions)
 
@@ -144,6 +144,8 @@ Resultados en `benchmark/build/outputs/connected_android_test_additional_output/
 | [Hybrid: Koin SDK + Dagger 2 app](docs/di-hybrid-koin-sdk-dagger-app.md) | Bridge pattern, puente unidireccional, features lazy |
 | [Comparacion rapida](docs/di-sdk-selective-init-comparison.md) | Tabla lado-a-lado de frameworks |
 | [Multi-modulo api/impl/integration](docs/di-multimodule-api-impl-analysis.md) | Approaches para separacion Gradle estricta + ejemplo realista con provision interfaces (D/E/E2/G/H) |
+| [Benchmark results S22 Ultra](docs/benchmark-results-s22-ultra.md) | Resultados completos con tablas por operacion y ranking |
+| [Benchmark configuracion](docs/benchmark-configuracion.md) | Guia tecnica para ejecutar e interpretar los 74 benchmarks |
 
 ## Stack
 

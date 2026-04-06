@@ -209,8 +209,7 @@ Cada feature-impl depende de contratos per-feature específicos, NO del umbrella
 
 ```
 feature-auth-impl
-  ├── depends on: feature-enc-contracts  (EncProvisions)
-  ├── depends on: feature-core-contracts (CoreProvisions)
+  ├── depends on: sdk/di-contracts       (EncProvisions, CoreProvisions)
   └── NOT on: feature-enc-impl           ← nunca ve DaggerEncComponent
 ```
 
@@ -234,9 +233,9 @@ val enc = resolver.provision(EncProvisions::class.java)    // DFS auto-build
 buildAuthProvisions(core, enc)
 ```
 
-El umbrella `di-contracts` re-exporta todos los contratos per-feature más
-`RegistryInfra`, pero cada feature-impl debería depender de contratos granulares
-para mantener el principio de mínima dependencia.
+`sdk/di-contracts/` contiene todas las provision interfaces, scopes, `RegistryInfra`,
+`FeatureProvider` y `Resolver`. Cada feature-impl depende de este módulo para obtener
+las provision interfaces que necesita.
 
 Esto evita el problema de CoreApis (approach B) a escala multi-módulo: en vez de
 un God Object que crece con cada cross-dep, cada feature declara provision interfaces

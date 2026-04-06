@@ -28,7 +28,7 @@ Para el approach hybrid, ver [di-hybrid-koin-sdk-dagger-app.md](di-hybrid-koin-s
 | **Singletons** | koinApp | CoreApis ⚠️ | CoreApis ⚠️ | Provision | Registry | AutoRegistry | Provision | Resolver cache | 🔴 B, C |
 | **Wiring inmutable** | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | **✅** | 🟢 Koin, C, H |
 
-**Nota:** D, E, E2 y H solo existen como variantes multi-módulo con provision interfaces.
+**Nota:** D, E, E2, G y H solo existen como variantes multi-módulo con provision interfaces.
 B y C son patrones monolíticos.
 
 ### Variantes multi-módulo
@@ -36,7 +36,7 @@ B y C son patrones monolíticos.
 D, E, E2, G y H tienen variantes multi-módulo (`sdk-wiring`, `wiring-e`, `wiring-e2`, `wiring-g`, `wiring-h`)
 que usan provision interfaces y contratos per-feature. Las cinco comparten los mismos
 feature-impl y contratos — solo difiere el código de wiring. El rendimiento es
-comparable entre variantes (25 benchmarks en `MultiModuleBenchmark.kt`).
+comparable entre variantes (55 benchmarks — 25 core + 30 stress — en `MultiModuleBenchmark.kt`).
 
 | Criterio | Multi-D (sdk-wiring) | Multi-E (wiring-e) | Multi-E2 (wiring-e2) | Multi-G (wiring-g) | Multi-H (wiring-h) |
 |----------|---------------------|--------------------|-----------------------|---------------------|---------------------|

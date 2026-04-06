@@ -67,7 +67,7 @@ No todos tienen el mismo peso — depende del contexto del proyecto.
 | **G: Factory Functions** | `sdk/wiring-g` | Dagger 2 | Factory functions, Components `internal` |
 | **H: Auto-Discovery FeatureProviders** | `sdk/wiring-h` | Dagger 2 | FeatureProviders + DFS resolver, wiring inmutable |
 
-D, E, E2 y H solo existen como variantes multi-modulo. No tienen modulos SDK monoliticos.
+D, E, E2, G y H solo existen como variantes multi-modulo. No tienen modulos SDK monoliticos.
 
 Cada SDK expone una **API publica similar**:
 
@@ -92,7 +92,7 @@ El consumidor no ve DaggerComponents, koinApplication, CoreApis, ni FeatureEntri
 
 ```
 observability-api/              → SdkLogger (interface)
-feature-observability-impl/     → AndroidSdkLogger (impl)
+feature-observability-impl/     → AndroidSdkLogger + ObservabilityComponent
 
 feature-core-api/         → SdkConfig
 feature-enc-api/          → EncryptionApi, HashApi
@@ -101,16 +101,16 @@ feature-stor-api/         → StorageApi
 feature-ana-api/          → AnalyticsApi
 feature-syn-api/          → SyncApi, SyncResult
 
-feature-core-impl/        → CoreComponent : CoreProvisions
-feature-enc-impl/         → EncComponent + DefaultEncryptionService (internal)
-feature-auth-impl/        → AuthComponent + DefaultAuthService (internal)
-feature-stor-impl/        → StorComponent + DefaultSecureStorageService (internal)
-feature-ana-impl/         → AnaComponent + DefaultAnalyticsService (internal)
-feature-syn-impl/         → SynComponent + DefaultSyncService (internal)
+feature-core-impl/        → CoreComponent + buildCoreProvisions()
+feature-enc-impl/         → EncComponent + DefaultEncryptionService + buildEncProvisions() + EncProvider
+feature-auth-impl/        → AuthComponent + DefaultAuthService + buildAuthProvisions() + AuthProvider
+feature-stor-impl/        → StorComponent + DefaultSecureStorageService + buildStorProvisions() + StorProvider
+feature-ana-impl/         → AnaComponent + DefaultAnalyticsService + buildAnaProvisions() + AnaProvider
+feature-syn-impl/         → SynComponent + DefaultSyncService + buildSynProvisions() + SynProvider
 
 sdk/
   api/                    → Umbrella: CoreApis + re-exports all feature-apis + observability-api
-  di-contracts/           → Provisions + Scopes + RegistryInfra
+  di-contracts/           → Provisions + Scopes + RegistryInfra + FeatureProvider + Resolver + FeatureProvider + Resolver
   sdk-wiring/             → Pattern D multi-módulo: direct lazy ensure*()
   wiring-e/               → Pattern E multi-módulo: ProvisionRegistry + topo-sort
   wiring-e2/              → Pattern E2 multi-módulo: AutoProvisionRegistry + DFS lazy
@@ -125,9 +125,9 @@ sample-dagger-a/    → Educativo: @Component monolítico (approach A)
 sample-dagger-b/    → Consumidor de DaggerBSdk
 sample-dagger-c/    → Consumidor de DaggerCSdk
 sample-hybrid/      → Consumidor de KoinSdk + puente Dagger 2
-sample-multimodule/ → Consumidor de MultiModuleSdk (provision interfaces)
+sample-multimodule/ → Consumidor de MultiModuleSdkH (Pattern H, provision interfaces)
 
-benchmark/          → 44 Jetpack Microbenchmarks (19 monolíticos vía facades + 25 multi-módulo vía facades)
+benchmark/          → 74 Jetpack Microbenchmarks (19 monolíticos vía facades + 55 multi-módulo vía facades)
 ```
 
 Cada sample app tiene **2 ficheros Kotlin**: `Application.kt` + `MainActivity.kt`.
@@ -173,7 +173,7 @@ Todo el wiring interno está encapsulado en el módulo SDK correspondiente.
 |---|-----------|--------|-------|
 | 1 | Inicialización selectiva | ✅ | Lazy `ensure*()` construye on-demand |
 | 2 | Aislamiento del consumidor | ✅ | Components internos, app solo ve facade |
-| 3 | Singletons compartidos | ✅ | CoreComponent provee logger/config vía provision methods |
+| 3 | Singletons compartidos | ✅ | CoreComponent provee config vía CoreProvisions, logger vía ObservabilityProvisions |
 | 4 | Instanciación lazy | ✅ | `ensure*()` con cascada automática |
 | 5 | Independencia del core | ✅ | Cada feature-impl compila independientemente con provision interfaces |
 | 6 | Auto-registro | ❌ | Añadir feature requiere editar `when` blocks en el facade |
@@ -188,7 +188,7 @@ Todo el wiring interno está encapsulado en el módulo SDK correspondiente.
 |---|-----------|--------|-------|
 | 1 | Inicialización selectiva | ✅ | ProvisionRegistry con Feature enum |
 | 2 | Aislamiento del consumidor | ✅ | Entries, registry y Components son `internal`. App solo ve `Feature` enum |
-| 3 | Singletons compartidos | ✅ | CoreComponent vía provision methods + registry cache |
+| 3 | Singletons compartidos | ✅ | CoreComponent provee config vía CoreProvisions, logger vía ObservabilityProvisions + registry cache |
 | 4 | Instanciación lazy | ✅ | Registry con cascada automática y topo-sort |
 | 5 | Independencia del core | ✅ | Cada feature-impl compila independientemente con provision interfaces |
 | 6 | Auto-registro | ⚠️ | Cada módulo exporta `FeatureEntry`, pero el enum central requiere edición |
@@ -203,7 +203,7 @@ Todo el wiring interno está encapsulado en el módulo SDK correspondiente.
 |---|-----------|--------|-------|
 | 1 | Inicialización selectiva | ⚠️ | Todas las entries instaladas; la "selección" es implícita (solo se construye lo que se pide) |
 | 2 | Aislamiento del consumidor | ✅ | API mínima: `init()` + `get<T>()`. Sin Feature enum, sin entries visibles |
-| 3 | Singletons compartidos | ✅ | CoreComponent vía provision methods + registry cache |
+| 3 | Singletons compartidos | ✅ | CoreComponent provee config vía CoreProvisions, logger vía ObservabilityProvisions + registry cache |
 | 4 | Instanciación lazy | ✅ | `get<T>()` auto-construye por demanda (DFS recursivo) |
 | 5 | Independencia del core | ✅ | Cada feature-impl compila independientemente con provision interfaces |
 | 6 | Auto-registro | ✅ | Añadir módulo = 1 línea en `allEntries()`. Sin enum. Sin when |
@@ -248,7 +248,7 @@ Todo el wiring interno está encapsulado en el módulo SDK correspondiente.
 |---|-----------|--------|-------|
 | 1 | Inicialización selectiva | ⚠️ | Todos los providers instalados; la "selección" es implícita (solo construye lo que se pide) |
 | 2 | Aislamiento del consumidor | ✅ | API mínima: `init()` + `get<T>()`. Wiring inmutable |
-| 3 | Singletons compartidos | ✅ | CoreComponent vía provision methods + resolver cache |
+| 3 | Singletons compartidos | ✅ | CoreComponent provee config vía CoreProvisions, logger vía ObservabilityProvisions + resolver cache |
 | 4 | Instanciación lazy | ✅ | `get<T>()` dispara DFS vía `resolver.provision()` |
 | 5 | Independencia del core | ✅ | Cada feature-impl compila independientemente con provision interfaces |
 | 6 | Auto-registro | ✅ | Wiring inmutable — descubre providers, registra, done. Zero edición central |
@@ -273,7 +273,7 @@ Todo el wiring interno está encapsulado en el módulo SDK correspondiente.
 | 10. KMP | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
 | **Total ✅** | **4** 🔴 | **5** | **8** | **8** | **8** | **8** | **8** | **9** 🟢 | **9** 🟢 |
 
-**Nota:** D, E, E2 y H son exclusivamente multi-módulo (provision interfaces en módulos Gradle separados).
+**Nota:** D, E, E2, G y H son exclusivamente multi-módulo (provision interfaces en módulos Gradle separados).
 No existen como SDKs monolíticos.
 
 ---
@@ -281,9 +281,9 @@ No existen como SDKs monolíticos.
 ## Resultados de benchmarks
 
 Dispositivo: Samsung Galaxy S22 Ultra (SM-S908B) — Snapdragon 8 Gen 1, 8 cores, 2.8 GHz, Android 16.
-Framework: Jetpack Benchmark 1.4.0 con warmup automático. 44 tests en total (19 monolíticos vía facades + 25 multi-módulo vía facades).
+Framework: Jetpack Benchmark 1.4.0 con warmup automático. 74 tests en total (19 monolíticos vía facades + 55 multi-módulo vía facades).
 El benchmark no contiene Components internos propios — todos los tests usan las facades reales de los SDKs
-(DaggerBSdk, DaggerCSdk, KoinSdk, Hybrid bridge para monolíticos; MultiModuleSdk/E/E2/G para multi-módulo).
+(DaggerBSdk, DaggerCSdk, KoinSdk, Hybrid bridge para monolíticos; MultiModuleSdk/E/E2/G/H para multi-módulo).
 
 ### Inicialización en frío — Monolíticos (vía facades reales)
 
@@ -376,7 +376,7 @@ Los approaches D, E, E2, G y H se miden exclusivamente en los benchmarks multi-m
 
 ### Benchmarks multi-módulo (wiring patterns)
 
-25 tests adicionales comparan las cinco estrategias de wiring multi-módulo — D, E, E2, G y H —
+55 tests adicionales (25 core + 30 stress) comparan las cinco estrategias de wiring multi-módulo — D, E, E2, G y H —
 utilizando los mismos Dagger Components (`feature-*-impl/`) con diferentes orquestadores:
 
 - **sdk-wiring/** (Pattern D): `ensure*()` directo con lazy delegates

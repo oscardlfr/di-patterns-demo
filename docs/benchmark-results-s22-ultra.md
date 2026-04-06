@@ -3,7 +3,7 @@
 Dispositivo: Samsung Galaxy S22 Ultra (SM-S908B) — Snapdragon 8 Gen 1, 8 cores, 2.8 GHz, Android 16.
 Framework: Jetpack Benchmark 1.4.0 con warmup automatico.
 Fecha: 2026-04-06.
-Tests: 44 (19 monoliticos + 25 multi-modulo), todos usando facades reales.
+Tests: 74 (19 monoliticos + 55 multi-modulo), todos usando facades reales.
 
 ## Patrones
 

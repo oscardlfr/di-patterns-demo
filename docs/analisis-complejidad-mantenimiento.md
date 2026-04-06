@@ -8,7 +8,7 @@ Basado en métricas reales del proyecto `di-patterns-demo` con 5 features
 (Encryption, Auth, Storage, Analytics, Sync) y dependencias cruzadas entre ellas.
 Incluye patrones monolíticos (Dagger A educativo, B, C y Koin) más 5 variantes
 multi-módulo con provision interfaces (sdk-wiring D, wiring-e, wiring-e2, wiring-g, wiring-h).
-D, E, E2 y H solo existen como variantes multi-módulo — no tienen módulos SDK monolíticos.
+D, E, E2, G y H solo existen como variantes multi-módulo — no tienen módulos SDK monolíticos.
 
 ---
 
@@ -30,8 +30,8 @@ D, E, E2 y H solo existen como variantes multi-módulo — no tienen módulos SD
 | **Feature selector** | enum | string | sealed | |
 | **Escala a 50+ módulos** | ❌ | ⚠️ | ✅ | 🟢 Koin |
 
-**Nota:** D, E, E2 y H no tienen módulos SDK monolíticos. Existen exclusivamente como variantes
-multi-módulo (sdk-wiring, wiring-e, wiring-e2, wiring-h). Para sus métricas, ver la sección
+**Nota:** D, E, E2, G y H no tienen módulos SDK monolíticos. Existen exclusivamente como variantes
+multi-módulo (sdk-wiring, wiring-e, wiring-e2, wiring-g, wiring-h). Para sus métricas, ver la sección
 [Multi-módulo: Complejidad del Wiring](#multi-módulo-complejidad-del-wiring).
 
 Koin sigue siendo el más ligero en complejidad estructural (0 anotaciones, 0 codegen).
@@ -97,12 +97,12 @@ En un SDK real con 15 módulos, el fichero tiene ~180 líneas. Manejable.
 | **Dagger C** (monolítico) | 5 | 3 + META-INF | +2 Components, +1 Initializer | Errores runtime | |
 | **Koin** (monolítico) | 4 | 3 | 0 | Errores runtime | 🟢 menos coste |
 
-Para el coste de añadir features en los patterns multi-módulo (D, E, E2, G), ver
+Para el coste de añadir features en los patterns multi-módulo (D, E, E2, G, H), ver
 la sección [Multi-módulo: Complejidad del Wiring](#multi-módulo-complejidad-del-wiring).
 
 ### Depuración: ¿qué pasa cuando algo falla?
 
-| Escenario | Dagger B/C/D | Koin |
+| Escenario | Dagger B/C/D/E/E2/G/H | Koin |
 |-----------|-------------|------|
 | Binding faltante | **Error de compilación** (Dagger B/D). Error runtime (C si META-INF incorrecto) | **Crash en runtime** con `NoBeanDefFoundException` |
 | Dependencia circular | **Error de compilación** con mensaje claro | Crash con `StackOverflowError` en runtime |
@@ -119,7 +119,7 @@ en el facade). La diferencia es **cuándo** te enteras del problema.
 Cada approach usa un mecanismo distinto para conectar interfaces con implementaciones.
 Eso afecta a lo que pasa en cada build incremental (cambias 1 fichero → Build).
 
-#### Dagger B/C/D — KSP (Kotlin Symbol Processing)
+#### Dagger B/C/D/E/E2/G/H — KSP (Kotlin Symbol Processing)
 
 Dagger usa **generación de código en compilación**. Cuando escribes `@Component` y `@Module`,
 KSP lee las anotaciones y genera clases Java con las factories:
@@ -363,6 +363,6 @@ El coste de wiring es puramente código de integración — no afecta a los feat
 ni a los contratos. Añadir una feature nueva en E2 multi-módulo requiere crear el
 feature-impl, su contrato, y añadir **una línea** al fichero de entries.
 
-44 benchmarks totales (19 monolíticos vía facades + 25 multi-módulo vía facades) confirman que
+74 benchmarks totales (19 monolíticos vía facades + 55 multi-módulo vía facades) confirman que
 la separación en módulos Gradle no introduce overhead en runtime. Para el análisis detallado, ver
 [di-multimodule-api-impl-analysis.md](di-multimodule-api-impl-analysis.md).

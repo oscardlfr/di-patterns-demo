@@ -17,11 +17,13 @@ import org.junit.runner.RunWith
 /**
  * Microbenchmarks comparing multi-module wiring patterns.
  *
- * All three use the SAME feature-impl modules (same Dagger components),
+ * All five use the SAME feature-impl modules (same Dagger components),
  * only the wiring strategy differs:
  * - D (MultiModuleSdk): direct when-block with lazy ensure*() methods
  * - E (MultiModuleSdkE): ProvisionRegistry with topological sort, eager build
  * - E2 (MultiModuleSdkE2): AutoProvisionRegistry with DFS build-on-demand
+ * - G (MultiModuleSdkG): Factory functions (DaggerXxxComponent internal)
+ * - H (MultiModuleSdkH): Auto-Discovery FeatureProviders with DFS resolver
  *
  * Run: ./gradlew :benchmark:connectedReleaseAndroidTest
  */
