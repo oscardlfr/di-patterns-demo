@@ -21,10 +21,10 @@ android {
 }
 
 dependencies {
-    // The app ONLY depends on sdk-wiring.
-    // sdk-wiring uses api(:sdk:api) → app gets interfaces transitively.
-    // sdk-wiring uses implementation(:feature-xxx-impl) → app NEVER sees Components.
-    implementation(project(":sdk:sdk-wiring"))
+    // The app ONLY depends on wiring-h (Pattern H — auto-discovery).
+    // wiring-h uses api(:sdk:api) → app gets interfaces transitively.
+    // wiring-h uses implementation(:feature-xxx-impl) → app NEVER sees Components.
+    implementation(project(":sdk:wiring-h"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
