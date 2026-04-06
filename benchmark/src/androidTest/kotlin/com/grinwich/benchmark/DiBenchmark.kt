@@ -3,32 +3,29 @@ package com.grinwich.benchmark
 import androidx.benchmark.junit4.BenchmarkRule
 import androidx.benchmark.junit4.measureRepeated
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.grinwich.benchmark.daggera.*
-import com.grinwich.benchmark.daggerb.*
-import com.grinwich.benchmark.daggerc.*
-import com.grinwich.benchmark.daggerd.*
-import com.grinwich.benchmark.daggere.*
-import com.grinwich.benchmark.daggere2.*
 import com.grinwich.sdk.api.*
-import com.grinwich.sdk.feature.observability.AndroidSdkLogger
-import com.grinwich.sdk.common.*
-import com.grinwich.sdk.impl.*
+import com.grinwich.sdk.daggerb.DaggerBSdk
+import com.grinwich.sdk.daggerc.DaggerCSdk
+import com.grinwich.sdk.impl.KoinSdk
+import com.grinwich.sdk.impl.SdkModule
+import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.koin.dsl.koinApplication
-import org.koin.dsl.module
 
 /**
- * Microbenchmarks comparing DI approaches: B (per-feature), C (discovery), Koin.
- * Dagger A (monolithic) included only as baseline — cannot do lazy init.
+ * Microbenchmarks for monolithic SDK patterns using REAL facades.
  *
- * All comparable approaches measure the SAME operations:
- * 1. initCold — create full graph from scratch (6 features)
- * 2. resolveFirst — first resolution of a cached singleton
- * 3. lazyInit_noDeps — add Analytics (0 deps) to a running graph
- * 4. lazyInit_cascade — add Sync (3 deps: Auth→Storage→Encryption) to a running graph
- * 5. crossFeatureOp — Sync.sync() touching Auth+Storage+Encryption
+ * Each test calls the actual SDK facade (init/get/shutdown) — same API
+ * a real consumer would use. No internal Components exposed.
+ *
+ * Patterns:
+ * - B: Per-Feature Components (DaggerBSdk)
+ * - C: ServiceLoader Discovery (DaggerCSdk)
+ * - Koin: Service Locator (KoinSdk)
+ * - Hybrid: Koin SDK + Dagger bridge (KoinSdk + BenchBridgeComponent)
+ *
+ * Multi-module patterns (D, E, E2, G) are in MultiModuleBenchmark.kt.
  *
  * Run: ./gradlew :benchmark:connectedReleaseAndroidTest
  */
@@ -39,673 +36,226 @@ class DiBenchmark {
     val benchmarkRule = BenchmarkRule()
 
     private val config = SdkConfig(debug = false)
-    private val noopLogger: SdkLogger = AndroidSdkLogger()
 
-    // ════════════════════════════════════════════════════════
-    // HELPER: build each approach's full graph (for setup)
-    // ════════════════════════════════════════════════════════
-
-    private fun buildDaggerB(core: CoreApis): DaggerBFullGraph {
-        val enc = DaggerBEncryptionComponent.builder().core(core).build()
-        val authCore = BAuthCoreApisImpl(core, enc.encryption())
-        val auth = DaggerBAuthComponent.builder().core(authCore).build()
-        val storageCore = BStorageCoreApisImpl(core, enc.encryption(), enc.hash())
-        val storage = DaggerBStorageComponent.builder().core(storageCore).build()
-        val analytics = DaggerBAnalyticsComponent.builder().core(core).build()
-        val syncCore = BSyncCoreApisImpl(core, auth.auth(), storage.storage(), enc.encryption())
-        val sync = DaggerBSyncComponent.builder().core(syncCore).build()
-        return DaggerBFullGraph(enc, auth, storage, analytics, sync)
-    }
-
-    private data class DaggerBFullGraph(
-        val enc: BEncryptionComponent, val auth: BAuthComponent,
-        val storage: BStorageComponent, val analytics: BAnalyticsComponent,
-        val sync: BSyncComponent,
-    )
-
-    private fun buildDaggerC(core: CoreApis): DaggerCFullGraph {
-        val enc = DaggerCEncComponent.builder().core(core).build()
-        val auth = DaggerCAuthComponent.builder().enc(enc.encryption()).logger(core.logger).build()
-        val storage = DaggerCStorageComponent.builder().enc(enc.encryption()).hash(enc.hash()).logger(core.logger).build()
-        val analytics = DaggerCAnalyticsComponent.builder().core(core).build()
-        val sync = DaggerCSyncComponent.builder().auth(auth.auth()).storage(storage.storage()).enc(enc.encryption()).logger(core.logger).build()
-        return DaggerCFullGraph(enc, auth, storage, analytics, sync)
-    }
-
-    private data class DaggerCFullGraph(
-        val enc: CEncComponent, val auth: CAuthComponent,
-        val storage: CStorageComponent, val analytics: CAnalyticsComponent,
-        val sync: CSyncComponent,
-    )
-
-    private fun buildKoinFull() = koinApplication {
-        modules(module {
-            single<SdkConfig> { config }
-            single<SdkLogger> { noopLogger }
-            single<CoreApis> { CoreApisImpl(get(), get()) }
-            single<HashApi> { DefaultHashService() }
-            single<EncryptionApi> { DefaultEncryptionService(get()) }
-            single<AuthApi> { DefaultAuthService(get(), get()) }
-            single<StorageApi> { DefaultSecureStorageService(get(), get(), get()) }
-            single<AnalyticsApi> { DefaultAnalyticsService(get()) }
-            single<SyncApi> { DefaultSyncService(get(), get(), get(), get()) }
-        })
-    }
-
-    private fun buildKoinBase() = koinApplication {
-        modules(module {
-            single<SdkConfig> { config }
-            single<SdkLogger> { noopLogger }
-            single<CoreApis> { CoreApisImpl(get(), get()) }
-            single<HashApi> { DefaultHashService() }
-            single<EncryptionApi> { DefaultEncryptionService(get()) }
-        })
-    }
-
-    // --- Dagger D helpers ---
-
-    private data class DaggerDFullGraph(
-        val core: DCoreComponent, val enc: DEncComponent, val auth: DAuthComponent,
-        val storage: DStorageComponent, val analytics: DAnalyticsComponent, val sync: DSyncComponent,
-    )
-
-    private fun buildDaggerDCore() = DaggerDCoreComponent.builder()
-        .config(config).logger(noopLogger).build()
-
-    private fun buildDaggerD(core: DCoreComponent): DaggerDFullGraph {
-        val enc = DaggerDEncComponent.builder().core(core).build()
-        val auth = DaggerDAuthComponent.builder().core(core).enc(enc).build()
-        val storage = DaggerDStorageComponent.builder().core(core).enc(enc).build()
-        val analytics = DaggerDAnalyticsComponent.builder().core(core).build()
-        val sync = DaggerDSyncComponent.builder().core(core).enc(enc).auth(auth).storage(storage).build()
-        return DaggerDFullGraph(core, enc, auth, storage, analytics, sync)
+    @After
+    fun tearDown() {
+        DaggerBSdk.shutdown()
+        DaggerCSdk.shutdown()
+        KoinSdk.shutdown()
     }
 
     // ════════════════════════════════════════════════════════
-    // 1. INIT COLD — create the full DI graph (6 features)
+    // 1. DAGGER B — Per-Feature Components + CoreApis
     // ════════════════════════════════════════════════════════
 
     @Test
-    fun initCold_daggerA_monolithic() = benchmarkRule.measureRepeated {
-        val comp = DaggerMonolithicComponent.builder().config(config).build()
-        comp.encryption(); comp.hash(); comp.auth(); comp.storage()
-        comp.analytics(); comp.sync()
+    fun initCold_daggerB() = benchmarkRule.measureRepeated {
+        DaggerBSdk.init(config, DaggerBSdk.Feature.entries.toSet())
+        DaggerBSdk.get<EncryptionApi>()
+        DaggerBSdk.get<HashApi>()
+        DaggerBSdk.get<AuthApi>()
+        DaggerBSdk.get<StorageApi>()
+        DaggerBSdk.get<AnalyticsApi>()
+        DaggerBSdk.get<SyncApi>()
+        runWithTimingDisabled { DaggerBSdk.shutdown() }
     }
-
-    @Test
-    fun initCold_daggerB_perFeature() = benchmarkRule.measureRepeated {
-        val core: CoreApis = CoreApisImpl(config, noopLogger)
-        val g = buildDaggerB(core)
-        g.enc.encryption(); g.auth.auth(); g.storage.storage(); g.analytics.analytics(); g.sync.sync()
-    }
-
-    @Test
-    fun initCold_daggerC_discovery() = benchmarkRule.measureRepeated {
-        val core: CoreApis = CoreApisImpl(config, noopLogger)
-        val g = buildDaggerC(core)
-        g.enc.encryption(); g.auth.auth(); g.storage.storage(); g.analytics.analytics(); g.sync.sync()
-    }
-
-    @Test
-    fun initCold_koin() = benchmarkRule.measureRepeated {
-        val app = buildKoinFull()
-        val k = app.koin
-        k.get<EncryptionApi>(); k.get<HashApi>(); k.get<AuthApi>()
-        k.get<StorageApi>(); k.get<AnalyticsApi>(); k.get<SyncApi>()
-        runWithTimingDisabled { app.close() }
-    }
-
-    // ════════════════════════════════════════════════════════
-    // 2. RESOLVE FIRST — first resolution of a cached singleton
-    //    (graph already built, service not yet accessed)
-    // ════════════════════════════════════════════════════════
 
     @Test
     fun resolveFirst_daggerB() {
-        val core: CoreApis = CoreApisImpl(config, noopLogger)
-        val enc = DaggerBEncryptionComponent.builder().core(core).build()
+        DaggerBSdk.init(config, setOf(DaggerBSdk.Feature.ENCRYPTION))
         benchmarkRule.measureRepeated {
-            enc.encryption()
+            DaggerBSdk.get<EncryptionApi>()
         }
+        DaggerBSdk.shutdown()
+    }
+
+    @Test
+    fun lazyInit_noDeps_daggerB_analytics() = benchmarkRule.measureRepeated {
+        runWithTimingDisabled {
+            DaggerBSdk.init(config, setOf(DaggerBSdk.Feature.ENCRYPTION))
+        }
+        DaggerBSdk.getOrInitModule(DaggerBSdk.Feature.ANALYTICS)
+        DaggerBSdk.get<AnalyticsApi>()
+        runWithTimingDisabled { DaggerBSdk.shutdown() }
+    }
+
+    @Test
+    fun lazyInit_cascade_daggerB_sync() = benchmarkRule.measureRepeated {
+        runWithTimingDisabled {
+            DaggerBSdk.init(config, setOf(DaggerBSdk.Feature.ENCRYPTION))
+        }
+        DaggerBSdk.getOrInitModule(DaggerBSdk.Feature.SYNC)
+        DaggerBSdk.get<SyncApi>()
+        runWithTimingDisabled { DaggerBSdk.shutdown() }
+    }
+
+    @Test
+    fun crossFeatureOp_daggerB_sync() {
+        DaggerBSdk.init(config, DaggerBSdk.Feature.entries.toSet())
+        DaggerBSdk.get<AuthApi>().login("bench", "pass")
+        val sync = DaggerBSdk.get<SyncApi>()
+        benchmarkRule.measureRepeated {
+            sync.sync()
+        }
+        DaggerBSdk.shutdown()
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 2. DAGGER C — ServiceLoader Discovery
+    // ════════════════════════════════════════════════════════
+
+    @Test
+    fun initCold_daggerC() = benchmarkRule.measureRepeated {
+        DaggerCSdk.init(config, setOf("encryption", "auth", "storage", "analytics", "sync"))
+        DaggerCSdk.get<EncryptionApi>()
+        DaggerCSdk.get<HashApi>()
+        DaggerCSdk.get<AuthApi>()
+        DaggerCSdk.get<StorageApi>()
+        DaggerCSdk.get<AnalyticsApi>()
+        DaggerCSdk.get<SyncApi>()
+        runWithTimingDisabled { DaggerCSdk.shutdown() }
     }
 
     @Test
     fun resolveFirst_daggerC() {
-        val core: CoreApis = CoreApisImpl(config, noopLogger)
-        val enc = DaggerCEncComponent.builder().core(core).build()
+        DaggerCSdk.init(config, setOf("encryption"))
         benchmarkRule.measureRepeated {
-            enc.encryption()
+            DaggerCSdk.get<EncryptionApi>()
         }
+        DaggerCSdk.shutdown()
     }
 
     @Test
-    fun resolveFirst_koin() {
-        val app = buildKoinBase()
-        benchmarkRule.measureRepeated {
-            app.koin.get<EncryptionApi>()
+    fun lazyInit_noDeps_daggerC_analytics() = benchmarkRule.measureRepeated {
+        runWithTimingDisabled {
+            DaggerCSdk.init(config, setOf("encryption"))
         }
-        app.close()
-    }
-
-    // ════════════════════════════════════════════════════════
-    // 3. LAZY INIT — add a feature to a running graph
-    // ════════════════════════════════════════════════════════
-
-    // --- Case 1: Analytics (ZERO cross-feature deps) ---
-
-    @Test
-    fun lazyInit_noDeps_daggerB_analytics() {
-        val core: CoreApis = CoreApisImpl(config, noopLogger)
-        DaggerBEncryptionComponent.builder().core(core).build()
-        benchmarkRule.measureRepeated {
-            val comp = DaggerBAnalyticsComponent.builder().core(core).build()
-            comp.analytics()
-        }
+        DaggerCSdk.getOrInitModule("analytics")
+        DaggerCSdk.get<AnalyticsApi>()
+        runWithTimingDisabled { DaggerCSdk.shutdown() }
     }
 
     @Test
-    fun lazyInit_noDeps_daggerC_analytics() {
-        val core: CoreApis = CoreApisImpl(config, noopLogger)
-        DaggerCEncComponent.builder().core(core).build()
-        benchmarkRule.measureRepeated {
-            val comp = DaggerCAnalyticsComponent.builder().core(core).build()
-            comp.analytics()
+    fun lazyInit_cascade_daggerC_sync() = benchmarkRule.measureRepeated {
+        runWithTimingDisabled {
+            DaggerCSdk.init(config, setOf("encryption"))
         }
-    }
-
-    @Test
-    fun lazyInit_noDeps_koin_analytics() {
-        val app = buildKoinBase()
-        benchmarkRule.measureRepeated {
-            val analyticsModule = module {
-                single<AnalyticsApi> { DefaultAnalyticsService(get()) }
-            }
-            app.koin.loadModules(listOf(analyticsModule))
-            app.koin.get<AnalyticsApi>()
-            runWithTimingDisabled {
-                app.koin.unloadModules(listOf(analyticsModule))
-            }
-        }
-        app.close()
-    }
-
-    // --- Case 2: Sync (HEAVY deps — Auth + Storage + Encryption cascade) ---
-
-    @Test
-    fun lazyInit_cascade_daggerB_sync() {
-        val core: CoreApis = CoreApisImpl(config, noopLogger)
-        val enc = DaggerBEncryptionComponent.builder().core(core).build()
-        benchmarkRule.measureRepeated {
-            val authCore = BAuthCoreApisImpl(core, enc.encryption())
-            val auth = DaggerBAuthComponent.builder().core(authCore).build()
-            val storageCore = BStorageCoreApisImpl(core, enc.encryption(), enc.hash())
-            val storage = DaggerBStorageComponent.builder().core(storageCore).build()
-            val syncCore = BSyncCoreApisImpl(core, auth.auth(), storage.storage(), enc.encryption())
-            val sync = DaggerBSyncComponent.builder().core(syncCore).build()
-            sync.sync()
-        }
-    }
-
-    @Test
-    fun lazyInit_cascade_daggerC_sync() {
-        val core: CoreApis = CoreApisImpl(config, noopLogger)
-        val enc = DaggerCEncComponent.builder().core(core).build()
-        benchmarkRule.measureRepeated {
-            val auth = DaggerCAuthComponent.builder().enc(enc.encryption()).logger(core.logger).build()
-            val storage = DaggerCStorageComponent.builder().enc(enc.encryption()).hash(enc.hash()).logger(core.logger).build()
-            val sync = DaggerCSyncComponent.builder().auth(auth.auth()).storage(storage.storage()).enc(enc.encryption()).logger(core.logger).build()
-            sync.sync()
-        }
-    }
-
-    @Test
-    fun lazyInit_cascade_koin_sync() {
-        val app = buildKoinBase()
-        benchmarkRule.measureRepeated {
-            val authMod = module { single<AuthApi> { DefaultAuthService(get(), get()) } }
-            val storageMod = module { single<StorageApi> { DefaultSecureStorageService(get(), get(), get()) } }
-            val syncMod = module { single<SyncApi> { DefaultSyncService(get(), get(), get(), get()) } }
-            app.koin.loadModules(listOf(authMod, storageMod, syncMod))
-            app.koin.get<SyncApi>()
-            runWithTimingDisabled {
-                app.koin.unloadModules(listOf(authMod, storageMod, syncMod))
-            }
-        }
-        app.close()
-    }
-
-    // ════════════════════════════════════════════════════════
-    // 4. CROSS-FEATURE OP — real work crossing Auth+Storage+Encryption
-    //    (full graph already built, singletons cached)
-    // ════════════════════════════════════════════════════════
-
-    @Test
-    fun crossFeatureOp_daggerB_sync() {
-        val core: CoreApis = CoreApisImpl(config, noopLogger)
-        val g = buildDaggerB(core)
-        g.auth.auth().login("bench", "pass")
-        val sync = g.sync.sync()  // resolve once outside loop
-        benchmarkRule.measureRepeated {
-            sync.sync()
-        }
+        DaggerCSdk.getOrInitModule("sync")
+        DaggerCSdk.get<SyncApi>()
+        runWithTimingDisabled { DaggerCSdk.shutdown() }
     }
 
     @Test
     fun crossFeatureOp_daggerC_sync() {
-        val core: CoreApis = CoreApisImpl(config, noopLogger)
-        val g = buildDaggerC(core)
-        g.auth.auth().login("bench", "pass")
-        val sync = g.sync.sync()  // resolve once outside loop
+        DaggerCSdk.init(config, setOf("encryption", "auth", "storage", "analytics", "sync"))
+        DaggerCSdk.get<AuthApi>().login("bench", "pass")
+        val sync = DaggerCSdk.get<SyncApi>()
         benchmarkRule.measureRepeated {
             sync.sync()
         }
+        DaggerCSdk.shutdown()
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 3. KOIN — Service Locator
+    // ════════════════════════════════════════════════════════
+
+    @Test
+    fun initCold_koin() = benchmarkRule.measureRepeated {
+        KoinSdk.init(setOf(SdkModule.Encryption.Default, SdkModule.Auth.Default, SdkModule.Storage.Secure, SdkModule.Analytics.Default, SdkModule.Sync.Default), config)
+        KoinSdk.get<EncryptionApi>()
+        KoinSdk.get<HashApi>()
+        KoinSdk.get<AuthApi>()
+        KoinSdk.get<StorageApi>()
+        KoinSdk.get<AnalyticsApi>()
+        KoinSdk.get<SyncApi>()
+        runWithTimingDisabled { KoinSdk.shutdown() }
+    }
+
+    @Test
+    fun resolveFirst_koin() {
+        KoinSdk.init(setOf(SdkModule.Encryption.Default), config)
+        benchmarkRule.measureRepeated {
+            KoinSdk.get<EncryptionApi>()
+        }
+        KoinSdk.shutdown()
+    }
+
+    @Test
+    fun lazyInit_noDeps_koin_analytics() = benchmarkRule.measureRepeated {
+        runWithTimingDisabled {
+            KoinSdk.init(setOf(SdkModule.Encryption.Default), config)
+        }
+        KoinSdk.getOrInitModule(SdkModule.Analytics.Default)
+        KoinSdk.get<AnalyticsApi>()
+        runWithTimingDisabled { KoinSdk.shutdown() }
+    }
+
+    @Test
+    fun lazyInit_cascade_koin_sync() = benchmarkRule.measureRepeated {
+        runWithTimingDisabled {
+            KoinSdk.init(setOf(SdkModule.Encryption.Default), config)
+        }
+        KoinSdk.getOrInitModule(SdkModule.Sync.Default)
+        KoinSdk.get<SyncApi>()
+        runWithTimingDisabled { KoinSdk.shutdown() }
     }
 
     @Test
     fun crossFeatureOp_koin_sync() {
-        val app = buildKoinFull()
-        val auth = app.koin.get<AuthApi>()
-        val sync = app.koin.get<SyncApi>()
-        auth.login("bench", "pass")
-        benchmarkRule.measureRepeated {
-            sync.sync()  // resolved once outside loop — same as Dagger
-        }
-        app.close()
-    }
-
-    // ════════════════════════════════════════════════════════
-    // 5b. DAGGER D — Component Dependencies
-    //     Child Components depend on parent via `dependencies = [...]`
-    //     Cross-feature deps resolved by Dagger automatically
-    // ════════════════════════════════════════════════════════
-
-    @Test
-    fun initCold_daggerD_componentDeps() = benchmarkRule.measureRepeated {
-        val core = buildDaggerDCore()
-        val g = buildDaggerD(core)
-        g.enc.encryption(); g.auth.auth(); g.storage.storage(); g.analytics.analytics(); g.sync.sync()
-    }
-
-    @Test
-    fun resolveFirst_daggerD() {
-        val core = buildDaggerDCore()
-        val enc = DaggerDEncComponent.builder().core(core).build()
-        benchmarkRule.measureRepeated {
-            enc.encryption()
-        }
-    }
-
-    @Test
-    fun lazyInit_noDeps_daggerD_analytics() {
-        val core = buildDaggerDCore()
-        DaggerDEncComponent.builder().core(core).build()
-        benchmarkRule.measureRepeated {
-            val comp = DaggerDAnalyticsComponent.builder().core(core).build()
-            comp.analytics()
-        }
-    }
-
-    @Test
-    fun lazyInit_cascade_daggerD_sync() {
-        val core = buildDaggerDCore()
-        val enc = DaggerDEncComponent.builder().core(core).build()
-        benchmarkRule.measureRepeated {
-            // Cascade: Auth + Storage + Sync — all get enc from parent Component
-            val auth = DaggerDAuthComponent.builder().core(core).enc(enc).build()
-            val storage = DaggerDStorageComponent.builder().core(core).enc(enc).build()
-            val sync = DaggerDSyncComponent.builder().core(core).enc(enc).auth(auth).storage(storage).build()
-            sync.sync()
-        }
-    }
-
-    @Test
-    fun crossFeatureOp_daggerD_sync() {
-        val core = buildDaggerDCore()
-        val g = buildDaggerD(core)
-        g.auth.auth().login("bench", "pass")
-        val sync = g.sync.sync()  // resolve once outside loop
+        KoinSdk.init(setOf(SdkModule.Encryption.Default, SdkModule.Auth.Default, SdkModule.Storage.Secure, SdkModule.Analytics.Default, SdkModule.Sync.Default), config)
+        KoinSdk.get<AuthApi>().login("bench", "pass")
+        val sync = KoinSdk.get<SyncApi>()
         benchmarkRule.measureRepeated {
             sync.sync()
         }
+        KoinSdk.shutdown()
     }
 
     // ════════════════════════════════════════════════════════
-    // 5c. DAGGER E — Component Registry
-    //     Same component-dependency hierarchy as D, but services
-    //     resolved via explicit registry instead of hardcoded when.
-    //     Measures the overhead of ConcurrentHashMap-based registry
-    //     vs direct component method calls.
+    // 4. HYBRID — Koin SDK + Dagger bridge
+    //    Uses BenchBridgeComponent (app-specific @Component).
     // ════════════════════════════════════════════════════════
-
-    private fun buildECore() = DaggerECoreComponent.builder()
-        .config(config).logger(noopLogger).build()
-
-    private fun buildDaggerERegistry(): BenchComponentRegistry {
-        val reg = BenchComponentRegistry()
-        reg.register(eCoreEntry(config, noopLogger))
-        reg.register(eEncEntry)
-        reg.register(eAuthEntry)
-        reg.register(eStorageEntry)
-        reg.register(eAnalyticsEntry)
-        reg.register(eSyncEntry)
-        return reg
-    }
-
-    @Test
-    fun initCold_daggerE_registry() = benchmarkRule.measureRepeated {
-        val reg = buildDaggerERegistry()
-        // Force service resolution (same as other approaches)
-        reg.get(EncryptionApi::class.java)
-        reg.get(HashApi::class.java)
-        reg.get(AuthApi::class.java)
-        reg.get(StorageApi::class.java)
-        reg.get(AnalyticsApi::class.java)
-        reg.get(SyncApi::class.java)
-    }
-
-    @Test
-    fun resolveFirst_daggerE() {
-        val reg = BenchComponentRegistry()
-        reg.register(eCoreEntry(config, noopLogger))
-        reg.register(eEncEntry)
-        benchmarkRule.measureRepeated {
-            reg.get(EncryptionApi::class.java)
-        }
-    }
-
-    @Test
-    fun lazyInit_noDeps_daggerE_analytics() {
-        // Base graph: core + encryption
-        val reg = BenchComponentRegistry()
-        reg.register(eCoreEntry(config, noopLogger))
-        reg.register(eEncEntry)
-        benchmarkRule.measureRepeated {
-            // Lazy add analytics via registry
-            val localReg = BenchComponentRegistry()
-            // Copy existing components
-            localReg.components.putAll(reg.components)
-            localReg.services.putAll(reg.services)
-            localReg.register(eAnalyticsEntry)
-            localReg.get(AnalyticsApi::class.java)
-        }
-    }
-
-    @Test
-    fun lazyInit_cascade_daggerE_sync() {
-        // Base graph: core + encryption
-        val reg = BenchComponentRegistry()
-        reg.register(eCoreEntry(config, noopLogger))
-        reg.register(eEncEntry)
-        benchmarkRule.measureRepeated {
-            val localReg = BenchComponentRegistry()
-            localReg.components.putAll(reg.components)
-            localReg.services.putAll(reg.services)
-            // Cascade: Auth + Storage + Sync
-            localReg.register(eAuthEntry)
-            localReg.register(eStorageEntry)
-            localReg.register(eSyncEntry)
-            localReg.get(SyncApi::class.java)
-        }
-    }
-
-    @Test
-    fun crossFeatureOp_daggerE_sync() {
-        val reg = buildDaggerERegistry()
-        reg.get(AuthApi::class.java).login("bench", "pass")
-        val sync = reg.get(SyncApi::class.java)
-        benchmarkRule.measureRepeated {
-            sync.sync()
-        }
-    }
-
-    @Test
-    fun resolveAll_daggerE_viaRegistry() {
-        // Full graph already built — measure registry lookup overhead for all 6 services
-        val reg = buildDaggerERegistry()
-        benchmarkRule.measureRepeated {
-            reg.get(EncryptionApi::class.java)
-            reg.get(HashApi::class.java)
-            reg.get(AuthApi::class.java)
-            reg.get(StorageApi::class.java)
-            reg.get(AnalyticsApi::class.java)
-            reg.get(SyncApi::class.java)
-        }
-    }
-
-    @Test
-    fun resolveAll_daggerD_direct() {
-        // Same as above but via direct component method calls (D pattern) for comparison
-        val core = buildDaggerDCore()
-        val g = buildDaggerD(core)
-        benchmarkRule.measureRepeated {
-            g.enc.encryption()
-            g.enc.hash()
-            g.auth.auth()
-            g.storage.storage()
-            g.analytics.analytics()
-            g.sync.sync()
-        }
-    }
-
-    @Test
-    fun resolveCached_daggerE_singleService() {
-        // Full graph built, same service resolved repeatedly — measures raw ConcurrentHashMap.get
-        val reg = buildDaggerERegistry()
-        benchmarkRule.measureRepeated {
-            reg.get(EncryptionApi::class.java)
-        }
-    }
-
-    // ════════════════════════════════════════════════════════
-    // 5d. DAGGER E2 — Auto-Init Registry
-    //     Evolution of E: entries installed lazily, built on demand.
-    //     get<T>() auto-discovers and builds the component chain.
-    //     No Feature enum, no topo-sort at init — DFS on demand.
-    // ════════════════════════════════════════════════════════
-
-    private fun buildE2FullRegistry(): BenchAutoRegistry {
-        val reg = BenchAutoRegistry()
-        reg.installAll(allE2Entries(config, noopLogger))
-        return reg
-    }
-
-    @Test
-    fun initCold_daggerE2_autoRegistry() = benchmarkRule.measureRepeated {
-        // Install all entries (cheap catalog) + force all service builds via get
-        val reg = buildE2FullRegistry()
-        reg.get(EncryptionApi::class.java)
-        reg.get(HashApi::class.java)
-        reg.get(AuthApi::class.java)
-        reg.get(StorageApi::class.java)
-        reg.get(AnalyticsApi::class.java)
-        reg.get(SyncApi::class.java)
-    }
-
-    @Test
-    fun resolveFirst_daggerE2() {
-        // Registry installed, nothing built yet — first get triggers build
-        val reg = BenchAutoRegistry()
-        reg.installAll(allE2Entries(config, noopLogger))
-        benchmarkRule.measureRepeated {
-            reg.get(EncryptionApi::class.java)
-        }
-    }
-
-    @Test
-    fun lazyInit_noDeps_daggerE2_analytics() {
-        // Core + Encryption already built, Analytics not yet
-        val reg = BenchAutoRegistry()
-        reg.installAll(allE2Entries(config, noopLogger))
-        reg.get(EncryptionApi::class.java) // builds Core + Enc
-        benchmarkRule.measureRepeated {
-            val localReg = BenchAutoRegistry()
-            localReg.installAll(allE2Entries(config, noopLogger))
-            // Copy built components to simulate "running graph"
-            localReg.components.putAll(reg.components)
-            localReg.services.putAll(reg.services)
-            // Auto-build analytics on demand
-            localReg.get(AnalyticsApi::class.java)
-        }
-    }
-
-    @Test
-    fun lazyInit_cascade_daggerE2_sync() {
-        // Core + Encryption already built, Sync triggers Auth + Storage cascade
-        val reg = BenchAutoRegistry()
-        reg.installAll(allE2Entries(config, noopLogger))
-        reg.get(EncryptionApi::class.java) // builds Core + Enc
-        benchmarkRule.measureRepeated {
-            val localReg = BenchAutoRegistry()
-            localReg.installAll(allE2Entries(config, noopLogger))
-            localReg.components.putAll(reg.components)
-            localReg.services.putAll(reg.services)
-            // Auto-cascade: Sync → Auth + Storage (Enc already built)
-            localReg.get(SyncApi::class.java)
-        }
-    }
-
-    @Test
-    fun crossFeatureOp_daggerE2_sync() {
-        val reg = buildE2FullRegistry()
-        reg.get(AuthApi::class.java).login("bench", "pass")
-        val sync = reg.get(SyncApi::class.java)
-        benchmarkRule.measureRepeated {
-            sync.sync()
-        }
-    }
-
-    @Test
-    fun resolveAll_daggerE2_viaAutoRegistry() {
-        val reg = buildE2FullRegistry()
-        benchmarkRule.measureRepeated {
-            reg.get(EncryptionApi::class.java)
-            reg.get(HashApi::class.java)
-            reg.get(AuthApi::class.java)
-            reg.get(StorageApi::class.java)
-            reg.get(AnalyticsApi::class.java)
-            reg.get(SyncApi::class.java)
-        }
-    }
-
-    // ════════════════════════════════════════════════════════
-    // BASELINE: Dagger A (monolithic) — for reference only.
-    // Cannot do lazy init. All features always in binary.
-    // ════════════════════════════════════════════════════════
-
-    @Test
-    fun baseline_daggerA_initCold() = benchmarkRule.measureRepeated {
-        val comp = DaggerMonolithicComponent.builder().config(config).build()
-        comp.encryption(); comp.hash(); comp.auth(); comp.storage()
-        comp.analytics(); comp.sync()
-    }
-
-    @Test
-    fun baseline_daggerA_resolveFirst() {
-        val comp = DaggerMonolithicComponent.builder().config(config).build()
-        benchmarkRule.measureRepeated { comp.encryption() }
-    }
-
-    @Test
-    fun baseline_daggerA_crossFeatureOp() {
-        val comp = DaggerMonolithicComponent.builder().config(config).build()
-        comp.auth().login("bench", "pass")
-        val sync = comp.sync()  // resolve once outside loop
-        benchmarkRule.measureRepeated { sync.sync() }
-    }
-
-    // ════════════════════════════════════════════════════════
-    // 5. HYBRID — Koin SDK + REAL Dagger 2 bridge Component
-    //
-    // Uses BenchBridgeComponent (real @Component + @Module).
-    // @Provides methods call koin.get() — Dagger caches as @Singleton.
-    //
-    // First call: Dagger calls @Provides → Koin resolves → Dagger caches
-    // Subsequent calls: Dagger returns cached instance (~3 ns)
-    // ════════════════════════════════════════════════════════
-
-    private fun buildHybridFull(): Pair<org.koin.core.KoinApplication, BenchBridgeComponent> {
-        val app = buildKoinFull()
-        KoinSdkBenchHelper.init(app)
-        val bridge = DaggerBenchBridgeComponent.builder().build()
-        return app to bridge
-    }
 
     @Test
     fun hybrid_initCold() = benchmarkRule.measureRepeated {
-        // Koin init + Dagger bridge build + force all singletons
-        val app = buildKoinFull()
-        KoinSdkBenchHelper.init(app)
+        KoinSdk.init(setOf(SdkModule.Encryption.Default, SdkModule.Auth.Default, SdkModule.Storage.Secure, SdkModule.Analytics.Default, SdkModule.Sync.Default), config)
         val bridge = DaggerBenchBridgeComponent.builder().build()
         bridge.encryption(); bridge.hash(); bridge.auth()
         bridge.storage(); bridge.analytics(); bridge.sync()
-        runWithTimingDisabled { KoinSdkBenchHelper.close() }
+        runWithTimingDisabled { KoinSdk.shutdown() }
     }
 
     @Test
     fun hybrid_resolveFirst_viaBridge() {
-        // Full graph + bridge built, first access through Dagger
-        val (app, bridge) = buildHybridFull()
+        KoinSdk.init(setOf(SdkModule.Encryption.Default, SdkModule.Auth.Default, SdkModule.Storage.Secure, SdkModule.Analytics.Default, SdkModule.Sync.Default), config)
+        val bridge = DaggerBenchBridgeComponent.builder().build()
         benchmarkRule.measureRepeated {
-            bridge.encryption()  // first call: Dagger → @Provides → Koin → cache
+            bridge.encryption()
         }
-        KoinSdkBenchHelper.close()
+        KoinSdk.shutdown()
     }
 
     @Test
     fun hybrid_resolveCached_viaBridge() {
-        // Bridge already resolved — subsequent calls hit Dagger @Singleton cache
-        val (app, bridge) = buildHybridFull()
-        bridge.encryption()  // warm the Dagger cache
+        KoinSdk.init(setOf(SdkModule.Encryption.Default, SdkModule.Auth.Default, SdkModule.Storage.Secure, SdkModule.Analytics.Default, SdkModule.Sync.Default), config)
+        val bridge = DaggerBenchBridgeComponent.builder().build()
+        bridge.encryption() // warm cache
         benchmarkRule.measureRepeated {
-            bridge.encryption()  // cached: ~3 ns (same as pure Dagger)
+            bridge.encryption()
         }
-        KoinSdkBenchHelper.close()
-    }
-
-    @Test
-    fun hybrid_lazyInit_noDeps_analytics() {
-        // Base Koin running, add Analytics via loadModules, resolve through Dagger bridge
-        val app = buildKoinBase()
-        KoinSdkBenchHelper.init(app)
-        // Bridge built with full module — but analytics not in Koin yet
-        // For lazy: we rebuild bridge after loadModules (real app would use Provider<>)
-        benchmarkRule.measureRepeated {
-            val mod = module { single<AnalyticsApi> { DefaultAnalyticsService(get()) } }
-            app.koin.loadModules(listOf(mod))
-            app.koin.get<AnalyticsApi>()  // resolve via Koin directly (lazy feature)
-            runWithTimingDisabled {
-                app.koin.unloadModules(listOf(mod))
-            }
-        }
-        KoinSdkBenchHelper.close()
-    }
-
-    @Test
-    fun hybrid_lazyInit_cascade_sync() {
-        val app = buildKoinBase()
-        KoinSdkBenchHelper.init(app)
-        benchmarkRule.measureRepeated {
-            val authMod = module { single<AuthApi> { DefaultAuthService(get(), get()) } }
-            val storageMod = module { single<StorageApi> { DefaultSecureStorageService(get(), get(), get()) } }
-            val syncMod = module { single<SyncApi> { DefaultSyncService(get(), get(), get(), get()) } }
-            app.koin.loadModules(listOf(authMod, storageMod, syncMod))
-            app.koin.get<SyncApi>()  // lazy feature via Koin
-            runWithTimingDisabled {
-                app.koin.unloadModules(listOf(authMod, storageMod, syncMod))
-            }
-        }
-        KoinSdkBenchHelper.close()
+        KoinSdk.shutdown()
     }
 
     @Test
     fun hybrid_crossFeatureOp_sync() {
-        // Full graph, Dagger bridge cached, real operation
-        val (app, bridge) = buildHybridFull()
+        KoinSdk.init(setOf(SdkModule.Encryption.Default, SdkModule.Auth.Default, SdkModule.Storage.Secure, SdkModule.Analytics.Default, SdkModule.Sync.Default), config)
+        val bridge = DaggerBenchBridgeComponent.builder().build()
         bridge.auth().login("bench", "pass")
-        val sync = bridge.sync()  // resolve once (Dagger cached) outside loop
+        val sync = bridge.sync()
         benchmarkRule.measureRepeated {
-            sync.sync()  // only the operation
+            sync.sync()
         }
-        KoinSdkBenchHelper.close()
+        KoinSdk.shutdown()
     }
 }

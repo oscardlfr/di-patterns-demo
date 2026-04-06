@@ -4,7 +4,6 @@ import androidx.benchmark.junit4.BenchmarkRule
 import androidx.benchmark.junit4.measureRepeated
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.grinwich.sdk.api.*
-import com.grinwich.sdk.feature.observability.AndroidSdkLogger
 import com.grinwich.sdk.wiring.MultiModuleSdk
 import com.grinwich.sdk.wiring.e.MultiModuleSdkE
 import com.grinwich.sdk.wiring.e2.MultiModuleSdkE2
@@ -32,7 +31,6 @@ class MultiModuleBenchmark {
     val benchmarkRule = BenchmarkRule()
 
     private val config = SdkConfig(debug = false)
-    private val noopLogger: SdkLogger = AndroidSdkLogger()
 
     /**
      * Defensive cleanup — if a test fails mid-execution (e.g., ENOSPC on trace write),
@@ -53,7 +51,7 @@ class MultiModuleBenchmark {
 
     @Test
     fun initCold_multiModuleD() = benchmarkRule.measureRepeated {
-        MultiModuleSdk.init(config, noopLogger)
+        MultiModuleSdk.init(config)
         MultiModuleSdk.get<EncryptionApi>()
         MultiModuleSdk.get<HashApi>()
         MultiModuleSdk.get<AuthApi>()
@@ -65,7 +63,7 @@ class MultiModuleBenchmark {
 
     @Test
     fun initCold_multiModuleE() = benchmarkRule.measureRepeated {
-        MultiModuleSdkE.init(config, MultiModuleSdkE.Feature.entries.toSet(), noopLogger)
+        MultiModuleSdkE.init(config, MultiModuleSdkE.Feature.entries.toSet())
         MultiModuleSdkE.get<EncryptionApi>()
         MultiModuleSdkE.get<HashApi>()
         MultiModuleSdkE.get<AuthApi>()
@@ -77,7 +75,7 @@ class MultiModuleBenchmark {
 
     @Test
     fun initCold_multiModuleE2() = benchmarkRule.measureRepeated {
-        MultiModuleSdkE2.init(config, noopLogger)
+        MultiModuleSdkE2.init(config)
         MultiModuleSdkE2.get<SyncApi>()       // auto-cascades: Core -> Enc -> Auth -> Stor -> Syn
         MultiModuleSdkE2.get<AnalyticsApi>()   // standalone, builds Ana
         MultiModuleSdkE2.get<EncryptionApi>()  // already cached
@@ -93,7 +91,7 @@ class MultiModuleBenchmark {
 
     @Test
     fun resolveFirst_multiModuleD() {
-        MultiModuleSdk.init(config, noopLogger)
+        MultiModuleSdk.init(config)
         benchmarkRule.measureRepeated {
             MultiModuleSdk.get<EncryptionApi>()
         }
@@ -102,7 +100,7 @@ class MultiModuleBenchmark {
 
     @Test
     fun resolveFirst_multiModuleE() {
-        MultiModuleSdkE.init(config, setOf(MultiModuleSdkE.Feature.ENCRYPTION), noopLogger)
+        MultiModuleSdkE.init(config, setOf(MultiModuleSdkE.Feature.ENCRYPTION))
         benchmarkRule.measureRepeated {
             MultiModuleSdkE.get<EncryptionApi>()
         }
@@ -111,7 +109,7 @@ class MultiModuleBenchmark {
 
     @Test
     fun resolveFirst_multiModuleE2() {
-        MultiModuleSdkE2.init(config, noopLogger)
+        MultiModuleSdkE2.init(config)
         // First get triggers build (Core + Enc), subsequent iterations hit cache
         benchmarkRule.measureRepeated {
             MultiModuleSdkE2.get<EncryptionApi>()
@@ -128,7 +126,7 @@ class MultiModuleBenchmark {
     @Test
     fun lazyInit_noDeps_multiModuleD_analytics() = benchmarkRule.measureRepeated {
         runWithTimingDisabled {
-            MultiModuleSdk.init(config, noopLogger)
+            MultiModuleSdk.init(config)
             MultiModuleSdk.get<EncryptionApi>()  // build base graph
         }
         MultiModuleSdk.get<AnalyticsApi>()  // lazy add standalone
@@ -138,7 +136,7 @@ class MultiModuleBenchmark {
     @Test
     fun lazyInit_noDeps_multiModuleE_analytics() = benchmarkRule.measureRepeated {
         runWithTimingDisabled {
-            MultiModuleSdkE.init(config, setOf(MultiModuleSdkE.Feature.ENCRYPTION), noopLogger)
+            MultiModuleSdkE.init(config, setOf(MultiModuleSdkE.Feature.ENCRYPTION))
         }
         MultiModuleSdkE.getOrInitModule(MultiModuleSdkE.Feature.ANALYTICS)
         MultiModuleSdkE.get<AnalyticsApi>()
@@ -148,7 +146,7 @@ class MultiModuleBenchmark {
     @Test
     fun lazyInit_noDeps_multiModuleE2_analytics() = benchmarkRule.measureRepeated {
         runWithTimingDisabled {
-            MultiModuleSdkE2.init(config, noopLogger)
+            MultiModuleSdkE2.init(config)
             MultiModuleSdkE2.get<EncryptionApi>()  // build Core + Enc
         }
         MultiModuleSdkE2.get<AnalyticsApi>()  // auto-builds Ana (Core cached)
@@ -160,7 +158,7 @@ class MultiModuleBenchmark {
     @Test
     fun lazyInit_cascade_multiModuleD_sync() = benchmarkRule.measureRepeated {
         runWithTimingDisabled {
-            MultiModuleSdk.init(config, noopLogger)
+            MultiModuleSdk.init(config)
             MultiModuleSdk.get<EncryptionApi>()  // build Enc
         }
         MultiModuleSdk.get<SyncApi>()  // cascades: Auth + Stor + Syn
@@ -170,7 +168,7 @@ class MultiModuleBenchmark {
     @Test
     fun lazyInit_cascade_multiModuleE_sync() = benchmarkRule.measureRepeated {
         runWithTimingDisabled {
-            MultiModuleSdkE.init(config, setOf(MultiModuleSdkE.Feature.ENCRYPTION), noopLogger)
+            MultiModuleSdkE.init(config, setOf(MultiModuleSdkE.Feature.ENCRYPTION))
         }
         MultiModuleSdkE.getOrInitModule(MultiModuleSdkE.Feature.SYNC)
         MultiModuleSdkE.get<SyncApi>()
@@ -180,7 +178,7 @@ class MultiModuleBenchmark {
     @Test
     fun lazyInit_cascade_multiModuleE2_sync() = benchmarkRule.measureRepeated {
         runWithTimingDisabled {
-            MultiModuleSdkE2.init(config, noopLogger)
+            MultiModuleSdkE2.init(config)
             MultiModuleSdkE2.get<EncryptionApi>()  // build Core + Enc
         }
         MultiModuleSdkE2.get<SyncApi>()  // auto-cascades Auth + Stor + Syn
@@ -194,7 +192,7 @@ class MultiModuleBenchmark {
 
     @Test
     fun crossFeatureOp_multiModuleD_sync() {
-        MultiModuleSdk.init(config, noopLogger)
+        MultiModuleSdk.init(config)
         MultiModuleSdk.get<AuthApi>().login("bench", "pass")
         val sync = MultiModuleSdk.get<SyncApi>()
         benchmarkRule.measureRepeated {
@@ -205,7 +203,7 @@ class MultiModuleBenchmark {
 
     @Test
     fun crossFeatureOp_multiModuleE_sync() {
-        MultiModuleSdkE.init(config, MultiModuleSdkE.Feature.entries.toSet(), noopLogger)
+        MultiModuleSdkE.init(config, MultiModuleSdkE.Feature.entries.toSet())
         MultiModuleSdkE.get<AuthApi>().login("bench", "pass")
         val sync = MultiModuleSdkE.get<SyncApi>()
         benchmarkRule.measureRepeated {
@@ -216,7 +214,7 @@ class MultiModuleBenchmark {
 
     @Test
     fun crossFeatureOp_multiModuleE2_sync() {
-        MultiModuleSdkE2.init(config, noopLogger)
+        MultiModuleSdkE2.init(config)
         MultiModuleSdkE2.get<AuthApi>().login("bench", "pass")
         val sync = MultiModuleSdkE2.get<SyncApi>()
         benchmarkRule.measureRepeated {
@@ -231,7 +229,7 @@ class MultiModuleBenchmark {
 
     @Test
     fun initCold_multiModuleG() = benchmarkRule.measureRepeated {
-        MultiModuleSdkG.init(config, noopLogger)
+        MultiModuleSdkG.init(config)
         MultiModuleSdkG.get<EncryptionApi>()
         MultiModuleSdkG.get<HashApi>()
         MultiModuleSdkG.get<AuthApi>()
@@ -243,7 +241,7 @@ class MultiModuleBenchmark {
 
     @Test
     fun resolveFirst_multiModuleG() {
-        MultiModuleSdkG.init(config, noopLogger)
+        MultiModuleSdkG.init(config)
         benchmarkRule.measureRepeated {
             MultiModuleSdkG.get<EncryptionApi>()
         }
@@ -253,7 +251,7 @@ class MultiModuleBenchmark {
     @Test
     fun lazyInit_noDeps_multiModuleG_analytics() = benchmarkRule.measureRepeated {
         runWithTimingDisabled {
-            MultiModuleSdkG.init(config, noopLogger)
+            MultiModuleSdkG.init(config)
             MultiModuleSdkG.get<EncryptionApi>()
         }
         MultiModuleSdkG.get<AnalyticsApi>()
@@ -263,7 +261,7 @@ class MultiModuleBenchmark {
     @Test
     fun lazyInit_cascade_multiModuleG_sync() = benchmarkRule.measureRepeated {
         runWithTimingDisabled {
-            MultiModuleSdkG.init(config, noopLogger)
+            MultiModuleSdkG.init(config)
             MultiModuleSdkG.get<EncryptionApi>()
         }
         MultiModuleSdkG.get<SyncApi>()
@@ -272,7 +270,7 @@ class MultiModuleBenchmark {
 
     @Test
     fun crossFeatureOp_multiModuleG_sync() {
-        MultiModuleSdkG.init(config, noopLogger)
+        MultiModuleSdkG.init(config)
         MultiModuleSdkG.get<AuthApi>().login("bench", "pass")
         val sync = MultiModuleSdkG.get<SyncApi>()
         benchmarkRule.measureRepeated {

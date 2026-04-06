@@ -39,9 +39,6 @@ include(":sdk:impl-common")
 include(":sdk:impl-koin")
 include(":sdk:impl-dagger-b")
 include(":sdk:impl-dagger-c")
-include(":sdk:impl-dagger-d")
-include(":sdk:impl-dagger-e")
-include(":sdk:impl-dagger-e2")
 
 // ── Multi-module (provision interfaces pattern) ──
 include(":sdk:di-contracts")       // provision interfaces + scopes + RegistryInfra
@@ -59,12 +56,9 @@ include(":sdk:wiring-e2")         // Pattern E2: AutoProvisionRegistry + DFS laz
 include(":sdk:wiring-g")          // Pattern G: factory functions (no DaggerXxx imports)
 
 // ── Sample apps ──
-include(":sample-dagger-a")
+include(":sample-dagger-a")       // educational: monolithic @Component (no SDK facade)
 include(":sample-dagger-b")
 include(":sample-dagger-c")
-include(":sample-dagger-d")
-include(":sample-dagger-e")
-include(":sample-dagger-e2")
 include(":sample-hybrid")
 include(":sample-multimodule")
 include(":benchmark")
