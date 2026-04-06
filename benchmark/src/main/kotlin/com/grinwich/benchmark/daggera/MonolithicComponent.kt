@@ -1,6 +1,7 @@
 package com.grinwich.benchmark.daggera
 
 import com.grinwich.sdk.api.*
+import com.grinwich.sdk.feature.observability.AndroidSdkLogger
 import com.grinwich.sdk.common.*
 import dagger.Component
 import dagger.Module
@@ -25,10 +26,7 @@ interface MonolithicComponent {
 }
 
 @Module class CoreMod {
-    @Provides @Singleton fun logger(): SdkLogger = object : SdkLogger {
-        override fun d(tag: String, msg: String) {}
-        override fun e(tag: String, msg: String, throwable: Throwable?) {}
-    }
+    @Provides @Singleton fun logger(): SdkLogger = AndroidSdkLogger()
     @Provides @Singleton fun core(config: SdkConfig, logger: SdkLogger): CoreApis = CoreApisImpl(config, logger)
 }
 

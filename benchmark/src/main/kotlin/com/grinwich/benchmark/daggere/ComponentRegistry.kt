@@ -1,6 +1,7 @@
 package com.grinwich.benchmark.daggere
 
 import com.grinwich.sdk.api.*
+import com.grinwich.sdk.feature.observability.AndroidSdkLogger
 import com.grinwich.sdk.common.*
 import dagger.Component
 import dagger.Module
@@ -39,6 +40,7 @@ class BenchComponentRegistry {
         val queue = ArrayDeque(entries.filter { inDegree[it.componentClass] == 0 })
         while (queue.isNotEmpty()) {
             val entry = queue.removeFirst()
+            // Type-safe by construction: entry was registered as BenchFeatureEntry<C : BenchDiComponent>
             @Suppress("UNCHECKED_CAST")
             register(entry as BenchFeatureEntry<BenchDiComponent>)
             for (other in entries) {
@@ -51,11 +53,11 @@ class BenchComponentRegistry {
         }
     }
 
-    @Suppress("UNCHECKED_CAST")
-    fun <C : BenchDiComponent> component(clazz: Class<C>): C = components[clazz] as C
+    fun <C : BenchDiComponent> component(clazz: Class<C>): C =
+        clazz.cast(components[clazz]) ?: error("Component ${clazz.simpleName} not registered.")
 
-    @Suppress("UNCHECKED_CAST")
-    fun <T : Any> get(clazz: Class<T>): T = services[clazz] as T
+    fun <T : Any> get(clazz: Class<T>): T =
+        clazz.cast(services[clazz]) ?: error("Service ${clazz.simpleName} not available.")
 
     fun hasComponent(clazz: Class<out BenchDiComponent>): Boolean = components.containsKey(clazz)
 
@@ -66,10 +68,7 @@ class BenchComponentRegistry {
 // Dagger components — same hierarchy as Pattern D benchmark
 // ============================================================
 
-val benchNoopLogger: SdkLogger = object : SdkLogger {
-    override fun d(tag: String, msg: String) {}
-    override fun e(tag: String, msg: String, throwable: Throwable?) {}
-}
+val benchNoopLogger: SdkLogger = AndroidSdkLogger()
 
 // --- Core ---
 @Singleton @Component(modules = [ECoreModule::class])

@@ -1,6 +1,7 @@
 package com.grinwich.benchmark.daggerd
 
 import com.grinwich.sdk.api.*
+import com.grinwich.sdk.feature.observability.AndroidSdkLogger
 import com.grinwich.sdk.common.*
 import dagger.Component
 import dagger.Module
@@ -9,10 +10,7 @@ import javax.inject.Singleton
 
 /** Approach D: Component Dependencies — child depends on parent */
 
-val noopLogger: SdkLogger = object : SdkLogger {
-    override fun d(tag: String, msg: String) {}
-    override fun e(tag: String, msg: String, throwable: Throwable?) {}
-}
+val noopLogger: SdkLogger = AndroidSdkLogger()
 
 // --- Core ---
 @Singleton @Component(modules = [DCoreModule::class])

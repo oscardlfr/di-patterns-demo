@@ -14,5 +14,6 @@ android {
 
 dependencies {
     api(project(":sdk:impl-common"))
+    implementation(project(":feature-observability-impl")) // AndroidSdkLogger
     implementation(libs.koin.core)
 }

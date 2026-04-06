@@ -39,13 +39,14 @@ dependencies {
     implementation(project(":sdk:impl-dagger-d"))
     implementation(project(":sdk:impl-dagger-e"))
     implementation(project(":sdk:impl-dagger-e2"))
-    implementation(project(":sdk:impl-dagger-f"))
 
     // Multi-module wiring variants (provision interfaces)
     implementation(project(":sdk:sdk-wiring"))
     implementation(project(":sdk:wiring-e"))
     implementation(project(":sdk:wiring-e2"))
     implementation(project(":sdk:wiring-g"))
+
+    implementation(project(":feature-observability-impl"))  // AndroidSdkLogger
 
     implementation(libs.dagger)
     ksp(libs.dagger.compiler)

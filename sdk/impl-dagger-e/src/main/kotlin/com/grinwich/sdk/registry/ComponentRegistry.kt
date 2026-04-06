@@ -75,21 +75,20 @@ class ComponentRegistry {
     fun registerAll(entries: List<FeatureEntry<*>>) {
         val sorted = topoSort(entries)
         for (entry in sorted) {
+            // Type-safe by construction: entry was registered as FeatureEntry<C : DiComponent>
             @Suppress("UNCHECKED_CAST")
             register(entry as FeatureEntry<DiComponent>)
         }
     }
 
     /** Retrieve a previously-registered component by its class. */
-    @Suppress("UNCHECKED_CAST")
     fun <C : DiComponent> component(clazz: Class<C>): C =
-        components[clazz] as? C
+        clazz.cast(components[clazz])
             ?: error("Component ${clazz.simpleName} not registered. Check feature ordering.")
 
     /** Resolve a service by its interface type. */
-    @Suppress("UNCHECKED_CAST")
     fun <T : Any> get(clazz: Class<T>): T =
-        services[clazz] as? T
+        clazz.cast(services[clazz])
             ?: error("Service ${clazz.simpleName} not available. Did you init the right feature?")
 
     /** Check if a component is registered. */

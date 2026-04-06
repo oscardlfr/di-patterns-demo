@@ -1,6 +1,7 @@
 package com.grinwich.benchmark.daggerb
 
 import com.grinwich.sdk.api.*
+import com.grinwich.sdk.feature.observability.AndroidSdkLogger
 import com.grinwich.sdk.common.*
 import dagger.Component
 import dagger.Module
@@ -10,10 +11,7 @@ import javax.inject.Singleton
 /** Approach B: Per-Feature — separate Components */
 
 // No-op logger for benchmarks
-val benchLogger: SdkLogger = object : SdkLogger {
-    override fun d(tag: String, msg: String) {}
-    override fun e(tag: String, msg: String, throwable: Throwable?) {}
-}
+val benchLogger: SdkLogger = AndroidSdkLogger()
 
 // --- Encryption ---
 @Singleton @Component(modules = [BEncMod::class])

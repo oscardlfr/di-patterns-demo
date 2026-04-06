@@ -4,6 +4,7 @@ import androidx.benchmark.junit4.BenchmarkRule
 import androidx.benchmark.junit4.measureRepeated
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.grinwich.sdk.api.*
+import com.grinwich.sdk.feature.observability.AndroidSdkLogger
 import com.grinwich.sdk.wiring.MultiModuleSdk
 import com.grinwich.sdk.wiring.e.MultiModuleSdkE
 import com.grinwich.sdk.wiring.e2.MultiModuleSdkE2
@@ -31,10 +32,7 @@ class MultiModuleBenchmark {
     val benchmarkRule = BenchmarkRule()
 
     private val config = SdkConfig(debug = false)
-    private val noopLogger: SdkLogger = object : SdkLogger {
-        override fun d(tag: String, msg: String) {}
-        override fun e(tag: String, msg: String, throwable: Throwable?) {}
-    }
+    private val noopLogger: SdkLogger = AndroidSdkLogger()
 
     /**
      * Defensive cleanup — if a test fails mid-execution (e.g., ENOSPC on trace write),

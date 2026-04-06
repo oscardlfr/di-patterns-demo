@@ -2,6 +2,7 @@ package com.grinwich.sdk.daggerb
 
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.common.*
+import com.grinwich.sdk.feature.observability.AndroidSdkLogger
 
 /**
  * Approach B SDK facade — Per-Feature Components with CoreApis bridge.
@@ -87,10 +88,9 @@ object DaggerBSdk {
         return inited
     }
 
-    @Suppress("UNCHECKED_CAST")
     fun <T : Any> get(clazz: Class<T>): T {
         check(_initialized) { "DaggerBSdk not initialized." }
-        return when (clazz) {
+        val result: Any? = when (clazz) {
             EncryptionApi::class.java -> _enc?.encryption()
             HashApi::class.java -> _enc?.hash()
             AuthApi::class.java -> _auth?.auth()
@@ -99,7 +99,8 @@ object DaggerBSdk {
             SyncApi::class.java -> _sync?.sync()
             SdkLogger::class.java -> foundationLogger
             else -> null
-        } as? T ?: error("Service ${clazz.simpleName} not available.")
+        }
+        return clazz.cast(result) ?: error("Service ${clazz.simpleName} not available.")
     }
 
     inline fun <reified T : Any> get(): T = get(T::class.java)

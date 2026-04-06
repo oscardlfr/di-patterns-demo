@@ -113,10 +113,9 @@ class EncryptionInit : FeatureInitializer {
         comp = DaggerCEncComp.builder().core(core).build()
     }
     override fun shutdown() { comp = null }
-    @Suppress("UNCHECKED_CAST")
     override fun <T> getService(serviceClass: Class<T>): T? = when (serviceClass) {
-        EncryptionApi::class.java -> comp?.encryption() as? T
-        HashApi::class.java -> comp?.hash() as? T
+        EncryptionApi::class.java -> serviceClass.cast(comp?.encryption())
+        HashApi::class.java -> serviceClass.cast(comp?.hash())
         else -> null
     }
 }
@@ -130,9 +129,8 @@ class AuthInit : FeatureInitializer {
         comp = DaggerCAuthComp.builder().enc(enc).logger(core.logger).build()
     }
     override fun shutdown() { comp = null }
-    @Suppress("UNCHECKED_CAST")
     override fun <T> getService(serviceClass: Class<T>): T? = when (serviceClass) {
-        AuthApi::class.java -> comp?.auth() as? T
+        AuthApi::class.java -> serviceClass.cast(comp?.auth())
         else -> null
     }
 }
@@ -147,9 +145,8 @@ class StorageInit : FeatureInitializer {
         comp = DaggerCStorComp.builder().enc(enc).hash(hash).logger(core.logger).build()
     }
     override fun shutdown() { comp = null }
-    @Suppress("UNCHECKED_CAST")
     override fun <T> getService(serviceClass: Class<T>): T? = when (serviceClass) {
-        StorageApi::class.java -> comp?.storage() as? T
+        StorageApi::class.java -> serviceClass.cast(comp?.storage())
         else -> null
     }
 }
@@ -162,9 +159,8 @@ class AnalyticsInit : FeatureInitializer {
         comp = DaggerCAnaComp.builder().core(core).build()
     }
     override fun shutdown() { comp = null }
-    @Suppress("UNCHECKED_CAST")
     override fun <T> getService(serviceClass: Class<T>): T? = when (serviceClass) {
-        AnalyticsApi::class.java -> comp?.analytics() as? T
+        AnalyticsApi::class.java -> serviceClass.cast(comp?.analytics())
         else -> null
     }
 }
@@ -181,9 +177,8 @@ class SyncInit : FeatureInitializer {
             .logger(core.logger).build()
     }
     override fun shutdown() { comp = null }
-    @Suppress("UNCHECKED_CAST")
     override fun <T> getService(serviceClass: Class<T>): T? = when (serviceClass) {
-        SyncApi::class.java -> comp?.sync() as? T
+        SyncApi::class.java -> serviceClass.cast(comp?.sync())
         else -> null
     }
 }

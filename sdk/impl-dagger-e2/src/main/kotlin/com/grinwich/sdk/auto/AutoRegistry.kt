@@ -78,10 +78,9 @@ class AutoRegistry {
      * First call for a service: O(depth) recursive builds.
      * Subsequent calls: single HashMap.get (~2-4 ns).
      */
-    @Suppress("UNCHECKED_CAST")
     fun <T : Any> get(clazz: Class<T>): T {
         // Fast path: already built
-        services[clazz]?.let { return it as T }
+        services[clazz]?.let { return clazz.cast(it) }
 
         // Find which component provides this service
         val componentClass = serviceIndex[clazz]
@@ -90,7 +89,7 @@ class AutoRegistry {
         // Auto-build the component and all its dependencies
         ensureBuilt(componentClass)
 
-        return services[clazz] as? T
+        return clazz.cast(services[clazz])
             ?: error("${clazz.simpleName} not available after building ${componentClass.simpleName}")
     }
 
@@ -101,9 +100,8 @@ class AutoRegistry {
     fun hasService(clazz: Class<*>): Boolean = services.containsKey(clazz)
 
     /** Retrieve a built component by class. Used by entry build lambdas. */
-    @Suppress("UNCHECKED_CAST")
     fun <C : DiComponent> component(clazz: Class<C>): C =
-        components[clazz] as? C
+        clazz.cast(components[clazz])
             ?: error("Component ${clazz.simpleName} not built. Dependency not declared?")
 
     /** Clear built state only — catalog stays, components can be re-built. */
@@ -136,7 +134,7 @@ class AutoRegistry {
             ensureBuilt(dep)
         }
 
-        // Build this component
+        // Build this component — cast is safe by construction: entry was registered as AutoFeatureEntry<C : DiComponent>
         @Suppress("UNCHECKED_CAST")
         val typedEntry = entry as AutoFeatureEntry<DiComponent>
         val component = typedEntry.build(this)

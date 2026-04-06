@@ -1,10 +1,9 @@
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.ksp)
 }
 
 android {
-    namespace = "com.grinwich.sdk.dicore"
+    namespace = "com.grinwich.sdk.feature.observability"
     compileSdk = 36
     defaultConfig { minSdk = 28 }
     compileOptions {
@@ -14,8 +13,5 @@ android {
 }
 
 dependencies {
-    api(project(":sdk:api"))
-    implementation(libs.dagger)
-    ksp(libs.dagger.compiler)
-    implementation(libs.javax.inject)
+    api(project(":observability-api"))  // SdkLogger interface
 }

@@ -65,21 +65,20 @@ class ProvisionRegistry {
     fun registerAll(entries: List<ProvisionEntry<*>>) {
         val sorted = topoSort(entries)
         for (entry in sorted) {
+            // Type-safe by construction: entry was registered as ProvisionEntry<P>
             @Suppress("UNCHECKED_CAST")
             register(entry as ProvisionEntry<Any>)
         }
     }
 
     /** Retrieve a previously-registered provision by its interface type. */
-    @Suppress("UNCHECKED_CAST")
     fun <P> provision(clazz: Class<P>): P =
-        provisions[clazz] as? P
+        clazz.cast(provisions[clazz])
             ?: error("Provision ${clazz.simpleName} not registered.")
 
     /** Resolve a service by its interface type. */
-    @Suppress("UNCHECKED_CAST")
     fun <T : Any> get(clazz: Class<T>): T =
-        services[clazz] as? T
+        clazz.cast(services[clazz])
             ?: error("Service ${clazz.simpleName} not available.")
 
     fun hasProvision(clazz: Class<*>): Boolean = provisions.containsKey(clazz)
@@ -170,23 +169,21 @@ class AutoProvisionRegistry {
      * Resolve a service by type. Auto-builds the providing provision (and all
      * transitive dependencies) if not yet built.
      */
-    @Suppress("UNCHECKED_CAST")
     fun <T : Any> get(clazz: Class<T>): T {
-        services[clazz]?.let { return it as T }
+        services[clazz]?.let { return clazz.cast(it) }
 
         val provisionClass = serviceIndex[clazz]
             ?: error("No entry provides ${clazz.simpleName}.")
 
         ensureBuilt(provisionClass)
 
-        return services[clazz] as? T
+        return clazz.cast(services[clazz])
             ?: error("${clazz.simpleName} not available after building ${provisionClass.simpleName}")
     }
 
     /** Retrieve a built provision by its interface type. Used by entry build lambdas. */
-    @Suppress("UNCHECKED_CAST")
     fun <P> provision(clazz: Class<P>): P =
-        provisions[clazz] as? P
+        clazz.cast(provisions[clazz])
             ?: error("Provision ${clazz.simpleName} not built. Dependency not declared?")
 
     fun isBuilt(clazz: Class<*>): Boolean = provisions.containsKey(clazz)
@@ -212,6 +209,7 @@ class AutoProvisionRegistry {
             ensureBuilt(dep)
         }
 
+        // Type-safe by construction: entry was registered as AutoProvisionEntry<P>
         @Suppress("UNCHECKED_CAST")
         val typedEntry = entry as AutoProvisionEntry<Any>
         val provision = typedEntry.build(this)

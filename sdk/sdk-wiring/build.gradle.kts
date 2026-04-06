@@ -24,5 +24,5 @@ dependencies {
     implementation(project(":feature-stor-impl"))   // DaggerStorComponent
     implementation(project(":feature-ana-impl"))    // DaggerAnaComponent
     implementation(project(":feature-syn-impl"))    // DaggerSynComponent
-    // AndroidSdkLogger comes from :feature-core-impl — no impl-common needed
+    implementation(project(":feature-observability-impl")) // AndroidSdkLogger
 }

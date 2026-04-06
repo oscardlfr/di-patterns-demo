@@ -2,6 +2,7 @@ package com.grinwich.sample.daggera.di
 
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.common.*
+import com.grinwich.sdk.feature.observability.AndroidSdkLogger
 import dagger.Component
 import dagger.Module
 import dagger.Provides

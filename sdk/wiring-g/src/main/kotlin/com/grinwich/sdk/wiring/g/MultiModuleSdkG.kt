@@ -4,6 +4,7 @@ import com.grinwich.sdk.api.*
 import com.grinwich.sdk.contracts.*
 import com.grinwich.sdk.feature.ana.buildAnaProvisions
 import com.grinwich.sdk.feature.auth.buildAuthProvisions
+import com.grinwich.sdk.feature.observability.AndroidSdkLogger
 import com.grinwich.sdk.feature.core.buildCoreProvisions
 import com.grinwich.sdk.feature.enc.buildEncProvisions
 import com.grinwich.sdk.feature.stor.buildStorProvisions
@@ -42,7 +43,6 @@ object MultiModuleSdkG {
         _initialized = true
     }
 
-    @Suppress("UNCHECKED_CAST")
     fun <T : Any> get(clazz: Class<T>): T {
         check(_initialized) { "MultiModuleSdkG not initialized." }
         val core = _core!!
@@ -56,7 +56,7 @@ object MultiModuleSdkG {
             SdkLogger::class.java -> _logger
             else -> error("Service ${clazz.simpleName} not available.")
         }
-        return result as T
+        return clazz.cast(result)
     }
 
     inline fun <reified T : Any> get(): T = get(T::class.java)

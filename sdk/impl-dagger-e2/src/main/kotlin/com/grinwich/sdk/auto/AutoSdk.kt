@@ -1,7 +1,7 @@
 package com.grinwich.sdk.auto
 
 import com.grinwich.sdk.api.*
-import com.grinwich.sdk.api.AndroidSdkLogger
+import com.grinwich.sdk.feature.observability.AndroidSdkLogger
 
 /**
  * Pattern E2: Auto-Init Registry SDK facade.

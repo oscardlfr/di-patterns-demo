@@ -1,7 +1,7 @@
 package com.grinwich.sdk.registry
 
 import com.grinwich.sdk.api.*
-import com.grinwich.sdk.api.AndroidSdkLogger
+import com.grinwich.sdk.feature.observability.AndroidSdkLogger
 
 /**
  * Pattern E: Component Registry SDK facade.

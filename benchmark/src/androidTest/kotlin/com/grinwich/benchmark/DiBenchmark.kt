@@ -9,8 +9,8 @@ import com.grinwich.benchmark.daggerc.*
 import com.grinwich.benchmark.daggerd.*
 import com.grinwich.benchmark.daggere.*
 import com.grinwich.benchmark.daggere2.*
-import com.grinwich.benchmark.daggerf.*
 import com.grinwich.sdk.api.*
+import com.grinwich.sdk.feature.observability.AndroidSdkLogger
 import com.grinwich.sdk.common.*
 import com.grinwich.sdk.impl.*
 import org.junit.Rule
@@ -39,10 +39,7 @@ class DiBenchmark {
     val benchmarkRule = BenchmarkRule()
 
     private val config = SdkConfig(debug = false)
-    private val noopLogger: SdkLogger = object : SdkLogger {
-        override fun d(tag: String, msg: String) {}
-        override fun e(tag: String, msg: String, throwable: Throwable?) {}
-    }
+    private val noopLogger: SdkLogger = AndroidSdkLogger()
 
     // ════════════════════════════════════════════════════════
     // HELPER: build each approach's full graph (for setup)
@@ -500,94 +497,7 @@ class DiBenchmark {
     }
 
     // ════════════════════════════════════════════════════════
-    // 5d. DAGGER F — Multi-Module Component Dependencies
-    //     Identical to D at runtime. CoreComponent from :sdk:di-core
-    //     (separate Gradle module). Proves zero overhead from module split.
-    //     Uses pure @BindsInstance CoreComponent (no @Module).
-    // ════════════════════════════════════════════════════════
-
-    private data class DaggerFFullGraph(
-        val core: FCoreComponent, val enc: FEncComponent, val auth: FAuthComponent,
-        val storage: FStorageComponent, val analytics: FAnalyticsComponent, val sync: FSyncComponent,
-    )
-
-    private fun buildDaggerFCore() = DaggerFCoreComponent.builder()
-        .config(config).logger(noopLogger).build()
-
-    private fun buildDaggerF(core: FCoreComponent): DaggerFFullGraph {
-        val enc = DaggerFEncComponent.builder().core(core).build()
-        val auth = DaggerFAuthComponent.builder().core(core).enc(enc).build()
-        val storage = DaggerFStorageComponent.builder().core(core).enc(enc).build()
-        val analytics = DaggerFAnalyticsComponent.builder().core(core).build()
-        val sync = DaggerFSyncComponent.builder().core(core).enc(enc).auth(auth).storage(storage).build()
-        return DaggerFFullGraph(core, enc, auth, storage, analytics, sync)
-    }
-
-    @Test
-    fun initCold_daggerF_modular() = benchmarkRule.measureRepeated {
-        val core = buildDaggerFCore()
-        val g = buildDaggerF(core)
-        g.enc.encryption(); g.auth.auth(); g.storage.storage(); g.analytics.analytics(); g.sync.sync()
-    }
-
-    @Test
-    fun resolveFirst_daggerF() {
-        val core = buildDaggerFCore()
-        val enc = DaggerFEncComponent.builder().core(core).build()
-        benchmarkRule.measureRepeated {
-            enc.encryption()
-        }
-    }
-
-    @Test
-    fun lazyInit_noDeps_daggerF_analytics() {
-        val core = buildDaggerFCore()
-        DaggerFEncComponent.builder().core(core).build()
-        benchmarkRule.measureRepeated {
-            val comp = DaggerFAnalyticsComponent.builder().core(core).build()
-            comp.analytics()
-        }
-    }
-
-    @Test
-    fun lazyInit_cascade_daggerF_sync() {
-        val core = buildDaggerFCore()
-        val enc = DaggerFEncComponent.builder().core(core).build()
-        benchmarkRule.measureRepeated {
-            val auth = DaggerFAuthComponent.builder().core(core).enc(enc).build()
-            val storage = DaggerFStorageComponent.builder().core(core).enc(enc).build()
-            val sync = DaggerFSyncComponent.builder().core(core).enc(enc).auth(auth).storage(storage).build()
-            sync.sync()
-        }
-    }
-
-    @Test
-    fun crossFeatureOp_daggerF_sync() {
-        val core = buildDaggerFCore()
-        val g = buildDaggerF(core)
-        g.auth.auth().login("bench", "pass")
-        val sync = g.sync.sync()  // resolve once outside loop
-        benchmarkRule.measureRepeated {
-            sync.sync()
-        }
-    }
-
-    @Test
-    fun resolveAll_daggerF_direct() {
-        val core = buildDaggerFCore()
-        val g = buildDaggerF(core)
-        benchmarkRule.measureRepeated {
-            g.enc.encryption()
-            g.enc.hash()
-            g.auth.auth()
-            g.storage.storage()
-            g.analytics.analytics()
-            g.sync.sync()
-        }
-    }
-
-    // ════════════════════════════════════════════════════════
-    // 5e. DAGGER E2 — Auto-Init Registry
+    // 5d. DAGGER E2 — Auto-Init Registry
     //     Evolution of E: entries installed lazily, built on demand.
     //     get<T>() auto-discovers and builds the component chain.
     //     No Feature enum, no topo-sort at init — DFS on demand.

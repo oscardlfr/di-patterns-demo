@@ -23,5 +23,5 @@ dependencies {
     implementation(project(":feature-stor-impl"))
     implementation(project(":feature-ana-impl"))
     implementation(project(":feature-syn-impl"))
-    // AndroidSdkLogger via :observability-api (transitive from :sdk:api)
+    implementation(project(":feature-observability-impl")) // AndroidSdkLogger
 }

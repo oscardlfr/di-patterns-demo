@@ -2,6 +2,7 @@ package com.grinwich.sdk.daggerc
 
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.common.*
+import com.grinwich.sdk.feature.observability.AndroidSdkLogger
 import java.util.ServiceLoader
 
 /**
@@ -68,7 +69,6 @@ object DaggerCSdk {
         return inited
     }
 
-    @Suppress("UNCHECKED_CAST")
     fun <T : Any> get(clazz: Class<T>): T {
         check(_initialized) { "DaggerCSdk not initialized." }
         for (init in _initializers.values) {

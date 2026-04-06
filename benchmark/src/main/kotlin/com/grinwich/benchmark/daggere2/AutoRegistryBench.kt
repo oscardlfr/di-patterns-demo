@@ -46,17 +46,16 @@ class BenchAutoRegistry {
         for (entry in entries) install(entry)
     }
 
-    @Suppress("UNCHECKED_CAST")
     fun <T : Any> get(clazz: Class<T>): T {
-        services[clazz]?.let { return it as T }
+        services[clazz]?.let { return clazz.cast(it) }
         val componentClass = serviceIndex[clazz]
             ?: error("No entry provides ${clazz.simpleName}")
         ensureBuilt(componentClass)
-        return services[clazz] as T
+        return clazz.cast(services[clazz]) ?: error("Service ${clazz.simpleName} not available.")
     }
 
-    @Suppress("UNCHECKED_CAST")
-    fun <C : BenchAutoComponent> component(clazz: Class<C>): C = components[clazz] as C
+    fun <C : BenchAutoComponent> component(clazz: Class<C>): C =
+        clazz.cast(components[clazz]) ?: error("Component ${clazz.simpleName} not built.")
 
     fun clear() { catalog.clear(); serviceIndex.clear(); components.clear(); services.clear() }
     fun clearBuilt() { components.clear(); services.clear() }
@@ -65,6 +64,7 @@ class BenchAutoRegistry {
         if (components.containsKey(componentClass)) return
         val entry = catalog[componentClass] ?: error("Not installed: ${componentClass.simpleName}")
         for (dep in entry.dependencies) ensureBuilt(dep)
+        // Type-safe by construction: entry was registered as BenchAutoEntry<C : BenchAutoComponent>
         @Suppress("UNCHECKED_CAST")
         val typed = entry as BenchAutoEntry<BenchAutoComponent>
         val component = typed.build(this)

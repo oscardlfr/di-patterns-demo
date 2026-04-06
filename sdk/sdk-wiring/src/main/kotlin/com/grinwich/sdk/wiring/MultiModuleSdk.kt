@@ -1,7 +1,7 @@
 package com.grinwich.sdk.wiring
 
 import com.grinwich.sdk.api.*
-import com.grinwich.sdk.api.AndroidSdkLogger
+import com.grinwich.sdk.feature.observability.AndroidSdkLogger
 import com.grinwich.sdk.contracts.*
 import com.grinwich.sdk.feature.ana.AnaComponent
 import com.grinwich.sdk.feature.ana.DaggerAnaComponent
@@ -72,7 +72,6 @@ object MultiModuleSdk {
      *
      * get<AuthApi>() → builds Enc (if needed) → builds Auth → returns AuthApi
      */
-    @Suppress("UNCHECKED_CAST")
     fun <T : Any> get(clazz: Class<T>): T {
         check(_initialized) { "MultiModuleSdk not initialized." }
         val core = _core!!
@@ -98,7 +97,7 @@ object MultiModuleSdk {
 
             else -> error("Service ${clazz.simpleName} not available.")
         }
-        return result as T
+        return clazz.cast(result)
     }
 
     inline fun <reified T : Any> get(): T = get(T::class.java)

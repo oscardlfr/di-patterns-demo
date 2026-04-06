@@ -1,7 +1,7 @@
 package com.grinwich.sdk.wiring.e
 
 import com.grinwich.sdk.api.*
-import com.grinwich.sdk.api.AndroidSdkLogger
+import com.grinwich.sdk.feature.observability.AndroidSdkLogger
 import com.grinwich.sdk.contracts.*
 
 /**
@@ -90,7 +90,6 @@ object MultiModuleSdkE {
         return needed
     }
 
-    @Suppress("UNCHECKED_CAST")
     fun <T : Any> get(clazz: Class<T>): T {
         check(_initialized) { "MultiModuleSdkE not initialized." }
         return registry.get(clazz)

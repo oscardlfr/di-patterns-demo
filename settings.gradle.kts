@@ -22,7 +22,8 @@ dependencyResolutionManagement {
 rootProject.name = "di-patterns-demo"
 
 // ── Observability ──
-include(":observability-api")  // SdkLogger (interface) + AndroidSdkLogger (impl)
+include(":observability-api")           // SdkLogger (interface)
+include(":feature-observability-impl")  // AndroidSdkLogger (impl)
 
 // ── Feature API modules (per-feature public interfaces) ──
 include(":feature-core-api")   // SdkConfig
@@ -41,8 +42,6 @@ include(":sdk:impl-dagger-c")
 include(":sdk:impl-dagger-d")
 include(":sdk:impl-dagger-e")
 include(":sdk:impl-dagger-e2")
-include(":sdk:di-core")
-include(":sdk:impl-dagger-f")
 
 // ── Multi-module (provision interfaces pattern) ──
 include(":sdk:di-contracts")       // provision interfaces + scopes + RegistryInfra
@@ -65,7 +64,6 @@ include(":sample-dagger-b")
 include(":sample-dagger-c")
 include(":sample-dagger-d")
 include(":sample-dagger-e")
-include(":sample-dagger-f")
 include(":sample-dagger-e2")
 include(":sample-hybrid")
 include(":sample-multimodule")

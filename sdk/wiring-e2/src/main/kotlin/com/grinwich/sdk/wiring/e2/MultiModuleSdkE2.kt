@@ -1,7 +1,7 @@
 package com.grinwich.sdk.wiring.e2
 
 import com.grinwich.sdk.api.*
-import com.grinwich.sdk.api.AndroidSdkLogger
+import com.grinwich.sdk.feature.observability.AndroidSdkLogger
 import com.grinwich.sdk.contracts.AutoProvisionRegistry
 
 /**
@@ -41,7 +41,6 @@ object MultiModuleSdkE2 {
      *
      * get<SyncApi>() -> auto-builds: Core -> Enc -> Auth -> Stor -> Syn
      */
-    @Suppress("UNCHECKED_CAST")
     fun <T : Any> get(clazz: Class<T>): T {
         check(_initialized) { "MultiModuleSdkE2 not initialized." }
         return registry.get(clazz)

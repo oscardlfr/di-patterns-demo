@@ -1,7 +1,7 @@
 package com.grinwich.sdk.dagger
 
 import com.grinwich.sdk.api.*
-import com.grinwich.sdk.api.AndroidSdkLogger
+import com.grinwich.sdk.feature.observability.AndroidSdkLogger
 
 /**
  * Dagger 2 SDK facade — same public API as KoinSdk.
@@ -108,10 +108,9 @@ object DaggerSdk {
     /**
      * Resolve a service by type — same as KoinSdk.get<T>().
      */
-    @Suppress("UNCHECKED_CAST")
     fun <T : Any> get(clazz: Class<T>): T {
         check(_initialized) { "DaggerSdk not initialized." }
-        return when (clazz) {
+        val result: Any? = when (clazz) {
             EncryptionApi::class.java -> _enc?.encryption()
             HashApi::class.java -> _enc?.hash()
             AuthApi::class.java -> _auth?.auth()
@@ -120,7 +119,8 @@ object DaggerSdk {
             SyncApi::class.java -> _sync?.sync()
             SdkLogger::class.java -> foundationLogger
             else -> null
-        } as? T ?: error("Service ${clazz.simpleName} not available. Did you init the right module?")
+        }
+        return clazz.cast(result) ?: error("Service ${clazz.simpleName} not available. Did you init the right module?")
     }
 
     inline fun <reified T : Any> get(): T = get(T::class.java)

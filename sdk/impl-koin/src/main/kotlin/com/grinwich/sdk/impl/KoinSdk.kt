@@ -2,6 +2,7 @@ package com.grinwich.sdk.impl
 
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.common.*
+import com.grinwich.sdk.feature.observability.AndroidSdkLogger
 import org.koin.core.Koin
 import org.koin.core.KoinApplication
 import org.koin.core.module.Module

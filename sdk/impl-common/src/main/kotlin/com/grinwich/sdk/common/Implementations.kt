@@ -1,8 +1,7 @@
 package com.grinwich.sdk.common
 
 import com.grinwich.sdk.api.*
-
-// AndroidSdkLogger → :sdk:observability-api (com.grinwich.sdk.api.AndroidSdkLogger)
+import com.grinwich.sdk.feature.observability.AndroidSdkLogger
 
 // ============================================================
 // CoreApis implementation

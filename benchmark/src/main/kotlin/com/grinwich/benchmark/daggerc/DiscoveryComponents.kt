@@ -1,6 +1,7 @@
 package com.grinwich.benchmark.daggerc
 
 import com.grinwich.sdk.api.*
+import com.grinwich.sdk.feature.observability.AndroidSdkLogger
 import com.grinwich.sdk.common.*
 import dagger.Component
 import dagger.Module
@@ -13,10 +14,7 @@ import javax.inject.Singleton
  * themselves are identical to B.
  */
 
-val benchLogger: SdkLogger = object : SdkLogger {
-    override fun d(tag: String, msg: String) {}
-    override fun e(tag: String, msg: String, throwable: Throwable?) {}
-}
+val benchLogger: SdkLogger = AndroidSdkLogger()
 
 // Reuse same per-feature component pattern as B for the DI part.
 // The benchmark measures ServiceLoader.load() + init cascade overhead.
