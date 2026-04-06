@@ -38,6 +38,12 @@ dependencies {
     implementation(project(":sdk:impl-dagger-e"))
     implementation(project(":sdk:impl-dagger-e2"))
     implementation(project(":sdk:impl-dagger-f"))
+
+    // Multi-module wiring variants (provision interfaces)
+    implementation(project(":sdk:sdk-wiring"))
+    implementation(project(":sdk:wiring-e"))
+    implementation(project(":sdk:wiring-e2"))
+
     implementation(libs.dagger)
     ksp(libs.dagger.compiler)
     implementation(libs.javax.inject)
