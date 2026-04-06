@@ -14,6 +14,8 @@ android {
         testInstrumentationRunnerArguments["androidx.benchmark.suppressErrors"] = "EMULATOR,LOW-BATTERY,ACTIVITY-MISSING"
         // Disable animations to avoid IsolationActivity launch timeouts on first tests
         testInstrumentationRunnerArguments["disableAnalytics"] = "true"
+        // On emulator, disable method tracing to save disk space (~50% less):
+        //   ./gradlew :benchmark:connectedReleaseAndroidTest -Pandroid.testInstrumentationRunnerArguments.androidx.benchmark.profiling.mode=None
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

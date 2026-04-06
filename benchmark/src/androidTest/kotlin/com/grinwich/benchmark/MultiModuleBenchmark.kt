@@ -7,6 +7,7 @@ import com.grinwich.sdk.api.*
 import com.grinwich.sdk.wiring.MultiModuleSdk
 import com.grinwich.sdk.wiring.e.MultiModuleSdkE
 import com.grinwich.sdk.wiring.e2.MultiModuleSdkE2
+import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -32,6 +33,18 @@ class MultiModuleBenchmark {
     private val noopLogger: SdkLogger = object : SdkLogger {
         override fun d(tag: String, msg: String) {}
         override fun e(tag: String, msg: String, throwable: Throwable?) {}
+    }
+
+    /**
+     * Defensive cleanup — if a test fails mid-execution (e.g., ENOSPC on trace write),
+     * the SDK object remains initialized. Without this, the NEXT test calling init()
+     * would fail with "already initialized" — a cascade failure, not a real bug.
+     */
+    @After
+    fun tearDown() {
+        MultiModuleSdk.shutdown()
+        MultiModuleSdkE.shutdown()
+        MultiModuleSdkE2.shutdown()
     }
 
     // ════════════════════════════════════════════════════════
