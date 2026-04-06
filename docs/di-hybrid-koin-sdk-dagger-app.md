@@ -184,7 +184,7 @@ val sync = KoinSdk.get<SyncApi>()  // directo desde Koin
 
 ## Benchmarks
 
-Del S22 Ultra (30 tests):
+Del S22 Ultra (vía facades reales):
 
 | Operación | Hybrid | Koin puro |
 |-----------|--------|-----------|
@@ -201,7 +201,7 @@ El bridge cached hace que el acceso post-init sea **idéntico a Dagger puro**.
 | Escenario | ¿Hybrid? |
 |----------|----------|
 | SDK es KMP, app es Android con Dagger | ✅ Este patrón |
-| SDK es Android exclusivo | Considerar Dagger D para todo |
+| SDK es Android exclusivo | Considerar Dagger D/E2 (multi-módulo) para todo |
 | App ya usa Koin | No necesita bridge — usar `appModules` |
 | Múltiples apps consumen el SDK (unas Dagger, otras Koin) | ✅ Cada app conecta diferente |
 | SDK necesita acceso heavy a internos de la app | Reconsiderar — el SDK debería exponer extension points |

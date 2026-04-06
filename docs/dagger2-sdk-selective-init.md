@@ -1,8 +1,9 @@
 # Dagger 2: Inicialización Modular de SDKs
 
-Seis approaches para construir un SDK Android donde los consumidores seleccionan
-qué features activar. Cada uno usa Dagger 2 para DI en compilación pero difiere
-en cómo se organizan, descubren e inicializan las features.
+Approaches para construir un SDK Android donde los consumidores seleccionan
+qué features activar. Incluye patrones monolíticos (A, B, C) y multi-módulo (D, E, E2, G).
+Todos usan Dagger 2 para DI en compilación pero difieren en cómo se organizan,
+descubren e inicializan las features.
 
 Para comparación entre frameworks, ver [di-sdk-selective-init-comparison.md](di-sdk-selective-init-comparison.md).
 Para conceptos de DI, ver [di-sdk-consumer-isolation.md](di-sdk-consumer-isolation.md).
@@ -211,7 +212,7 @@ D lo declara en la anotación y Dagger genera los extractores automáticamente �
 
 ---
 
-## Approach D: Component Dependencies
+## Approach D: Component Dependencies (multi-módulo: sdk-wiring)
 
 ```
 CoreComponent → EncComponent → AuthComponent
@@ -219,52 +220,60 @@ CoreComponent → EncComponent → AuthComponent
                                             → SyncComponent
 ```
 
-Cada feature tiene su `DaggerComponent`, pero los Components hijo declaran
-`dependencies = [ParentComponent::class]`. El hijo ve las provision methods del padre
-**automáticamente** — sin CoreApis, sin wiring manual.
+Cada feature tiene su `DaggerComponent` en su propio módulo Gradle (`feature-*-impl`),
+y los Components hijo declaran `dependencies = [ProvisionInterface::class]`. El hijo ve
+las provision methods del padre **automáticamente** — sin CoreApis, sin wiring manual.
+Las dependencias se expresan sobre **provision interfaces** (contratos Kotlin planos),
+no sobre `@Component` classes de otros feature-impl.
 
-**Código real del proyecto** — ver `sdk/impl-dagger-d/`:
+**Código real del proyecto** — ver `feature-auth-impl/` y `sdk/sdk-wiring/`:
 
 ```kotlin
-// Auth depende de Core + Encryption
+// feature-auth-impl — Auth depende de Core + Encryption vía provision interfaces
 @AuthScope
 @Component(
-    dependencies = [CoreComponent::class, EncComponent::class],
-    modules = [InternalAuthModule::class],
+    dependencies = [CoreProvisions::class, EncProvisions::class],
+    modules = [AuthModule::class],
 )
-internal interface AuthComponent {
-    fun auth(): AuthApi
+interface AuthComponent : AuthProvisions {
+    override fun auth(): AuthApi
+    @Component.Builder interface Builder {
+        fun core(core: CoreProvisions): Builder
+        fun enc(enc: EncProvisions): Builder
+        fun build(): AuthComponent
+    }
 }
 
-@Module
-internal class InternalAuthModule {
-    @Provides @AuthScope
-    fun auth(enc: EncryptionApi, logger: SdkLogger): AuthApi =
-        DefaultAuthApi(enc, logger)
-    //   Dagger resuelve enc desde EncComponent.encryption() — AUTOMÁTICO
+// sdk/sdk-wiring — lazy ensure*() construye on-demand
+private fun ensureAuth(core: CoreProvisions): AuthProvisions {
+    val enc = ensureEnc(core)
+    return _auth ?: DaggerAuthComponent.builder()
+        .core(core).enc(enc).build()
+        .also { _auth = it }
 }
 ```
 
 ### Por qué elegir D
 
-- **Cross-feature automático.** `dependencies=[EncComponent]` — Dagger resuelve sin CoreApis.
+- **Cross-feature automático.** `dependencies=[EncProvisions]` — Dagger resuelve sin CoreApis.
 - **Compile-time safe.** Parent faltante = error de compilación.
-- **Lazy init real.** `getOrInitModule()` crea Components on-demand con cascada.
+- **Lazy init real.** `ensure*()` crea Components on-demand con cascada.
 - **Sin God Object.** No hay interfaz CoreApis que crezca.
+- **Binario lean.** Solo los feature-impl incluidos en Gradle.
 
 ### Por qué NO elegir D
 
-- **Binario no lean.** Todas las features están en `impl-dagger-d`. Para binario lean, cada feature necesitaría su propio módulo Gradle.
-- **Edición central.** Nueva feature = editar `Feature` enum + `when` block en `DaggerSdk.kt`.
+- **Edición central.** Nueva feature = editar `when` blocks en el facade (`sdk-wiring`).
+- **No escala a 50+.** El facade crece linealmente con cada feature.
 - **JVM exclusivo.** Dagger no soporta KMP.
 
 ---
 
-## Approach E: Component Registry
+## Approach E: Component Registry (multi-módulo: wiring-e)
 
 ```
               ┌─────────────────────────────────────────┐
-              │           ComponentRegistry              │
+              │         ProvisionRegistry                │
               │  HashMap<Class, DiComponent> components  │
               │  HashMap<Class, Any>         services    │
               └──────────────────┬──────────────────────┘
@@ -280,10 +289,10 @@ internal class InternalAuthModule {
 ```
 
 Evolución de D para entornos corporativos multi-módulo. Cada feature sigue teniendo
-su `DaggerComponent` con `dependencies=[...]`, pero los Components y servicios se
-registran en un `ComponentRegistry` central vía `FeatureEntry`.
+su `DaggerComponent` en su propio módulo Gradle con `dependencies=[...]`, pero los
+Components y servicios se registran en un `ProvisionRegistry` central vía `FeatureEntry`.
 
-**Código real del proyecto** — ver `sdk/impl-dagger-e/`:
+**Código real del proyecto** — ver `sdk/wiring-e/`:
 
 ```kotlin
 // DiComponent — marker interface para Components gestionados por el registry
@@ -326,11 +335,11 @@ internal val encryptionEntry = FeatureEntry(
 )
 ```
 
-El facade público `RegistrySdk` expone un `Feature` enum — el consumidor nunca ve
+El facade público `MultiModuleSdkE` expone un `Feature` enum — el consumidor nunca ve
 las entries ni el registry:
 
 ```kotlin
-object RegistrySdk {
+object MultiModuleSdkE {
     enum class Feature(internal val entry: FeatureEntry<out DiComponent>) {
         ENCRYPTION(encryptionEntry),
         AUTH(authEntry),
@@ -372,25 +381,24 @@ registry.registerAll(listOf(syncEntry, encEntry, authEntry, storEntry))
 - **Explicit service bindings.** Sin reflexión. Si un servicio no está en el map, no existe.
 - **Cross-feature automático.** Misma jerarquía `dependencies=[...]` que D — Dagger resuelve.
 - **Compile-time safe.** Missing binding = error Dagger en compilación.
-- **Lazy init con cascada.** `getOrInitModule()` expande dependencias transitivas y registra via topo-sort.
+- **Lazy init con cascada.** Registry expande dependencias transitivas y registra vía topo-sort.
 - **Eager resolution.** Services resueltos al registrar, no al acceder (~0 overhead post-init).
+- **Binario lean.** Solo los feature-impl incluidos en Gradle.
 
 ### Por qué NO elegir E
 
 - **Registry overhead.** `get<T>()` = HashMap lookup (~20 ns) vs campo volátil Dagger (~3 ns).
-- **Más código infra.** DiComponent + FeatureEntry + ComponentRegistry = ~135 líneas de infra.
-- **Binario no lean.** Mismo problema que D — todas las features compiladas en el módulo SDK.
+- **Más código infra.** DiComponent + FeatureEntry + ProvisionRegistry = ~135 líneas de infra.
 - **JVM exclusivo.** Dagger no soporta KMP.
-- **Enum central.** El `Feature` enum sigue requiriendo edición al añadir features (mitigable
-  en setup corporativo donde el enum vive en el módulo SDK, no en cada feature).
+- **Enum central.** El `Feature` enum sigue requiriendo edición al añadir features.
 
 ---
 
-## Approach E2: Auto-Init Registry (Evolución de E)
+## Approach E2: Auto-Init Registry (multi-módulo: wiring-e2)
 
 ```
               ┌─────────────────────────────────────────┐
-              │            AutoRegistry                  │
+              │        AutoProvisionRegistry              │
               │  catalog:      Class → AutoFeatureEntry  │  ← installed (cheap)
               │  serviceIndex: Class → componentClass    │  ← service → provider
               │  components:   Class → DiComponent       │  ← built on demand
@@ -415,7 +423,7 @@ El cambio clave es la separación en dos fases:
 - **install()** — cataloga entries (solo HashMap puts, ~50 ns total)
 - **get<T>()** — auto-descubre qué entry provee T, construye recursivamente
 
-**Código real del proyecto** — ver `sdk/impl-dagger-e2/`:
+**Código real del proyecto** — ver `sdk/wiring-e2/`:
 
 ```kotlin
 // AutoFeatureEntry — declara serviceClasses ANTES de construir
@@ -434,10 +442,10 @@ class AutoRegistry {
 }
 ```
 
-El facade `AutoSdk` — la API de consumidor más simple de todos los approaches:
+El facade `MultiModuleSdkE2` — la API de consumidor más simple de todos los approaches:
 
 ```kotlin
-object AutoSdk {
+object MultiModuleSdkE2 {
     fun init(config: SdkConfig) {
         registry.installAll(allEntries(config, logger))  // catalog only
     }
@@ -449,10 +457,10 @@ object AutoSdk {
 **API del consumidor:**
 
 ```kotlin
-AutoSdk.init(SdkConfig(debug = true))
-val sync = AutoSdk.get<SyncApi>()   // auto-inits Core→Enc→Auth→Stor→Sync
-val enc  = AutoSdk.get<EncryptionApi>() // ya construido — cache hit
-AutoSdk.shutdown()
+MultiModuleSdkE2.init(SdkConfig(debug = true))
+val sync = MultiModuleSdkE2.get<SyncApi>()   // auto-inits Core→Enc→Auth→Stor→Sync
+val enc  = MultiModuleSdkE2.get<EncryptionApi>() // ya construido — cache hit
+MultiModuleSdkE2.shutdown()
 ```
 
 ### Escalabilidad: E2 vs E
@@ -482,40 +490,43 @@ el enum y el when block (misma limitación que D).
 - **Sin control granular.** El consumidor no puede elegir qué features cargar — todo está instalado.
   Para SDKs donde el consumidor NECESITA excluir features por política, E con Feature enum es mejor.
 - **Registry overhead.** `get<T>()` primera vez = DFS + builds. Post-init = HashMap (~25 ns vs ~3 ns Dagger).
-- **initCold más lento que E.** Install + on-demand builds (~8 μs) vs eager register (~5 μs).
-  Diferencia de ~3 μs — irrelevante en producción.
+- **initCold más lento que E.** Install + on-demand builds vs eager register.
+  Diferencia de pocos µs — irrelevante en producción.
 - **JVM exclusivo.** Dagger no soporta KMP.
+- **Requiere módulos contracts per-feature.** Cada feature necesita su `feature-*-contracts/` (provision interfaces).
 
 ---
 
 ## Comparación
 
-|  | A | B | C | D | E | E2 |
+|  | A | B | C | D (multi) | E (multi) | E2 (multi) |
 |---|---|---|---|---|---|---|
-| **Arquitectura** | 1 Component global | N Components + CoreApis | N Components + ServiceLoader | N Components `dependencies=[]` | N Components + Registry + topo-sort | N Components + AutoRegistry + DFS |
+| **Arquitectura** | 1 Component global | N Components + CoreApis | N Components + ServiceLoader | N Components `dependencies=[]` + provision interfaces | N Components + Registry + topo-sort | N Components + AutoRegistry + DFS |
 | **Cross-feature** | ✅ Auto | ❌ CoreApis | ❌ CoreApis | ✅ Auto | ✅ Auto | ✅ Auto |
 | **Singletons** | ✅ @Singleton | ⚠️ Manual | ⚠️ Manual | ✅ Provision | ✅ Registry | ✅ Registry |
-| **Binario lean** | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **Binario lean** | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Lazy init** | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ On-demand |
 | **Añadir feature** | Editar @Component | +CoreApis +when | +META-INF | +deps +when | +Entry +enum | **+Entry (1 línea)** |
 | **Compile-time** | ✅ Completo | ⚠️ Per-feature | ⚠️ Runtime | ✅ Con deps | ✅ Explicit | ✅ Explicit |
-| **Multi-módulo** | ❌ | ✅ | ✅ | ❌ | ✅ | ✅ |
-| **Feature enum** | N/A | ✅ Expuesto | N/A | ✅ Expuesto | ✅ Expuesto | **❌ Oculto** |
+| **Multi-módulo** | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Feature enum** | N/A | ✅ Expuesto | N/A | N/A | ✅ Expuesto | **❌ Oculto** |
 | **Escala 50+** | ❌ | ❌ God Object | ⚠️ Cross-deps | ❌ when blocks | ❌ enum+when | **✅** |
 | **Complejidad** | Baja | Media | Alta | Media | Media-Alta | Media-Alta |
+
+**Nota:** D, E y E2 solo existen como variantes multi-módulo con provision interfaces.
 
 ### Cuándo usar
 
 | Escenario | Approach |
 |----------|----------|
-| SDK pequeño (≤5 features), features interdependientes | **A** |
-| SDK modular, publicación per-feature Maven | **B** |
-| 20+ features, adiciones frecuentes, JVM | **C**, **E**, o **E2** |
-| Cross-deps complejas + compile-time safety | **D**, **E**, o **E2** |
-| Multi-módulo Gradle corporativo (api/impl por feature) | **E** o **E2** |
-| API mínima para consumidor (sin Feature enum) | **E2** |
+| SDK pequeño (≤5 features), features interdependientes | **A** (educativo) |
+| SDK modular monolítico, publicación per-feature Maven | **B** |
+| 20+ features, adiciones frecuentes, JVM | **E** o **E2** (multi-módulo) |
+| Cross-deps complejas + compile-time safety | **D**, **E**, o **E2** (multi-módulo) |
+| Multi-módulo Gradle corporativo (api/impl por feature) | **E** o **E2** (vía wiring-e / wiring-e2) |
+| API mínima para consumidor (sin Feature enum) | **E2** (multi-módulo) |
 | SDK escalable a 50+ módulos | **E2** o Koin |
-| Consumidor necesita excluir features explícitamente | **E** (Feature enum) |
+| Consumidor necesita excluir features explícitamente | **E** (Feature enum, multi-módulo) |
 | KMP necesario | Ninguno — ver Koin en [comparación](di-sdk-selective-init-comparison.md) |
 
 ---

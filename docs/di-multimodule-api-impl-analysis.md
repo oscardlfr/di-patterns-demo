@@ -295,11 +295,10 @@ sdk/sdk-wiring/
   val auth = DaggerAuthComponent.builder().core(core).enc(enc).build()
 ```
 
-**Lo que cambia vs el demo del proyecto:**
-- En el demo, los patrones monolíticos (`impl-dagger-d`, etc.) importan Components directamente.
-  Esto funciona porque el demo es educativo y todo vive en pocos módulos.
-- En una arquitectura real api/impl/integration, las features importan **provision interfaces**
-  (`CoreProvisions`, `EncProvisions`), no `@Component` classes. Los Components quedan `internal`.
+**Arquitectura del proyecto:**
+Las features importan **provision interfaces** (`CoreProvisions`, `EncProvisions`),
+no `@Component` classes de otros feature-impl. Los Components quedan `internal`
+(o públicos tipados como provision interfaces en el wiring).
 
 **Dependencias Gradle reales:**
 
@@ -308,7 +307,7 @@ feature-auth-impl
   ├── api(feature-auth-contracts)      → AuthProvisions, AuthScope
   ├── api(feature-core-contracts)      → CoreProvisions
   ├── api(feature-enc-contracts)       → EncProvisions (cross-dep contract)
-  ├── implementation(impl-common)      → DefaultAuthApi
+  ├── implementation(impl-common)      → DefaultAuthApi (solo patrones monolíticos)
   ✘ NO depende de feature-enc-impl, feature-core-impl, NI di-contracts umbrella
 
 sdk-wiring

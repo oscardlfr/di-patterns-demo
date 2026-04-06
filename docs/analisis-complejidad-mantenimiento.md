@@ -6,8 +6,9 @@ Análisis orientado a dos audiencias:
 
 Basado en métricas reales del proyecto `di-patterns-demo` con 5 features
 (Encryption, Auth, Storage, Analytics, Sync) y dependencias cruzadas entre ellas.
-Incluye 7 approaches monolíticos (Dagger A, B, C, D, E, E2 y Koin) más 4 variantes
-multi-módulo con provision interfaces (sdk-wiring, wiring-e, wiring-e2, wiring-g).
+Incluye patrones monolíticos (Dagger A educativo, B, C y Koin) más 4 variantes
+multi-módulo con provision interfaces (sdk-wiring D, wiring-e, wiring-e2, wiring-g).
+D, E y E2 solo existen como variantes multi-módulo — no tienen módulos SDK monolíticos.
 
 ---
 
@@ -15,21 +16,24 @@ multi-módulo con provision interfaces (sdk-wiring, wiring-e, wiring-e2, wiring-
 
 ### Métricas de complejidad por approach
 
-| Métrica | Dagger B | Dagger C | Dagger D | Dagger E | Dagger E2 | Koin | |
-|---------|----------|----------|----------|----------|-----------|------|---|
-| **Ficheros Kotlin** | 2 | 2 | 2 | 3 | 3 | 1 | 🟢 Koin |
-| **Líneas de código** | 244 | 276 | 251 | 344 | ~320 | 274 | 🟢 B · 🔴 E |
-| **Anotaciones DI** | 25 | 25 | 33 | 33 | 33 | 0 | 🟢 Koin |
-| **Ficheros Java generados (KSP)** | 22 | 22 | 28 | 28 | 28 | 0 | 🟢 Koin |
-| **Scopes personalizados** | 4 | 5 | 5 | 5 | 5 | 0 | 🟢 Koin |
-| **Interfaces CoreApis extendidas** | 4 | 0 | 0 | 0 | 0 | 0 | 🔴 B (4) |
-| **META-INF/services** | 0 | 1 | 0 | 0 | 0 | 0 | |
-| **Clases infra propias** | 0 | 0 | 0 | 3 | 3 | 0 | 🔴 E/E2 |
-| **Feature selector** | enum | string | enum | enum | **ninguno** | sealed | 🟢 E2 |
-| **Escala a 50+ módulos** | ❌ | ⚠️ | ❌ | ❌ | **✅** | ✅ | 🟢 E2, Koin |
+#### Patrones monolíticos
 
-**Lectura:** E2 tiene complejidad similar a E (~320 líneas) pero elimina el Feature enum.
-E2 es el único approach Dagger que escala a 50+ módulos sin tocar el facade.
+| Métrica | Dagger B | Dagger C | Koin | |
+|---------|----------|----------|------|---|
+| **Ficheros Kotlin** | 2 | 2 | 1 | 🟢 Koin |
+| **Líneas de código** | 244 | 276 | 274 | 🟢 B |
+| **Anotaciones DI** | 25 | 25 | 0 | 🟢 Koin |
+| **Ficheros Java generados (KSP)** | 22 | 22 | 0 | 🟢 Koin |
+| **Scopes personalizados** | 4 | 5 | 0 | 🟢 Koin |
+| **Interfaces CoreApis extendidas** | 4 | 0 | 0 | 🔴 B (4) |
+| **META-INF/services** | 0 | 1 | 0 | |
+| **Feature selector** | enum | string | sealed | |
+| **Escala a 50+ módulos** | ❌ | ⚠️ | ✅ | 🟢 Koin |
+
+**Nota:** D, E y E2 no tienen módulos SDK monolíticos. Existen exclusivamente como variantes
+multi-módulo (sdk-wiring, wiring-e, wiring-e2). Para sus métricas, ver la sección
+[Multi-módulo: Complejidad del Wiring](#multi-módulo-complejidad-del-wiring).
+
 Koin sigue siendo el más ligero en complejidad estructural (0 anotaciones, 0 codegen).
 
 ### Coste de añadir una nueva feature
@@ -70,44 +74,6 @@ de configuración (META-INF incorrecto, dependencia Gradle ausente) solo aparece
 **Riesgo a escala:** Errores silenciosos. Si el META-INF tiene un typo, la feature no se
 descubre y el error aparece cuando el usuario navega a esa pantalla, no al compilar.
 
-#### Dagger D — Component Dependencies
-
-| Paso | Fichero | Tipo de cambio |
-|------|---------|---------------|
-| 1 | `sdk/api/SdkApi.kt` | Nueva interfaz del servicio |
-| 2 | `sdk/impl-common/Implementations.kt` | Nueva clase de implementación |
-| 3 | `InternalComponents.kt` | Nuevo `@Component(dependencies=[...])` + `@Module` + `@Scope` |
-| 4 | `DaggerSdk.kt` | Editar `Feature` enum + `when` block en `getOrInitModule()` + `get()` |
-
-**Total: 4 puntos de contacto.** No hay CoreApis extendido — las dependencias cruzadas
-se declaran en `dependencies=[ParentComponent::class]` y Dagger las resuelve.
-
-**Riesgo a escala:** El `when` block en el facade crece linealmente (1 case por feature).
-Pero no hay interfaces multiplicándose como en B.
-
-#### Dagger E — Component Registry
-
-| Paso | Fichero | Tipo de cambio |
-|------|---------|---------------|
-| 1 | `sdk/api/SdkApi.kt` | Nueva interfaz del servicio |
-| 2 | `sdk/impl-common/Implementations.kt` | Nueva clase de implementación |
-| 3 | `InternalComponents.kt` | Nuevo `@Component(dependencies=[...])` + `@Module` + `@Scope` |
-| 4 | `InternalComponents.kt` | Nuevo `FeatureEntry` con explicit service bindings |
-| 5 | `RegistrySdk.kt` | Editar `Feature` enum + `requiredDependencies` |
-
-**Total: 5 puntos de contacto.** La infraestructura (DiComponent, FeatureEntry,
-ComponentRegistry) ya existe — no se toca. Cada feature nueva necesita su Component
-Dagger + un FeatureEntry que declara sus dependencias y servicios explícitamente.
-
-**Riesgo a escala:** Similar a D pero mitigado en multi-módulo. En un entorno
-corporativo, cada módulo Gradle exporta su FeatureEntry — no se edita un when central.
-El `Feature` enum crece pero es la única edición central.
-
-**Ventaja corporativa:** En un setup multi-módulo con api/impl separados
-(`:integration:features:storage:api`, `:integration:features:storage:impl`),
-D es inviable porque el facade necesita importar todos los `DaggerXxxComponent` builders.
-E desacopla: cada módulo exporta un `FeatureEntry` y el registry lo integra vía topo-sort.
-
 #### Koin
 
 | Paso | Fichero | Tipo de cambio |
@@ -127,12 +93,12 @@ En un SDK real con 15 módulos, el fichero tiene ~180 líneas. Manejable.
 
 | Approach | Puntos de contacto | Ficheros tocados | Artefactos generados | Riesgo principal | |
 |----------|-------------------|------------------|---------------------|-----------------|---|
-| **Dagger B** | 6 | 3 | +2 Components, +2 CoreApis interfaces | God Object | 🔴 más coste |
-| **Dagger C** | 5 | 3 + META-INF | +2 Components, +1 Initializer | Errores runtime | |
-| **Dagger E** | 5 | 3 | +1 Component, +1 FeatureEntry | `Feature` enum crece | |
-| **Dagger E2** | **3** | **2** | +1 Component, +1 AutoFeatureEntry | **Ninguno** | 🟢 mejor Dagger |
-| **Dagger D** | 4 | 3 | +1 Component | `when` block crece | |
-| **Koin** | 4 | 3 | 0 | Errores runtime | 🟢 menos coste |
+| **Dagger B** (monolítico) | 6 | 3 | +2 Components, +2 CoreApis interfaces | God Object | 🔴 más coste |
+| **Dagger C** (monolítico) | 5 | 3 + META-INF | +2 Components, +1 Initializer | Errores runtime | |
+| **Koin** (monolítico) | 4 | 3 | 0 | Errores runtime | 🟢 menos coste |
+
+Para el coste de añadir features en los patterns multi-módulo (D, E, E2, G), ver
+la sección [Multi-módulo: Complejidad del Wiring](#multi-módulo-complejidad-del-wiring).
 
 ### Depuración: ¿qué pasa cuando algo falla?
 
@@ -269,8 +235,8 @@ El consumidor **no sabe** qué framework DI usa el SDK internamente.
 
 ### Complejidad de integración
 
-| Aspecto | Dagger B/C/D/E | Koin | Hybrid | |
-|---------|---------------|------|--------|---|
+| Aspecto | Dagger B/C (monolítico) | Koin | Hybrid | |
+|---------|------------------------|------|--------|---|
 | **Dependencias Gradle** | `sdk-api` + `sdk-impl-dagger-x` | `sdk-api` + `sdk-impl-koin` | `sdk-api` + `sdk-impl-koin` | |
 | **Dependencias transitivas** | Dagger 2 (codegen, no runtime) | Koin Core (~100 KB runtime) | Koin Core transitivo | 🟢 Dagger (0 KB runtime) |
 | **Conflictos con app existente** | Ninguno (Dagger = codegen puro) | Ninguno si app usa `startKoin` y SDK usa `koinApplication` aislado | Ninguno (dos contenedores separados) | |
@@ -299,15 +265,15 @@ Esto añade:
 
 ### Migración entre approaches
 
-Si el equipo interno decide cambiar de Koin a Dagger D (o viceversa), el impacto
+Si el equipo interno decide cambiar de Koin a Dagger D multi-módulo (o viceversa), el impacto
 en el consumidor es:
 
 | Cambio | Impacto en consumidor |
 |--------|----------------------|
-| Koin → Dagger D/E/E2 | Cambiar dependencia Gradle. API idéntica (E2 aún más simple). |
-| Dagger B → Dagger D/E/E2 | Cambiar dependencia Gradle. API idéntica. |
-| Dagger D → Dagger E/E2 | Cambiar dependencia Gradle. API idéntica. |
-| Dagger E → Dagger E2 | Cambiar dependencia. Consumidor elimina Feature enum — API más simple. |
+| Koin → Dagger D/E/E2 (multi-módulo) | Cambiar dependencia Gradle. API idéntica (E2 aún más simple). |
+| Dagger B → Dagger D/E/E2 (multi-módulo) | Cambiar dependencia Gradle. API idéntica. |
+| Dagger D multi → E/E2 multi | Cambiar dependencia Gradle. API idéntica. |
+| Dagger E multi → E2 multi | Cambiar dependencia. Consumidor elimina Feature enum — API más simple. |
 | Koin → Hybrid | Consumidor debe crear bridge Component |
 | Cualquier Dagger → Koin | Cambiar dependencia Gradle. API idéntica. |
 
@@ -347,13 +313,13 @@ La complejidad de mantenimiento depende del tamaño del SDK y la frecuencia de c
 
 | Escenario | Menor complejidad |
 |-----------|------------------|
-| SDK pequeño (≤5 features), equipo Dagger | Dagger D |
-| SDK grande (20+ features), adiciones frecuentes | Koin o **Dagger E2** |
-| SDK escalable a 50+ módulos | **Dagger E2** o Koin |
-| Features con muchas dependencias cruzadas | Dagger D, E, E2 o Koin |
+| SDK pequeño (≤5 features), equipo Dagger | Dagger B (monolítico) o D (multi-módulo) |
+| SDK grande (20+ features), adiciones frecuentes | Koin o **Dagger E2** (multi-módulo) |
+| SDK escalable a 50+ módulos | **Dagger E2** (multi-módulo) o Koin |
+| Features con muchas dependencias cruzadas | Dagger D, E, E2 (multi-módulo) o Koin |
 | Equipo sin experiencia Dagger | Koin |
-| Compile-time safety prioritaria | Dagger D, E o E2 |
-| Multi-módulo Gradle corporativo (api/impl) | Dagger E o E2 |
+| Compile-time safety prioritaria | Dagger D, E o E2 (multi-módulo) |
+| Multi-módulo Gradle corporativo (api/impl) | Dagger E o E2 (vía wiring-e / wiring-e2) |
 | API mínima para consumidor | **Dagger E2** (sin Feature enum) |
 
 ### Para los equipos consumidores
@@ -389,6 +355,6 @@ El coste de wiring es puramente código de integración — no afecta a los feat
 ni a los contratos. Añadir una feature nueva en E2 multi-módulo requiere crear el
 feature-impl, su contrato, y añadir **una línea** al fichero de entries.
 
-64 benchmarks totales (44 monolíticos + 20 multi-módulo) confirman que la separación
-en módulos Gradle no introduce overhead en runtime. Para el análisis detallado, ver
+39 benchmarks totales (19 monolíticos vía facades + 20 multi-módulo vía facades) confirman que
+la separación en módulos Gradle no introduce overhead en runtime. Para el análisis detallado, ver
 [di-multimodule-api-impl-analysis.md](di-multimodule-api-impl-analysis.md).

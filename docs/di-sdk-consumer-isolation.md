@@ -122,9 +122,9 @@ El consumidor nunca importa ningún módulo impl en código. Solo la dependencia
 | **Dagger Monolítico (A)** | 1 | Facade oculta impls, pero todas compiladas en binario |
 | **Dagger Per-Feature (B)** | 1 | Facade por feature, consumidor importa facade |
 | **Dagger + ServiceLoader (C)** | 1-2 | ServiceLoader descubre, pero limitado a JVM |
-| **Dagger Component Deps (D)** | 1 | Facade con internal Components |
-| **Dagger Component Registry (E)** | 1 | Facade con Feature enum. Entries, registry y Components son internal |
-| **Dagger Auto-Init Registry (E2)** | 1 | Facade sin Feature enum. API mínima: init() + get<T>(). Auto-build on demand |
+| **Dagger D (multi-módulo)** | 1 | Facade con provision interfaces. Components internos en feature-impl |
+| **Dagger E (multi-módulo)** | 1 | Facade con Feature enum. Entries, registry y Components son internal |
+| **Dagger E2 (multi-módulo)** | 1 | Facade sin Feature enum. API mínima: init() + get<T>(). Auto-build on demand |
 | **Koin** | 2 | Descubrimiento runtime vía Class.forName / @EagerInit |
 | **kotlin-inject** | 1 | Consumidor compone components explícitamente |
 
@@ -141,8 +141,8 @@ Ver documento dedicado: [di-cross-feature-deps.md](di-cross-feature-deps.md).
 Resumen:
 - **Grafo único (A / Koin):** Automático — declara dependencias, el framework resuelve.
 - **Per-feature (B / C):** Manual — a través de CoreApis (God Object a escala) o init ordenado.
-- **Component Dependencies (D):** Automático — `dependencies=[ParentComponent]`.
-- **Component Registry (E):** Automático — `dependencies=[...]` + registry topo-sort.
+- **Component Dependencies D (multi-módulo):** Automático — `dependencies=[ProvisionInterface]`.
+- **Component Registry E (multi-módulo):** Automático — `dependencies=[...]` + registry topo-sort.
 
 ---
 
@@ -170,7 +170,7 @@ fun foundationModule(config: SdkConfig) = module {
 
 // Dagger — @Provides devuelve el objeto existente
 @Module object CoreModule {
-    @Provides @Singleton fun logger(): SdkLogger = DaggerSdk.foundationLogger
+    @Provides @Singleton fun logger(): SdkLogger = FoundationSingletons.logger
 }
 ```
 

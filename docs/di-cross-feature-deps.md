@@ -21,14 +21,14 @@ Encryption + Auth + Storage ← Sync (necesita todo para sincronizar)
 Analytics (independiente — solo necesita logger)
 ```
 
-En el proyecto real (`sdk/impl-common/`), `DefaultSyncApi` recibe
-`AuthApi`, `StorageApi` y `EncryptionApi` por constructor.
+En el proyecto real, `DefaultSyncApi` recibe `AuthApi`, `StorageApi` y `EncryptionApi`
+por constructor.
 
 ---
 
 ## Grafo Único: Resolución Automática
 
-**Funciona en:** Dagger Monolítico (A), Koin, Dagger D (Component Dependencies), Dagger E (Component Registry)
+**Funciona en:** Dagger Monolítico (A), Koin, Dagger D (multi-módulo), Dagger E (multi-módulo)
 
 Todos los servicios están en UN contenedor (o registry). Cualquier servicio puede pedir cualquier otro.
 
@@ -64,46 +64,46 @@ Koin ve el conjunto completo de `single<>` y resuelve la cadena:
 SyncApi necesita AuthApi → encontrado en AuthRegistration.
 AuthApi necesita EncryptionApi → encontrado en EncryptionRegistration.
 
-### Dagger D — Component Dependencies (`sdk/impl-dagger-d/`)
+### Dagger D — Component Dependencies (multi-módulo: `sdk/sdk-wiring/`)
 
 ```kotlin
-// Auth depende de Core + Encryption — Dagger resuelve automáticamente
+// feature-auth-impl — Auth depende de Core + Encryption vía provision interfaces
 @Component(
-    dependencies = [CoreComponent::class, EncComponent::class],
-    modules = [InternalAuthModule::class],
+    dependencies = [CoreProvisions::class, EncProvisions::class],
+    modules = [AuthModule::class],
 )
-internal interface AuthComponent {
-    fun auth(): AuthApi
+interface AuthComponent : AuthProvisions {
+    override fun auth(): AuthApi
 }
 
-// Sync depende de Core + Enc + Auth + Storage
+// feature-syn-impl — Sync depende de Core + Enc + Auth + Storage
 @Component(
-    dependencies = [CoreComponent::class, EncComponent::class,
-                    AuthComponent::class, StorComponent::class],
-    modules = [InternalSynModule::class],
+    dependencies = [CoreProvisions::class, EncProvisions::class,
+                    AuthProvisions::class, StorProvisions::class],
+    modules = [SynModule::class],
 )
-internal interface SynComponent {
-    fun sync(): SyncApi
+interface SynComponent : SynProvisions {
+    override fun sync(): SyncApi
 }
 ```
 
-Dagger ve `dependencies=[EncComponent]` y resuelve `EncryptionApi` desde
-`EncComponent.encryption()` automáticamente. Sin CoreApis, sin wiring manual.
+Dagger ve `dependencies=[EncProvisions]` y resuelve `EncryptionApi` desde
+`EncProvisions.encryption()` automáticamente. Sin CoreApis, sin wiring manual.
 
-### Dagger E — Component Registry (`sdk/impl-dagger-e/`)
+### Dagger E — Component Registry (multi-módulo: `sdk/wiring-e/`)
 
 ```kotlin
 // Misma jerarquía de Components que D, pero registrados vía FeatureEntry
 internal val syncEntry = FeatureEntry(
     componentClass = SynComponent::class.java,
-    dependencies = setOf(CoreComponent::class.java, EncComponent::class.java,
-                         AuthComponent::class.java, StorComponent::class.java),
+    dependencies = setOf(CoreProvisions::class.java, EncProvisions::class.java,
+                         AuthProvisions::class.java, StorProvisions::class.java),
     build = { registry ->
         DaggerSynComponent.builder()
-            .core(registry.component(CoreComponent::class.java))
-            .enc(registry.component(EncComponent::class.java))
-            .auth(registry.component(AuthComponent::class.java))
-            .storage(registry.component(StorComponent::class.java))
+            .core(registry.component(CoreProvisions::class.java))
+            .enc(registry.component(EncProvisions::class.java))
+            .auth(registry.component(AuthProvisions::class.java))
+            .storage(registry.component(StorProvisions::class.java))
             .build()
     },
     services = { comp -> mapOf(SyncApi::class.java to comp.sync()) },
@@ -112,7 +112,7 @@ internal val syncEntry = FeatureEntry(
 
 Dagger E usa `dependencies=[...]` igual que D para resolver cross-deps.
 La diferencia es que el registry gestiona el orden de registro (topo-sort)
-y desacopla el facade de los builders DaggerXxx — viable en multi-módulo.
+y desacopla el facade de los builders DaggerXxx.
 
 ---
 
@@ -179,17 +179,18 @@ todo el SDK — es un God Object que anula el propósito del aislamiento per-fea
 | Approach | Cross-feature | Mecanismo | Limitación |
 |----------|--------------|-----------|-----------|
 | **Dagger A** (1 Component) | ✅ Automático | Mismo grafo @Component | Todo compilado en binario |
-| **Dagger D** (Component Deps) | ✅ Automático | `dependencies=[Parent]` | Todo compilado en binario |
-| **Dagger E** (Component Registry) | ✅ Automático | `dependencies=[...]` + registry topo-sort | Registry overhead (~20 ns/lookup) |
-| **Dagger E2** (Auto-Init Registry) | ✅ Automático | `dependencies=[...]` + DFS on-demand | ~25 ns/lookup, API más simple |
-| **Dagger G** (Factory Functions) | ✅ Automático | Factory functions reciben provision interfaces | ensure*() no escalan (= D) |
+| **Dagger D** (multi-módulo) | ✅ Automático | `dependencies=[ProvisionInterface]` | `when` blocks crecen linealmente |
+| **Dagger E** (multi-módulo) | ✅ Automático | `dependencies=[...]` + registry topo-sort | Registry overhead (~20 ns/lookup) |
+| **Dagger E2** (multi-módulo) | ✅ Automático | `dependencies=[...]` + DFS on-demand | ~25 ns/lookup, API más simple |
+| **Dagger G** (multi-módulo) | ✅ Automático | Factory functions reciben provision interfaces | ensure*() no escalan (= D) |
 | **Koin** (1 koinApplication) | ✅ Automático | `get()` desde el mismo grafo | Resolución runtime |
-| **Dagger B** (per-feature) | ⚠️ Manual | CoreApis extendido | God Object a escala |
-| **Dagger C** (ServiceLoader) | ⚠️ Manual | ServiceResolver runtime | God Object + JVM only |
+| **Dagger B** (monolítico) | ⚠️ Manual | CoreApis extendido | God Object a escala |
+| **Dagger C** (monolítico) | ⚠️ Manual | ServiceResolver runtime | God Object + JVM only |
 
 **Conclusión práctica:** Si las features dependen unas de otras, un grafo único
-(Dagger A, D, E, E2, G o Koin) resuelve todo automáticamente. Per-feature (B, C)
+(Dagger A, D, E, E2, G o Koin) resuelve todo automáticamente. Per-feature monolítico (B, C)
 funciona bien cuando las features son verdaderamente independientes.
+D, E, E2 y G solo existen como variantes multi-módulo con provision interfaces.
 E2 es la evolución de E para escalar a 50+ módulos: auto-init on `get<T>()`, sin Feature enum.
 G = D con factory functions (Components `internal`, mejor encapsulamiento, misma limitación de escalabilidad).
 
