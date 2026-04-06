@@ -38,6 +38,7 @@ dependencies {
     implementation(project(":sdk:wiring-e"))
     implementation(project(":sdk:wiring-e2"))
     implementation(project(":sdk:wiring-g"))
+    implementation(project(":sdk:wiring-h"))
 
     // Hybrid bridge — app-specific @Component (per-app, not per-SDK)
     implementation(project(":sdk:api"))

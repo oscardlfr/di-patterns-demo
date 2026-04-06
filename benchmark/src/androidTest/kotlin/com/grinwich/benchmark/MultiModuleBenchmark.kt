@@ -8,6 +8,7 @@ import com.grinwich.sdk.wiring.MultiModuleSdk
 import com.grinwich.sdk.wiring.e.MultiModuleSdkE
 import com.grinwich.sdk.wiring.e2.MultiModuleSdkE2
 import com.grinwich.sdk.wiring.g.MultiModuleSdkG
+import com.grinwich.sdk.wiring.h.MultiModuleSdkH
 import org.junit.After
 import org.junit.Rule
 import org.junit.Test
@@ -43,6 +44,7 @@ class MultiModuleBenchmark {
         MultiModuleSdkE.shutdown()
         MultiModuleSdkE2.shutdown()
         MultiModuleSdkG.shutdown()
+        MultiModuleSdkH.shutdown()
     }
 
     // ════════════════════════════════════════════════════════
@@ -277,5 +279,62 @@ class MultiModuleBenchmark {
             sync.sync()
         }
         MultiModuleSdkG.shutdown()
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 6. PATTERN H — Auto-Discovery FeatureProviders
+    //    (zero central editing, DFS via resolver.provision())
+    // ════════════════════════════════════════════════════════
+
+    @Test
+    fun initCold_multiModuleH() = benchmarkRule.measureRepeated {
+        MultiModuleSdkH.init(config)
+        MultiModuleSdkH.get<EncryptionApi>()
+        MultiModuleSdkH.get<HashApi>()
+        MultiModuleSdkH.get<AuthApi>()
+        MultiModuleSdkH.get<StorageApi>()
+        MultiModuleSdkH.get<AnalyticsApi>()
+        MultiModuleSdkH.get<SyncApi>()
+        runWithTimingDisabled { MultiModuleSdkH.shutdown() }
+    }
+
+    @Test
+    fun resolveFirst_multiModuleH() {
+        MultiModuleSdkH.init(config)
+        benchmarkRule.measureRepeated {
+            MultiModuleSdkH.get<EncryptionApi>()
+        }
+        MultiModuleSdkH.shutdown()
+    }
+
+    @Test
+    fun lazyInit_noDeps_multiModuleH_analytics() = benchmarkRule.measureRepeated {
+        runWithTimingDisabled {
+            MultiModuleSdkH.init(config)
+            MultiModuleSdkH.get<EncryptionApi>()
+        }
+        MultiModuleSdkH.get<AnalyticsApi>()
+        runWithTimingDisabled { MultiModuleSdkH.shutdown() }
+    }
+
+    @Test
+    fun lazyInit_cascade_multiModuleH_sync() = benchmarkRule.measureRepeated {
+        runWithTimingDisabled {
+            MultiModuleSdkH.init(config)
+            MultiModuleSdkH.get<EncryptionApi>()
+        }
+        MultiModuleSdkH.get<SyncApi>()
+        runWithTimingDisabled { MultiModuleSdkH.shutdown() }
+    }
+
+    @Test
+    fun crossFeatureOp_multiModuleH_sync() {
+        MultiModuleSdkH.init(config)
+        MultiModuleSdkH.get<AuthApi>().login("bench", "pass")
+        val sync = MultiModuleSdkH.get<SyncApi>()
+        benchmarkRule.measureRepeated {
+            sync.sync()
+        }
+        MultiModuleSdkH.shutdown()
     }
 }

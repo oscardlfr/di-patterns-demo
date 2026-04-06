@@ -54,6 +54,7 @@ include(":sdk:sdk-wiring")        // Pattern D: direct lazy ensure*()
 include(":sdk:wiring-e")          // Pattern E: ProvisionRegistry + topo-sort
 include(":sdk:wiring-e2")         // Pattern E2: AutoProvisionRegistry + DFS lazy
 include(":sdk:wiring-g")          // Pattern G: factory functions (no DaggerXxx imports)
+include(":sdk:wiring-h")          // Pattern H: auto-discovery FeatureProviders (zero central editing)
 
 // ── Sample apps ──
 include(":sample-dagger-a")       // educational: monolithic @Component (no SDK facade)
