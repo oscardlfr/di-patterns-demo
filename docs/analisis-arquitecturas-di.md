@@ -81,16 +81,47 @@ El consumidor no ve DaggerComponents, koinApplication, CoreApis, ni FeatureEntri
 
 ```
 sdk/
-  api/              → Interfaces puras (0 dependencias DI)
-  impl-common/      → Implementaciones compartidas por todos los SDKs
-  impl-koin/        → KoinSdk (sealed SdkModule, auto-discovery, loadModules)
-  impl-dagger-b/    → DaggerBSdk (Per-Feature + CoreApis extendido)
-  impl-dagger-c/    → DaggerCSdk (ServiceLoader + META-INF)
-  impl-dagger-d/    → DaggerSdk (Component Dependencies)
-  impl-dagger-e/    → RegistrySdk (Component Registry — explicit bindings, auto topo-sort)
-  impl-dagger-e2/   → AutoSdk (Auto-Init Registry — sin Feature enum, auto-build on get)
-  di-core/          → CoreComponent compartido (para multi-módulo F)
-  impl-dagger-f/    → ModularSdk (D en multi-módulo Gradle)
+  # Core + Feature API modules
+  core-api/           → SdkConfig, SdkLogger, CoreApis
+  feature-enc-api/    → EncryptionService, HashService
+  feature-auth-api/   → AuthService, AuthToken
+  feature-stor-api/   → SecureStorageService
+  feature-ana-api/    → AnalyticsService
+  feature-syn-api/    → SyncService, SyncResult
+  api/                → Umbrella: re-exports core-api + all feature-apis
+
+  # Per-feature contracts (provision interfaces + scopes)
+  feature-core-contracts/  → CoreProvisions
+  feature-enc-contracts/   → EncProvisions + EncScope
+  feature-auth-contracts/  → AuthProvisions + AuthScope
+  feature-stor-contracts/  → StorProvisions + StorScope
+  feature-ana-contracts/   → AnaProvisions + AnaScope
+  feature-syn-contracts/   → SynProvisions + SynScope
+  di-contracts/            → Umbrella: re-exports all contracts + RegistryInfra
+
+  # Feature implementations (Dagger Components)
+  feature-core-impl/   → CoreComponent : CoreProvisions
+  feature-enc-impl/    → EncComponent : EncProvisions
+  feature-auth-impl/   → AuthComponent : AuthProvisions
+  feature-stor-impl/   → StorComponent : StorProvisions
+  feature-ana-impl/    → AnaComponent : AnaProvisions
+  feature-syn-impl/    → SynComponent : SynProvisions
+
+  # Wiring variants (multi-module)
+  sdk-wiring/          → Pattern D: direct lazy ensure*()
+  wiring-e/            → Pattern E: ProvisionRegistry + topo-sort
+  wiring-e2/           → Pattern E2: AutoProvisionRegistry + DFS lazy
+
+  # Monolithic patterns (existing)
+  impl-common/     → Shared implementations
+  impl-koin/       → KoinSdk
+  impl-dagger-b/   → DaggerBSdk (Per-Feature + CoreApis)
+  impl-dagger-c/   → DaggerCSdk (ServiceLoader)
+  impl-dagger-d/   → DaggerSdk (Component Dependencies)
+  impl-dagger-e/   → RegistrySdk (Component Registry)
+  impl-dagger-e2/  → AutoSdk (Auto-Init Registry)
+  di-core/         → CoreComponent (educational, for F)
+  impl-dagger-f/   → ModularSdk (D in multi-module, educational)
 
 sample-dagger-a/    → Educativo: @Component monolítico (approach A)
 sample-dagger-b/    → Consumidor de DaggerBSdk
@@ -101,7 +132,9 @@ sample-dagger-e2/   → Consumidor de AutoSdk
 sample-dagger-f/    → Consumidor de ModularSdk
 sample-hybrid/      → Consumidor de KoinSdk + puente Dagger 2
 
-benchmark/          → 50 Jetpack Microbenchmarks
+sample-multimodule/ → Consumer of MultiModuleSdk (provision interfaces)
+
+benchmark/          → 65 Jetpack Microbenchmarks (50 monolíticos + 15 multi-módulo)
 ```
 
 Cada sample app tiene **2 ficheros Kotlin**: `Application.kt` + `MainActivity.kt`.
@@ -252,7 +285,7 @@ Todo el wiring interno está encapsulado en el módulo SDK correspondiente.
 ## Resultados de benchmarks
 
 Dispositivo: Samsung Galaxy S22 Ultra (SM-S908B) — Snapdragon 8 Gen 1, 8 cores, 2.8 GHz, Android 16.
-Framework: Jetpack Benchmark 1.4.0 con warmup automático. 50 tests en total.
+Framework: Jetpack Benchmark 1.4.0 con warmup automático. 65 tests en total (50 monolíticos + 15 multi-módulo).
 
 ### Inicialización en frío (6 features completas)
 
@@ -397,6 +430,31 @@ pero la diferencia absoluta máxima es 52 µs — imperceptible en una aplicaci�
 E2 se posiciona como la mejor opción para SDKs que necesitan escalar sin sacrificar
 compile-time safety.
 
+### Benchmarks multi-módulo (wiring patterns)
+
+15 tests adicionales comparan las tres estrategias de wiring multi-módulo — D, E y E2 —
+utilizando los mismos Dagger Components (`feature-*-impl/`) con diferentes orquestadores:
+
+- **sdk-wiring/** (Pattern D): `ensure*()` directo con lazy delegates
+- **wiring-e/** (Pattern E): `ProvisionRegistry` con topo-sort explícito
+- **wiring-e2/** (Pattern E2): `AutoProvisionRegistry` con DFS lazy on-demand
+
+Los tests cubren:
+
+| Test | Qué mide |
+|------|----------|
+| `initCold` | Construcción del grafo completo (6 features) desde cero |
+| `resolveFirst` | Primera resolución de un singleton ya construido |
+| `lazyInit` (no deps) | Añadir feature independiente (Analytics) a grafo en ejecución |
+| `lazyInit` (cascade) | Inicialización en cascada (Sync → Auth + Storage + Encryption) |
+| `crossFeatureOp` | Operación real que cruza múltiples features |
+
+Los tres wiring patterns comparten los mismos `feature-*-impl` Components. La diferencia
+está exclusivamente en cómo el orquestador gestiona el orden de construcción y la resolución
+de dependencias entre features. Esto permite aislar el coste del wiring del coste del DI.
+
+Referencia: `benchmark/.../MultiModuleBenchmark.kt`
+
 ---
 
 ## Lazy init y dependencias cruzadas
@@ -483,6 +541,7 @@ Resumen rápido:
 | Tamaño de binario crítico | Koin o Dagger B/C |
 | Equipo pequeño, mínima ceremonia | Koin |
 | D inviable por módulos Gradle separados | Dagger E, E2 o F |
+| Multi-módulo con per-feature contracts | Dagger D/E/E2 vía sdk-wiring / wiring-e / wiring-e2 |
 
 ---
 
@@ -509,3 +568,4 @@ Resumen rápido:
 - [di-sdk-selective-init-comparison.md](di-sdk-selective-init-comparison.md) — Tablas de comparación por requisito
 - [di-cross-feature-deps.md](di-cross-feature-deps.md) — Dependencias cruzadas con ejemplos concretos
 - [di-hybrid-koin-sdk-dagger-app.md](di-hybrid-koin-sdk-dagger-app.md) — Arquitectura hybrid completa
+- [di-multimodule-api-impl-analysis.md](di-multimodule-api-impl-analysis.md) — Arquitectura multi-módulo con per-feature contracts (provision interfaces, wiring patterns D/E/E2)

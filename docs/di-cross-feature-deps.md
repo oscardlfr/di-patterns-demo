@@ -192,3 +192,40 @@ todo el SDK — es un God Object que anula el propósito del aislamiento per-fea
 funciona bien cuando las features son verdaderamente independientes.
 E2 es la evolución de E para escalar a 50+ módulos: auto-init on `get<T>()`, sin Feature enum.
 F = D en runtime con CoreComponent en módulo separado (multi-módulo viable, pero no escala).
+
+### Multi-módulo: Provision Interfaces
+
+En las variantes multi-módulo (sdk-wiring, wiring-e, wiring-e2), las dependencias
+cruzadas se resuelven mediante **provision interfaces** — contratos Kotlin planos
+que exponen los servicios de una feature sin acoplar al `@Component` concreto.
+
+Cada feature-impl depende de contratos per-feature específicos, NO del umbrella
+`di-contracts` ni de otros feature-impl:
+
+```
+feature-auth-impl
+  ├── depends on: feature-enc-contracts  (EncProvisions)
+  ├── depends on: feature-core-contracts (CoreProvisions)
+  └── NOT on: feature-enc-impl           ← nunca ve DaggerEncComponent
+```
+
+Las provision interfaces (`CoreProvisions`, `EncProvisions`, `AuthProvisions`, etc.)
+definen qué servicios expone cada feature. El módulo de wiring es el **único lugar**
+que importa `DaggerXxxComponent` y satisface las provision interfaces:
+
+```kotlin
+// En sdk-wiring (o wiring-e, wiring-e2) — el único punto que conoce Dagger impls
+val encComponent = DaggerEncComponent.builder().core(coreProvisions).build()
+// encComponent implementa EncProvisions → visible para feature-auth-impl
+```
+
+El umbrella `di-contracts` re-exporta todos los contratos per-feature más
+`RegistryInfra`, pero cada feature-impl debería depender de contratos granulares
+para mantener el principio de mínima dependencia.
+
+Esto evita el problema de CoreApis (approach B) a escala multi-módulo: en vez de
+un God Object que crece con cada cross-dep, cada feature declara provision interfaces
+tipadas y Gradle garantiza que solo ve lo que necesita.
+
+Para el análisis completo, ver
+[di-multimodule-api-impl-analysis.md](di-multimodule-api-impl-analysis.md).

@@ -585,3 +585,36 @@ pero aún no requieren la escala que demanda un registry.
 | SDK escalable a 50+ módulos | **E2** o Koin |
 | Consumidor necesita excluir features explícitamente | **E** (Feature enum) |
 | KMP necesario | Ninguno — ver Koin en [comparación](di-sdk-selective-init-comparison.md) |
+
+---
+
+### Multi-módulo con Provision Interfaces
+
+Los approaches D, E y E2 tienen variantes multi-módulo reales que separan api/impl
+por feature usando **provision interfaces** como contratos Gradle:
+
+- **sdk-wiring** — variante multi-módulo de D. Un fichero de wiring con `when` blocks
+  que importa todos los `DaggerXxxComponent` builders.
+- **wiring-e** — variante multi-módulo de E. `FeatureEntry` + facade con `Feature` enum.
+- **wiring-e2** — variante multi-módulo de E2. `AutoFeatureEntry` + facade mínimo (1 línea por feature).
+
+Las tres variantes comparten los **mismos** módulos de feature-impl (`feature-enc-impl`,
+`feature-auth-impl`, etc.) y los mismos contratos per-feature (`feature-enc-contracts`,
+`feature-auth-contracts`, etc.). La diferencia es exclusivamente el código de wiring.
+
+Cada feature-impl depende de contratos específicos (e.g. `feature-auth-impl` depende de
+`feature-enc-contracts` para obtener `EncProvisions`), NO de otros feature-impl. Esto
+garantiza que las implementaciones nunca ven los `@Component` de otras features.
+
+**F es educativo:** Comparte `@Component` interfaces directamente entre módulos Gradle
+(e.g. `EncComponent` como tipo en `dependencies=[...]`). Este acoplamiento a nivel de
+Component es el anti-patrón que motiva las provision interfaces — en F, cambiar la
+firma de `EncComponent` rompe todos los módulos que lo importan. Las provision interfaces
+(`EncProvisions`) aíslan ese cambio.
+
+Los 15 benchmarks multi-módulo en `MultiModuleBenchmark.kt` confirman que las tres
+variantes de wiring tienen rendimiento idéntico al monolítico (±2%) — la separación
+en módulos Gradle es invisible en runtime.
+
+Para el análisis completo de la arquitectura multi-módulo, ver
+[di-multimodule-api-impl-analysis.md](di-multimodule-api-impl-analysis.md).

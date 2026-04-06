@@ -187,3 +187,29 @@ Ver documento dedicado: [di-hybrid-koin-sdk-dagger-app.md](di-hybrid-koin-sdk-da
 Resumen: El SDK usa Koin (`koinApplication` aislado). La app usa Dagger 2.
 Un `@Component` bridge conecta ambos. La app nunca importa Koin.
 El puente es unidireccional: app ← SDK.
+
+---
+
+## Provision Interfaces: Aislamiento a Nivel Gradle
+
+Las variantes multi-módulo (sdk-wiring, wiring-e, wiring-e2) introducen un nivel
+adicional de aislamiento mediante **provision interfaces** y contratos per-feature.
+
+Cada feature-impl depende de contratos específicos (`feature-enc-contracts`,
+`feature-auth-contracts`, etc.) en vez de importar los `@Component` de otras features.
+Esto significa que `feature-auth-impl` obtiene `EncryptionService` y `HashService`
+a través de `EncProvisions` (interfaz Kotlin plana), sin ver `EncComponent` ni
+`DaggerEncComponent`.
+
+El mecanismo es Gradle-level: el módulo `feature-auth-impl` declara dependencia en
+`feature-enc-contracts` (que solo contiene interfaces), NO en `feature-enc-impl`
+(que contiene `@Component` + `@Module` + implementaciones). Solo los módulos de
+wiring (`sdk-wiring`, `wiring-e`, `wiring-e2`) importan los `DaggerXxxComponent`
+builders — son el único punto que conoce las implementaciones concretas de Dagger.
+
+Este aislamiento garantiza que cambios internos en la implementación de una feature
+(renombrar un `@Module`, añadir un `@Provides`) no rompen otras features — solo
+afectan al módulo de wiring si cambia la firma del Component.
+
+Para el análisis completo, ver
+[di-multimodule-api-impl-analysis.md](di-multimodule-api-impl-analysis.md).

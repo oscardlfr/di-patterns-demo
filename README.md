@@ -8,6 +8,9 @@ para SDKs modulares Android. Incluye benchmarks con Jetpack Benchmark en disposi
 
 ```
 sdk/
+  # Core API (SdkConfig, SdkLogger, CoreApis)
+  core-api/           -> Interfaces base que todos los features necesitan
+
   # Feature API modules (per-feature public interfaces)
   feature-enc-api/    -> EncryptionService, HashService
   feature-auth-api/   -> AuthService, AuthToken
@@ -15,7 +18,16 @@ sdk/
   feature-ana-api/    -> AnalyticsService
   feature-syn-api/    -> SyncService, SyncResult
 
-  api/              -> Umbrella (re-exports feature-apis + SdkConfig, SdkLogger, CoreApis)
+  api/              -> Umbrella (re-exports feature-apis + core-api)
+
+  # Per-feature contracts (provision interfaces + scopes)
+  feature-core-contracts/  -> CoreProvisions (depende solo de core-api)
+  feature-enc-contracts/   -> EncProvisions + EncScope
+  feature-auth-contracts/  -> AuthProvisions + AuthScope
+  feature-stor-contracts/  -> StorProvisions + StorScope
+  feature-ana-contracts/   -> AnaProvisions + AnaScope
+  feature-syn-contracts/   -> SynProvisions + SynScope
+
   impl-common/      -> Implementaciones compartidas
   impl-koin/        -> KoinSdk (koinApplication aislado, loadModules, auto-discovery)
   impl-dagger-b/    -> DaggerBSdk (Per-Feature Components + CoreApis)
@@ -23,17 +35,17 @@ sdk/
   impl-dagger-d/    -> DaggerSdk (Component Dependencies - cross-deps automaticas)
   impl-dagger-e/    -> RegistrySdk (Component Registry - explicit bindings, auto topo-sort)
   impl-dagger-e2/   -> AutoSdk (Auto-Init Registry - evolucion de E, sin Feature enum)
-  di-core/          -> CoreComponent compartido (para multi-modulo F educativo)
-  impl-dagger-f/    -> ModularSdk (Multi-Module Component Dependencies - D en multi-modulo)
+  di-core/          -> CoreComponent compartido (para F educativo)
+  impl-dagger-f/    -> ModularSdk (F educativo: @Component sharing directo vs provision interfaces)
 
   # Ejemplo realista: separacion api/impl con provision interfaces
-  di-contracts/         -> Provision interfaces (CoreProvisions, EncProvisions...) + Scopes + RegistryInfra
-  feature-core-impl/    -> CoreComponent : CoreProvisions
-  feature-enc-impl/     -> EncComponent : EncProvisions (deps: CoreProvisions)
-  feature-auth-impl/    -> AuthComponent : AuthProvisions (deps: CoreProvisions + EncProvisions)
-  feature-stor-impl/    -> StorComponent : StorProvisions (deps: CoreProvisions + EncProvisions)
-  feature-ana-impl/     -> AnaComponent : AnaProvisions (deps: CoreProvisions)
-  feature-syn-impl/     -> SynComponent : SynProvisions (deps: Core + Enc + Auth + Stor)
+  di-contracts/         -> Umbrella: re-exporta todos los feature-contracts + RegistryInfra
+  feature-core-impl/    -> CoreComponent : CoreProvisions (dep: feature-core-contracts)
+  feature-enc-impl/     -> EncComponent : EncProvisions (deps: feature-enc-contracts + feature-core-contracts)
+  feature-auth-impl/    -> AuthComponent : AuthProvisions (deps: feature-auth-contracts + core + enc contracts)
+  feature-stor-impl/    -> StorComponent : StorProvisions (deps: feature-stor-contracts + core + enc contracts)
+  feature-ana-impl/     -> AnaComponent : AnaProvisions (deps: feature-ana-contracts + feature-core-contracts)
+  feature-syn-impl/     -> SynComponent : SynProvisions (deps: feature-syn-contracts + core + enc + auth + stor contracts)
 
   # Wiring variants (cada uno demuestra un patron distinto con provision interfaces)
   sdk-wiring/           -> MultiModuleSdk (Pattern D: when-block directo, lazy ensure*)
@@ -69,7 +81,7 @@ Cada feature tiene su propio modulo api con las interfaces publicas:
 
 `:sdk:api` es un umbrella que re-exporta todos via `api()`, asi que los patrones
 monoliticos (B-F, Koin) siguen dependiendo de `:sdk:api` sin cambios.
-Los feature-impl modules dependen de sus feature-api individuales via `di-contracts`.
+Los feature-impl modules dependen de sus per-feature contracts especificos (no del umbrella `di-contracts`).
 
 ## API del consumidor
 
@@ -103,7 +115,7 @@ MultiModuleSdk.shutdown()
 ```
 
 Features dependen de **provision interfaces** (contratos), no de `@Component` (impl).
-Cada `feature-xxx-impl` compila independientemente -- solo necesita `di-contracts` + `api`.
+Cada `feature-xxx-impl` compila independientemente -- solo necesita su `feature-xxx-contracts` + `feature-xxx-api`.
 
 ### Multi-Module Pattern E2 (Registry + auto-init)
 
