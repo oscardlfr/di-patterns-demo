@@ -1,14 +1,14 @@
 package com.grinwich.sdk.feature.auth
 
-import com.grinwich.sdk.api.AuthService
+import com.grinwich.sdk.api.AuthApi
 import com.grinwich.sdk.api.AuthToken
-import com.grinwich.sdk.api.EncryptionService
+import com.grinwich.sdk.api.EncryptionApi
 import com.grinwich.sdk.api.SdkLogger
 
 internal class DefaultAuthService(
-    private val encryption: EncryptionService,
+    private val encryption: EncryptionApi,
     private val logger: SdkLogger,
-) : AuthService {
+) : AuthApi {
 
     private var currentToken: AuthToken? = null
 

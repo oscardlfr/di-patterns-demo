@@ -29,8 +29,8 @@ internal interface CoreComponent : DiComponent {
 // --- Encryption (depends on Core) ---
 @EncScope @Component(dependencies = [CoreComponent::class], modules = [InternalEncModule::class])
 internal interface EncComponent : DiComponent {
-    fun encryption(): EncryptionService
-    fun hash(): HashService
+    fun encryption(): EncryptionApi
+    fun hash(): HashApi
     @Component.Builder interface Builder {
         fun core(core: CoreComponent): Builder
         fun build(): EncComponent
@@ -38,14 +38,14 @@ internal interface EncComponent : DiComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) internal annotation class EncScope
 @Module internal class InternalEncModule {
-    @Provides @EncScope fun enc(logger: SdkLogger): EncryptionService = DefaultEncryptionService(logger)
-    @Provides @EncScope fun hash(): HashService = DefaultHashService()
+    @Provides @EncScope fun enc(logger: SdkLogger): EncryptionApi = DefaultEncryptionService(logger)
+    @Provides @EncScope fun hash(): HashApi = DefaultHashService()
 }
 
 // --- Auth (depends on Core + Encryption) ---
 @AuthScope @Component(dependencies = [CoreComponent::class, EncComponent::class], modules = [InternalAuthModule::class])
 internal interface AuthComponent : DiComponent {
-    fun auth(): AuthService
+    fun auth(): AuthApi
     @Component.Builder interface Builder {
         fun core(core: CoreComponent): Builder
         fun enc(enc: EncComponent): Builder
@@ -54,13 +54,13 @@ internal interface AuthComponent : DiComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) internal annotation class AuthScope
 @Module internal class InternalAuthModule {
-    @Provides @AuthScope fun auth(enc: EncryptionService, logger: SdkLogger): AuthService = DefaultAuthService(enc, logger)
+    @Provides @AuthScope fun auth(enc: EncryptionApi, logger: SdkLogger): AuthApi = DefaultAuthService(enc, logger)
 }
 
 // --- Storage (depends on Core + Encryption) ---
 @StorScope @Component(dependencies = [CoreComponent::class, EncComponent::class], modules = [InternalStorModule::class])
 internal interface StorComponent : DiComponent {
-    fun storage(): SecureStorageService
+    fun storage(): StorageApi
     @Component.Builder interface Builder {
         fun core(core: CoreComponent): Builder
         fun enc(enc: EncComponent): Builder
@@ -69,14 +69,14 @@ internal interface StorComponent : DiComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) internal annotation class StorScope
 @Module internal class InternalStorModule {
-    @Provides @StorScope fun storage(enc: EncryptionService, hash: HashService, logger: SdkLogger): SecureStorageService =
+    @Provides @StorScope fun storage(enc: EncryptionApi, hash: HashApi, logger: SdkLogger): StorageApi =
         DefaultSecureStorageService(enc, hash, logger)
 }
 
 // --- Analytics (depends only on Core) ---
 @AnaScope @Component(dependencies = [CoreComponent::class], modules = [InternalAnaModule::class])
 internal interface AnaComponent : DiComponent {
-    fun analytics(): AnalyticsService
+    fun analytics(): AnalyticsApi
     @Component.Builder interface Builder {
         fun core(core: CoreComponent): Builder
         fun build(): AnaComponent
@@ -84,13 +84,13 @@ internal interface AnaComponent : DiComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) internal annotation class AnaScope
 @Module internal class InternalAnaModule {
-    @Provides @AnaScope fun analytics(logger: SdkLogger): AnalyticsService = DefaultAnalyticsService(logger)
+    @Provides @AnaScope fun analytics(logger: SdkLogger): AnalyticsApi = DefaultAnalyticsService(logger)
 }
 
 // --- Sync (depends on Core + Encryption + Auth + Storage) ---
 @SynScope @Component(dependencies = [CoreComponent::class, EncComponent::class, AuthComponent::class, StorComponent::class], modules = [InternalSynModule::class])
 internal interface SynComponent : DiComponent {
-    fun sync(): SyncService
+    fun sync(): SyncApi
     @Component.Builder interface Builder {
         fun core(core: CoreComponent): Builder
         fun enc(enc: EncComponent): Builder
@@ -101,7 +101,7 @@ internal interface SynComponent : DiComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) internal annotation class SynScope
 @Module internal class InternalSynModule {
-    @Provides @SynScope fun sync(auth: AuthService, storage: SecureStorageService, enc: EncryptionService, logger: SdkLogger): SyncService =
+    @Provides @SynScope fun sync(auth: AuthApi, storage: StorageApi, enc: EncryptionApi, logger: SdkLogger): SyncApi =
         DefaultSyncService(auth, storage, enc, logger)
 }
 
@@ -131,7 +131,7 @@ internal fun coreEntry(config: SdkConfig, logger: SdkLogger) = AutoFeatureEntry(
 internal val encryptionEntry = AutoFeatureEntry(
     componentClass = EncComponent::class.java,
     dependencies = setOf(CoreComponent::class.java),
-    serviceClasses = setOf(EncryptionService::class.java, HashService::class.java),
+    serviceClasses = setOf(EncryptionApi::class.java, HashApi::class.java),
     build = { reg ->
         DaggerEncComponent.builder()
             .core(reg.component(CoreComponent::class.java))
@@ -139,8 +139,8 @@ internal val encryptionEntry = AutoFeatureEntry(
     },
     services = { comp ->
         mapOf(
-            EncryptionService::class.java to comp.encryption(),
-            HashService::class.java to comp.hash(),
+            EncryptionApi::class.java to comp.encryption(),
+            HashApi::class.java to comp.hash(),
         )
     },
 )
@@ -148,45 +148,45 @@ internal val encryptionEntry = AutoFeatureEntry(
 internal val authEntry = AutoFeatureEntry(
     componentClass = AuthComponent::class.java,
     dependencies = setOf(CoreComponent::class.java, EncComponent::class.java),
-    serviceClasses = setOf(AuthService::class.java),
+    serviceClasses = setOf(AuthApi::class.java),
     build = { reg ->
         DaggerAuthComponent.builder()
             .core(reg.component(CoreComponent::class.java))
             .enc(reg.component(EncComponent::class.java))
             .build()
     },
-    services = { comp -> mapOf(AuthService::class.java to comp.auth()) },
+    services = { comp -> mapOf(AuthApi::class.java to comp.auth()) },
 )
 
 internal val storageEntry = AutoFeatureEntry(
     componentClass = StorComponent::class.java,
     dependencies = setOf(CoreComponent::class.java, EncComponent::class.java),
-    serviceClasses = setOf(SecureStorageService::class.java),
+    serviceClasses = setOf(StorageApi::class.java),
     build = { reg ->
         DaggerStorComponent.builder()
             .core(reg.component(CoreComponent::class.java))
             .enc(reg.component(EncComponent::class.java))
             .build()
     },
-    services = { comp -> mapOf(SecureStorageService::class.java to comp.storage()) },
+    services = { comp -> mapOf(StorageApi::class.java to comp.storage()) },
 )
 
 internal val analyticsEntry = AutoFeatureEntry(
     componentClass = AnaComponent::class.java,
     dependencies = setOf(CoreComponent::class.java),
-    serviceClasses = setOf(AnalyticsService::class.java),
+    serviceClasses = setOf(AnalyticsApi::class.java),
     build = { reg ->
         DaggerAnaComponent.builder()
             .core(reg.component(CoreComponent::class.java))
             .build()
     },
-    services = { comp -> mapOf(AnalyticsService::class.java to comp.analytics()) },
+    services = { comp -> mapOf(AnalyticsApi::class.java to comp.analytics()) },
 )
 
 internal val syncEntry = AutoFeatureEntry(
     componentClass = SynComponent::class.java,
     dependencies = setOf(CoreComponent::class.java, EncComponent::class.java, AuthComponent::class.java, StorComponent::class.java),
-    serviceClasses = setOf(SyncService::class.java),
+    serviceClasses = setOf(SyncApi::class.java),
     build = { reg ->
         DaggerSynComponent.builder()
             .core(reg.component(CoreComponent::class.java))
@@ -195,7 +195,7 @@ internal val syncEntry = AutoFeatureEntry(
             .storage(reg.component(StorComponent::class.java))
             .build()
     },
-    services = { comp -> mapOf(SyncService::class.java to comp.sync()) },
+    services = { comp -> mapOf(SyncApi::class.java to comp.sync()) },
 )
 
 /**

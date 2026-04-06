@@ -95,8 +95,8 @@ interface E2CoreComponent : BenchAutoComponent {
 // --- Encryption ---
 @E2EncScope @Component(dependencies = [E2CoreComponent::class], modules = [E2EncModule::class])
 interface E2EncComponent : BenchAutoComponent {
-    fun encryption(): EncryptionService
-    fun hash(): HashService
+    fun encryption(): EncryptionApi
+    fun hash(): HashApi
     @Component.Builder interface Builder {
         fun core(core: E2CoreComponent): Builder
         fun build(): E2EncComponent
@@ -104,14 +104,14 @@ interface E2EncComponent : BenchAutoComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) annotation class E2EncScope
 @Module class E2EncModule {
-    @Provides @E2EncScope fun enc(logger: SdkLogger): EncryptionService = DefaultEncryptionService(logger)
-    @Provides @E2EncScope fun hash(): HashService = DefaultHashService()
+    @Provides @E2EncScope fun enc(logger: SdkLogger): EncryptionApi = DefaultEncryptionService(logger)
+    @Provides @E2EncScope fun hash(): HashApi = DefaultHashService()
 }
 
 // --- Auth ---
 @E2AuthScope @Component(dependencies = [E2CoreComponent::class, E2EncComponent::class], modules = [E2AuthModule::class])
 interface E2AuthComponent : BenchAutoComponent {
-    fun auth(): AuthService
+    fun auth(): AuthApi
     @Component.Builder interface Builder {
         fun core(core: E2CoreComponent): Builder
         fun enc(enc: E2EncComponent): Builder
@@ -120,13 +120,13 @@ interface E2AuthComponent : BenchAutoComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) annotation class E2AuthScope
 @Module class E2AuthModule {
-    @Provides @E2AuthScope fun auth(enc: EncryptionService, logger: SdkLogger): AuthService = DefaultAuthService(enc, logger)
+    @Provides @E2AuthScope fun auth(enc: EncryptionApi, logger: SdkLogger): AuthApi = DefaultAuthService(enc, logger)
 }
 
 // --- Storage ---
 @E2StorageScope @Component(dependencies = [E2CoreComponent::class, E2EncComponent::class], modules = [E2StorageModule::class])
 interface E2StorageComponent : BenchAutoComponent {
-    fun storage(): SecureStorageService
+    fun storage(): StorageApi
     @Component.Builder interface Builder {
         fun core(core: E2CoreComponent): Builder
         fun enc(enc: E2EncComponent): Builder
@@ -135,14 +135,14 @@ interface E2StorageComponent : BenchAutoComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) annotation class E2StorageScope
 @Module class E2StorageModule {
-    @Provides @E2StorageScope fun storage(enc: EncryptionService, hash: HashService, logger: SdkLogger): SecureStorageService =
+    @Provides @E2StorageScope fun storage(enc: EncryptionApi, hash: HashApi, logger: SdkLogger): StorageApi =
         DefaultSecureStorageService(enc, hash, logger)
 }
 
 // --- Analytics ---
 @E2AnalyticsScope @Component(dependencies = [E2CoreComponent::class], modules = [E2AnalyticsModule::class])
 interface E2AnalyticsComponent : BenchAutoComponent {
-    fun analytics(): AnalyticsService
+    fun analytics(): AnalyticsApi
     @Component.Builder interface Builder {
         fun core(core: E2CoreComponent): Builder
         fun build(): E2AnalyticsComponent
@@ -150,13 +150,13 @@ interface E2AnalyticsComponent : BenchAutoComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) annotation class E2AnalyticsScope
 @Module class E2AnalyticsModule {
-    @Provides @E2AnalyticsScope fun analytics(logger: SdkLogger): AnalyticsService = DefaultAnalyticsService(logger)
+    @Provides @E2AnalyticsScope fun analytics(logger: SdkLogger): AnalyticsApi = DefaultAnalyticsService(logger)
 }
 
 // --- Sync ---
 @E2SyncScope @Component(dependencies = [E2CoreComponent::class, E2EncComponent::class, E2AuthComponent::class, E2StorageComponent::class], modules = [E2SyncModule::class])
 interface E2SyncComponent : BenchAutoComponent {
-    fun sync(): SyncService
+    fun sync(): SyncApi
     @Component.Builder interface Builder {
         fun core(core: E2CoreComponent): Builder
         fun enc(enc: E2EncComponent): Builder
@@ -167,7 +167,7 @@ interface E2SyncComponent : BenchAutoComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) annotation class E2SyncScope
 @Module class E2SyncModule {
-    @Provides @E2SyncScope fun sync(auth: AuthService, storage: SecureStorageService, enc: EncryptionService, logger: SdkLogger): SyncService =
+    @Provides @E2SyncScope fun sync(auth: AuthApi, storage: StorageApi, enc: EncryptionApi, logger: SdkLogger): SyncApi =
         DefaultSyncService(auth, storage, enc, logger)
 }
 
@@ -190,12 +190,12 @@ fun e2CoreEntry(config: SdkConfig, logger: SdkLogger) = BenchAutoEntry(
 val e2EncEntry = BenchAutoEntry(
     componentClass = E2EncComponent::class.java,
     dependencies = setOf(E2CoreComponent::class.java),
-    serviceClasses = setOf(EncryptionService::class.java, HashService::class.java),
+    serviceClasses = setOf(EncryptionApi::class.java, HashApi::class.java),
     build = { reg -> DaggerE2EncComponent.builder().core(reg.component(E2CoreComponent::class.java)).build() },
     services = { comp ->
         mapOf(
-            EncryptionService::class.java to comp.encryption(),
-            HashService::class.java to comp.hash(),
+            EncryptionApi::class.java to comp.encryption(),
+            HashApi::class.java to comp.hash(),
         )
     },
 )
@@ -203,41 +203,41 @@ val e2EncEntry = BenchAutoEntry(
 val e2AuthEntry = BenchAutoEntry(
     componentClass = E2AuthComponent::class.java,
     dependencies = setOf(E2CoreComponent::class.java, E2EncComponent::class.java),
-    serviceClasses = setOf(AuthService::class.java),
+    serviceClasses = setOf(AuthApi::class.java),
     build = { reg ->
         DaggerE2AuthComponent.builder()
             .core(reg.component(E2CoreComponent::class.java))
             .enc(reg.component(E2EncComponent::class.java))
             .build()
     },
-    services = { comp -> mapOf(AuthService::class.java to comp.auth()) },
+    services = { comp -> mapOf(AuthApi::class.java to comp.auth()) },
 )
 
 val e2StorageEntry = BenchAutoEntry(
     componentClass = E2StorageComponent::class.java,
     dependencies = setOf(E2CoreComponent::class.java, E2EncComponent::class.java),
-    serviceClasses = setOf(SecureStorageService::class.java),
+    serviceClasses = setOf(StorageApi::class.java),
     build = { reg ->
         DaggerE2StorageComponent.builder()
             .core(reg.component(E2CoreComponent::class.java))
             .enc(reg.component(E2EncComponent::class.java))
             .build()
     },
-    services = { comp -> mapOf(SecureStorageService::class.java to comp.storage()) },
+    services = { comp -> mapOf(StorageApi::class.java to comp.storage()) },
 )
 
 val e2AnalyticsEntry = BenchAutoEntry(
     componentClass = E2AnalyticsComponent::class.java,
     dependencies = setOf(E2CoreComponent::class.java),
-    serviceClasses = setOf(AnalyticsService::class.java),
+    serviceClasses = setOf(AnalyticsApi::class.java),
     build = { reg -> DaggerE2AnalyticsComponent.builder().core(reg.component(E2CoreComponent::class.java)).build() },
-    services = { comp -> mapOf(AnalyticsService::class.java to comp.analytics()) },
+    services = { comp -> mapOf(AnalyticsApi::class.java to comp.analytics()) },
 )
 
 val e2SyncEntry = BenchAutoEntry(
     componentClass = E2SyncComponent::class.java,
     dependencies = setOf(E2CoreComponent::class.java, E2EncComponent::class.java, E2AuthComponent::class.java, E2StorageComponent::class.java),
-    serviceClasses = setOf(SyncService::class.java),
+    serviceClasses = setOf(SyncApi::class.java),
     build = { reg ->
         DaggerE2SyncComponent.builder()
             .core(reg.component(E2CoreComponent::class.java))
@@ -246,7 +246,7 @@ val e2SyncEntry = BenchAutoEntry(
             .storage(reg.component(E2StorageComponent::class.java))
             .build()
     },
-    services = { comp -> mapOf(SyncService::class.java to comp.sync()) },
+    services = { comp -> mapOf(SyncApi::class.java to comp.sync()) },
 )
 
 fun allE2Entries(config: SdkConfig, logger: SdkLogger) = listOf(

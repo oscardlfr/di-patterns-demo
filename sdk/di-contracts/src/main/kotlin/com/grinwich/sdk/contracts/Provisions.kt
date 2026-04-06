@@ -23,26 +23,26 @@ interface CoreProvisions {
 
 /** Encryption services — consumed by Auth, Storage, Sync. */
 interface EncProvisions {
-    fun encryption(): EncryptionService
-    fun hash(): HashService
+    fun encryption(): EncryptionApi
+    fun hash(): HashApi
 }
 
 /** Auth services — consumed by Sync. */
 interface AuthProvisions {
-    fun auth(): AuthService
+    fun auth(): AuthApi
 }
 
 /** Storage services — consumed by Sync. */
 interface StorProvisions {
-    fun storage(): SecureStorageService
+    fun storage(): StorageApi
 }
 
 /** Analytics services — standalone, no consumers. */
 interface AnaProvisions {
-    fun analytics(): AnalyticsService
+    fun analytics(): AnalyticsApi
 }
 
 /** Sync services — leaf node, depends on Auth + Storage + Encryption. */
 interface SynProvisions {
-    fun sync(): SyncService
+    fun sync(): SyncApi
 }

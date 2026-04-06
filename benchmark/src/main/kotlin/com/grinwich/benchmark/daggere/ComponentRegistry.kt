@@ -89,8 +89,8 @@ interface ECoreComponent : BenchDiComponent {
 // --- Encryption ---
 @EEncScope @Component(dependencies = [ECoreComponent::class], modules = [EEncModule::class])
 interface EEncComponent : BenchDiComponent {
-    fun encryption(): EncryptionService
-    fun hash(): HashService
+    fun encryption(): EncryptionApi
+    fun hash(): HashApi
     @Component.Builder interface Builder {
         fun core(core: ECoreComponent): Builder
         fun build(): EEncComponent
@@ -98,14 +98,14 @@ interface EEncComponent : BenchDiComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) annotation class EEncScope
 @Module class EEncModule {
-    @Provides @EEncScope fun enc(logger: SdkLogger): EncryptionService = DefaultEncryptionService(logger)
-    @Provides @EEncScope fun hash(): HashService = DefaultHashService()
+    @Provides @EEncScope fun enc(logger: SdkLogger): EncryptionApi = DefaultEncryptionService(logger)
+    @Provides @EEncScope fun hash(): HashApi = DefaultHashService()
 }
 
 // --- Auth ---
 @EAuthScope @Component(dependencies = [ECoreComponent::class, EEncComponent::class], modules = [EAuthModule::class])
 interface EAuthComponent : BenchDiComponent {
-    fun auth(): AuthService
+    fun auth(): AuthApi
     @Component.Builder interface Builder {
         fun core(core: ECoreComponent): Builder
         fun enc(enc: EEncComponent): Builder
@@ -114,13 +114,13 @@ interface EAuthComponent : BenchDiComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) annotation class EAuthScope
 @Module class EAuthModule {
-    @Provides @EAuthScope fun auth(enc: EncryptionService, logger: SdkLogger): AuthService = DefaultAuthService(enc, logger)
+    @Provides @EAuthScope fun auth(enc: EncryptionApi, logger: SdkLogger): AuthApi = DefaultAuthService(enc, logger)
 }
 
 // --- Storage ---
 @EStorageScope @Component(dependencies = [ECoreComponent::class, EEncComponent::class], modules = [EStorageModule::class])
 interface EStorageComponent : BenchDiComponent {
-    fun storage(): SecureStorageService
+    fun storage(): StorageApi
     @Component.Builder interface Builder {
         fun core(core: ECoreComponent): Builder
         fun enc(enc: EEncComponent): Builder
@@ -129,14 +129,14 @@ interface EStorageComponent : BenchDiComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) annotation class EStorageScope
 @Module class EStorageModule {
-    @Provides @EStorageScope fun storage(enc: EncryptionService, hash: HashService, logger: SdkLogger): SecureStorageService =
+    @Provides @EStorageScope fun storage(enc: EncryptionApi, hash: HashApi, logger: SdkLogger): StorageApi =
         DefaultSecureStorageService(enc, hash, logger)
 }
 
 // --- Analytics ---
 @EAnalyticsScope @Component(dependencies = [ECoreComponent::class], modules = [EAnalyticsModule::class])
 interface EAnalyticsComponent : BenchDiComponent {
-    fun analytics(): AnalyticsService
+    fun analytics(): AnalyticsApi
     @Component.Builder interface Builder {
         fun core(core: ECoreComponent): Builder
         fun build(): EAnalyticsComponent
@@ -144,13 +144,13 @@ interface EAnalyticsComponent : BenchDiComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) annotation class EAnalyticsScope
 @Module class EAnalyticsModule {
-    @Provides @EAnalyticsScope fun analytics(logger: SdkLogger): AnalyticsService = DefaultAnalyticsService(logger)
+    @Provides @EAnalyticsScope fun analytics(logger: SdkLogger): AnalyticsApi = DefaultAnalyticsService(logger)
 }
 
 // --- Sync ---
 @ESyncScope @Component(dependencies = [ECoreComponent::class, EEncComponent::class, EAuthComponent::class, EStorageComponent::class], modules = [ESyncModule::class])
 interface ESyncComponent : BenchDiComponent {
-    fun sync(): SyncService
+    fun sync(): SyncApi
     @Component.Builder interface Builder {
         fun core(core: ECoreComponent): Builder
         fun enc(enc: EEncComponent): Builder
@@ -161,7 +161,7 @@ interface ESyncComponent : BenchDiComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) annotation class ESyncScope
 @Module class ESyncModule {
-    @Provides @ESyncScope fun sync(auth: AuthService, storage: SecureStorageService, enc: EncryptionService, logger: SdkLogger): SyncService =
+    @Provides @ESyncScope fun sync(auth: AuthApi, storage: StorageApi, enc: EncryptionApi, logger: SdkLogger): SyncApi =
         DefaultSyncService(auth, storage, enc, logger)
 }
 
@@ -186,8 +186,8 @@ val eEncEntry = BenchFeatureEntry(
     build = { reg -> DaggerEEncComponent.builder().core(reg.component(ECoreComponent::class.java)).build() },
     services = { comp ->
         mapOf(
-            EncryptionService::class.java to comp.encryption(),
-            HashService::class.java to comp.hash(),
+            EncryptionApi::class.java to comp.encryption(),
+            HashApi::class.java to comp.hash(),
         )
     },
 )
@@ -201,7 +201,7 @@ val eAuthEntry = BenchFeatureEntry(
             .enc(reg.component(EEncComponent::class.java))
             .build()
     },
-    services = { comp -> mapOf(AuthService::class.java to comp.auth()) },
+    services = { comp -> mapOf(AuthApi::class.java to comp.auth()) },
 )
 
 val eStorageEntry = BenchFeatureEntry(
@@ -213,14 +213,14 @@ val eStorageEntry = BenchFeatureEntry(
             .enc(reg.component(EEncComponent::class.java))
             .build()
     },
-    services = { comp -> mapOf(SecureStorageService::class.java to comp.storage()) },
+    services = { comp -> mapOf(StorageApi::class.java to comp.storage()) },
 )
 
 val eAnalyticsEntry = BenchFeatureEntry(
     componentClass = EAnalyticsComponent::class.java,
     dependencies = setOf(ECoreComponent::class.java),
     build = { reg -> DaggerEAnalyticsComponent.builder().core(reg.component(ECoreComponent::class.java)).build() },
-    services = { comp -> mapOf(AnalyticsService::class.java to comp.analytics()) },
+    services = { comp -> mapOf(AnalyticsApi::class.java to comp.analytics()) },
 )
 
 val eSyncEntry = BenchFeatureEntry(
@@ -234,5 +234,5 @@ val eSyncEntry = BenchFeatureEntry(
             .storage(reg.component(EStorageComponent::class.java))
             .build()
     },
-    services = { comp -> mapOf(SyncService::class.java to comp.sync()) },
+    services = { comp -> mapOf(SyncApi::class.java to comp.sync()) },
 )

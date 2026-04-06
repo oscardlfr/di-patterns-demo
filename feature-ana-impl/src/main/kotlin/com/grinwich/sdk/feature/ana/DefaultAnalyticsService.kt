@@ -1,11 +1,11 @@
 package com.grinwich.sdk.feature.ana
 
-import com.grinwich.sdk.api.AnalyticsService
+import com.grinwich.sdk.api.AnalyticsApi
 import com.grinwich.sdk.api.SdkLogger
 
 internal class DefaultAnalyticsService(
     private val logger: SdkLogger,
-) : AnalyticsService {
+) : AnalyticsApi {
 
     private val _events = mutableListOf<String>()
 

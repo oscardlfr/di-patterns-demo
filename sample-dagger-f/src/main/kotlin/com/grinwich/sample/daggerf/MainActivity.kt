@@ -37,7 +37,7 @@ class MainActivity : ComponentActivity() {
                                 ModularSdk.getOrInitModule(Feature.ANALYTICS)
                             }
                             appendLine("Cascaded: $anaInited")
-                            val analytics = ModularSdk.get<AnalyticsService>()
+                            val analytics = ModularSdk.get<AnalyticsApi>()
                             analytics.trackEvent("screen_view")
                             appendLine("Analytics: ${analytics.getTrackedEvents()}")
 
@@ -47,8 +47,8 @@ class MainActivity : ComponentActivity() {
                                 ModularSdk.getOrInitModule(Feature.SYNC)
                             }
                             appendLine("Cascaded: $syncInited")
-                            ModularSdk.get<AuthService>().login("user", "pass")
-                            val sync = SdkBenchmark.measure("sync()") { ModularSdk.get<SyncService>().sync() }
+                            ModularSdk.get<AuthApi>().login("user", "pass")
+                            val sync = SdkBenchmark.measure("sync()") { ModularSdk.get<SyncApi>().sync() }
                             appendLine("Sync: up=${sync.uploaded}, down=${sync.downloaded}")
                             appendLine("After: ${ModularSdk.initializedModules}")
 

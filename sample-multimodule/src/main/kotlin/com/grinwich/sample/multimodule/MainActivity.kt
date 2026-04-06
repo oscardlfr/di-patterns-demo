@@ -25,21 +25,21 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         // Auto-builds Encryption + Auth on demand (cascading)
-        val auth: AuthService = MultiModuleSdk.get()
+        val auth: AuthApi = MultiModuleSdk.get()
         val token = auth.login("demo-user", "s3cr3t")
         Log.d("MultiModule", "Auth token: ${token.accessToken}")
 
         // Auto-builds Storage on demand (Encryption already cached)
-        val storage: SecureStorageService = MultiModuleSdk.get()
+        val storage: StorageApi = MultiModuleSdk.get()
         storage.put("sync-queue", "pending-data")
 
         // Auto-builds Sync on demand (Auth + Storage + Enc already cached)
-        val sync: SyncService = MultiModuleSdk.get()
+        val sync: SyncApi = MultiModuleSdk.get()
         val result = sync.sync()
         Log.d("MultiModule", "Sync: ${result.uploaded} up, ${result.downloaded} down")
 
         // Analytics — standalone, only needs Core (already cached)
-        val analytics: AnalyticsService = MultiModuleSdk.get()
+        val analytics: AnalyticsApi = MultiModuleSdk.get()
         analytics.trackEvent("app_launched")
 
         setContent {

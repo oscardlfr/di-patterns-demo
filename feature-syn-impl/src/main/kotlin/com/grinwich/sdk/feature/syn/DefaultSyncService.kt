@@ -3,11 +3,11 @@ package com.grinwich.sdk.feature.syn
 import com.grinwich.sdk.api.*
 
 internal class DefaultSyncService(
-    private val auth: AuthService,
-    private val storage: SecureStorageService,
-    private val encryption: EncryptionService,
+    private val auth: AuthApi,
+    private val storage: StorageApi,
+    private val encryption: EncryptionApi,
     private val logger: SdkLogger,
-) : SyncService {
+) : SyncApi {
 
     override fun sync(): SyncResult {
         check(auth.isAuthenticated()) { "Must be logged in to sync. Call auth.login() first." }

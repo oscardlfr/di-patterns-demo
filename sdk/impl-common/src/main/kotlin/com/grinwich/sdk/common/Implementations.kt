@@ -17,7 +17,7 @@ class CoreApisImpl(
 // Encryption — no cross-feature deps
 // ============================================================
 
-class DefaultEncryptionService(private val logger: SdkLogger) : EncryptionService {
+class DefaultEncryptionService(private val logger: SdkLogger) : EncryptionApi {
 
     override fun encrypt(plaintext: String): String {
         logger.d("Encryption", "Encrypting ${plaintext.length} chars")
@@ -34,7 +34,7 @@ class DefaultEncryptionService(private val logger: SdkLogger) : EncryptionServic
     }
 }
 
-class DefaultHashService : HashService {
+class DefaultHashService : HashApi {
 
     override fun sha256(input: ByteArray): ByteArray {
         val digest = java.security.MessageDigest.getInstance("SHA-256")
@@ -46,13 +46,13 @@ class DefaultHashService : HashService {
 }
 
 // ============================================================
-// Auth — depends on EncryptionService (cross-feature!)
+// Auth — depends on EncryptionApi (cross-feature!)
 // ============================================================
 
 class DefaultAuthService(
-    private val encryption: EncryptionService,
+    private val encryption: EncryptionApi,
     private val logger: SdkLogger,
-) : AuthService {
+) : AuthApi {
 
     private var currentToken: AuthToken? = null
 
@@ -81,14 +81,14 @@ class DefaultAuthService(
 }
 
 // ============================================================
-// Storage — depends on EncryptionService AND HashService (cross-feature!)
+// Storage — depends on EncryptionApi AND HashApi (cross-feature!)
 // ============================================================
 
 class DefaultSecureStorageService(
-    private val encryption: EncryptionService,
-    private val hash: HashService,
+    private val encryption: EncryptionApi,
+    private val hash: HashApi,
     private val logger: SdkLogger,
-) : SecureStorageService {
+) : StorageApi {
 
     private val store = mutableMapOf<String, String>()
 
@@ -120,7 +120,7 @@ class DefaultSecureStorageService(
 
 class DefaultAnalyticsService(
     private val logger: SdkLogger,
-) : AnalyticsService {
+) : AnalyticsApi {
 
     private val _events = mutableListOf<String>()
 
@@ -138,11 +138,11 @@ class DefaultAnalyticsService(
 // ============================================================
 
 class DefaultSyncService(
-    private val auth: AuthService,
-    private val storage: SecureStorageService,
-    private val encryption: EncryptionService,
+    private val auth: AuthApi,
+    private val storage: StorageApi,
+    private val encryption: EncryptionApi,
     private val logger: SdkLogger,
-) : SyncService {
+) : SyncApi {
 
     override fun sync(): SyncResult {
         // 1. Requires authenticated user

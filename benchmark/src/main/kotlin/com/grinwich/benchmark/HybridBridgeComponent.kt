@@ -14,12 +14,12 @@ import javax.inject.Singleton
 @Singleton
 @Component(modules = [BenchBridgeModule::class])
 interface BenchBridgeComponent {
-    fun encryption(): EncryptionService
-    fun hash(): HashService
-    fun auth(): AuthService
-    fun storage(): SecureStorageService
-    fun analytics(): AnalyticsService
-    fun sync(): SyncService
+    fun encryption(): EncryptionApi
+    fun hash(): HashApi
+    fun auth(): AuthApi
+    fun storage(): StorageApi
+    fun analytics(): AnalyticsApi
+    fun sync(): SyncApi
 
     @Component.Builder
     interface Builder {
@@ -33,22 +33,22 @@ class BenchBridgeModule {
     // Dagger generates a factory that calls these once (@Singleton) and caches.
 
     @Provides @Singleton
-    fun encryption(koin: org.koin.core.Koin): EncryptionService = koin.get()
+    fun encryption(koin: org.koin.core.Koin): EncryptionApi = koin.get()
 
     @Provides @Singleton
-    fun hash(koin: org.koin.core.Koin): HashService = koin.get()
+    fun hash(koin: org.koin.core.Koin): HashApi = koin.get()
 
     @Provides @Singleton
-    fun auth(koin: org.koin.core.Koin): AuthService = koin.get()
+    fun auth(koin: org.koin.core.Koin): AuthApi = koin.get()
 
     @Provides @Singleton
-    fun storage(koin: org.koin.core.Koin): SecureStorageService = koin.get()
+    fun storage(koin: org.koin.core.Koin): StorageApi = koin.get()
 
     @Provides @Singleton
-    fun analytics(koin: org.koin.core.Koin): AnalyticsService = koin.get()
+    fun analytics(koin: org.koin.core.Koin): AnalyticsApi = koin.get()
 
     @Provides @Singleton
-    fun sync(koin: org.koin.core.Koin): SyncService = koin.get()
+    fun sync(koin: org.koin.core.Koin): SyncApi = koin.get()
 
     @Provides @Singleton
     fun koin(): org.koin.core.Koin = KoinSdkBenchHelper.koin

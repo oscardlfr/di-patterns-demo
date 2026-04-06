@@ -39,8 +39,8 @@ internal val encEntry = ProvisionEntry(
     },
     services = { prov ->
         mapOf(
-            EncryptionService::class.java to prov.encryption(),
-            HashService::class.java to prov.hash(),
+            EncryptionApi::class.java to prov.encryption(),
+            HashApi::class.java to prov.hash(),
         )
     },
 )
@@ -55,7 +55,7 @@ internal val authEntry = ProvisionEntry(
             .build()
     },
     services = { prov ->
-        mapOf(AuthService::class.java to prov.auth())
+        mapOf(AuthApi::class.java to prov.auth())
     },
 )
 
@@ -69,7 +69,7 @@ internal val storEntry = ProvisionEntry(
             .build()
     },
     services = { prov ->
-        mapOf(SecureStorageService::class.java to prov.storage())
+        mapOf(StorageApi::class.java to prov.storage())
     },
 )
 
@@ -82,7 +82,7 @@ internal val anaEntry = ProvisionEntry(
             .build()
     },
     services = { prov ->
-        mapOf(AnalyticsService::class.java to prov.analytics())
+        mapOf(AnalyticsApi::class.java to prov.analytics())
     },
 )
 
@@ -103,7 +103,7 @@ internal val synEntry = ProvisionEntry(
             .build()
     },
     services = { prov ->
-        mapOf(SyncService::class.java to prov.sync())
+        mapOf(SyncApi::class.java to prov.sync())
     },
 )
 

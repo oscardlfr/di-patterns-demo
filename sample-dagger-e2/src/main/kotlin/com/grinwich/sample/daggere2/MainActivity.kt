@@ -31,24 +31,24 @@ class MainActivity : ComponentActivity() {
                             appendLine("=== Dagger E2: Auto-Init Registry ===\n")
 
                             appendLine("--- Case 1: Analytics (auto-inits Core) ---")
-                            val analytics = SdkBenchmark.measure("get<AnalyticsService>()") {
-                                AutoSdk.get<AnalyticsService>()
+                            val analytics = SdkBenchmark.measure("get<AnalyticsApi>()") {
+                                AutoSdk.get<AnalyticsApi>()
                             }
                             analytics.trackEvent("screen_view")
                             appendLine("Analytics: ${analytics.getTrackedEvents()}")
 
                             appendLine("\n--- Case 2: Sync (auto-cascades all deps) ---")
-                            val sync = SdkBenchmark.measure("get<SyncService>()") {
-                                AutoSdk.get<SyncService>()
+                            val sync = SdkBenchmark.measure("get<SyncApi>()") {
+                                AutoSdk.get<SyncApi>()
                             }
                             // Auth auto-built by Sync's dependency chain
-                            AutoSdk.get<AuthService>().login("user", "pass")
+                            AutoSdk.get<AuthApi>().login("user", "pass")
                             val syncResult = SdkBenchmark.measure("sync()") { sync.sync() }
                             appendLine("Sync: up=${syncResult.uploaded}, down=${syncResult.downloaded}")
 
                             appendLine("\n--- Case 3: Already-built services (cache hit) ---")
-                            val enc = SdkBenchmark.measure("get<EncryptionService>() [cached]") {
-                                AutoSdk.get<EncryptionService>()
+                            val enc = SdkBenchmark.measure("get<EncryptionApi>() [cached]") {
+                                AutoSdk.get<EncryptionApi>()
                             }
                             appendLine("Encrypt: ${enc.encrypt("hello")}")
 

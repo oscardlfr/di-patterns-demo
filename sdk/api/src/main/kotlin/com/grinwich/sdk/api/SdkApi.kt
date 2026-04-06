@@ -13,8 +13,8 @@ interface CoreApis {
 // All other types re-exported via api() dependencies in build.gradle.kts:
 // - SdkConfig                        → from :sdk:feature-core-api
 // - SdkLogger, AndroidSdkLogger      → from :sdk:observability-api
-// - EncryptionService, HashService    → from :sdk:feature-enc-api
-// - AuthService, AuthToken            → from :sdk:feature-auth-api
-// - SecureStorageService              → from :sdk:feature-stor-api
-// - AnalyticsService                  → from :sdk:feature-ana-api
-// - SyncService, SyncResult           → from :sdk:feature-syn-api
+// - EncryptionApi, HashApi    → from :sdk:feature-enc-api
+// - AuthApi, AuthToken            → from :sdk:feature-auth-api
+// - StorageApi              → from :sdk:feature-stor-api
+// - AnalyticsApi                  → from :sdk:feature-ana-api
+// - SyncApi, SyncResult           → from :sdk:feature-syn-api

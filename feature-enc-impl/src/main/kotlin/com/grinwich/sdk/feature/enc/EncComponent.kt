@@ -1,7 +1,7 @@
 package com.grinwich.sdk.feature.enc
 
-import com.grinwich.sdk.api.EncryptionService
-import com.grinwich.sdk.api.HashService
+import com.grinwich.sdk.api.EncryptionApi
+import com.grinwich.sdk.api.HashApi
 import com.grinwich.sdk.api.SdkLogger
 import com.grinwich.sdk.contracts.CoreProvisions
 import com.grinwich.sdk.contracts.EncProvisions
@@ -26,8 +26,8 @@ import dagger.Provides
 )
 interface EncComponent : EncProvisions {
 
-    override fun encryption(): EncryptionService
-    override fun hash(): HashService
+    override fun encryption(): EncryptionApi
+    override fun hash(): HashApi
 
     @Component.Builder interface Builder {
         fun core(core: CoreProvisions): Builder
@@ -38,8 +38,8 @@ interface EncComponent : EncProvisions {
 @Module
 internal class EncModule {
     @Provides @EncScope
-    fun encryption(logger: SdkLogger): EncryptionService = DefaultEncryptionService(logger)
+    fun encryption(logger: SdkLogger): EncryptionApi = DefaultEncryptionService(logger)
 
     @Provides @EncScope
-    fun hash(): HashService = DefaultHashService()
+    fun hash(): HashApi = DefaultHashService()
 }

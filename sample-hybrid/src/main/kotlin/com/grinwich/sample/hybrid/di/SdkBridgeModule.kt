@@ -24,16 +24,16 @@ import javax.inject.Singleton
 @Singleton
 @Component(modules = [SdkBridgeModule::class])
 interface SdkBridgeComponent {
-    fun encryption(): EncryptionService
-    fun hash(): HashService
+    fun encryption(): EncryptionApi
+    fun hash(): HashApi
 
     // Lazy features: use KoinSdk.get() at call-time, NOT through Component.
     // These may not exist when the Component is created.
     //
-    // fun auth(): AuthService          // ← would crash if Auth not init'd
-    // fun storage(): SecureStorageService
-    // fun analytics(): AnalyticsService
-    // fun sync(): SyncService
+    // fun auth(): AuthApi          // ← would crash if Auth not init'd
+    // fun storage(): StorageApi
+    // fun analytics(): AnalyticsApi
+    // fun sync(): SyncApi
     //
     // ⚠️ For lazy features in hybrid, access KoinSdk directly.
 
@@ -49,8 +49,8 @@ class SdkBridgeModule {
     // --- Available at startup (init'd in Application.onCreate) ---
 
     @Provides @Singleton
-    fun provideEncryptionService(): EncryptionService = KoinSdk.get()
+    fun provideEncryptionApi(): EncryptionApi = KoinSdk.get()
 
     @Provides @Singleton
-    fun provideHashService(): HashService = KoinSdk.get()
+    fun provideHashApi(): HashApi = KoinSdk.get()
 }

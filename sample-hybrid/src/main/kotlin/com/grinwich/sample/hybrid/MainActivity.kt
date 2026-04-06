@@ -53,7 +53,7 @@ class MainActivity : ComponentActivity() {
                             appendLine("Cascaded: ${analyticsInited.map { it.key }}")
                             // Lazy feature — access via KoinSdk directly (not through Dagger bridge)
                             val analytics = SdkBenchmark.measure("KoinSdk.get<Analytics>()") {
-                                KoinSdk.get<AnalyticsService>()
+                                KoinSdk.get<AnalyticsApi>()
                             }
                             SdkBenchmark.measure("track event") { analytics.trackEvent("hybrid_screen") }
                             appendLine("✅ Analytics: ${analytics.getTrackedEvents()}")
@@ -68,11 +68,11 @@ class MainActivity : ComponentActivity() {
                             appendLine("Active after:  ${KoinSdk.initializedModules.map { it.key }}")
 
                             // Login first
-                            val auth = KoinSdk.get<AuthService>()
+                            val auth = KoinSdk.get<AuthApi>()
                             SdkBenchmark.measure("auth.login") { auth.login("user", "pass") }
 
                             val sync = SdkBenchmark.measure("KoinSdk.get<Sync>()") {
-                                KoinSdk.get<SyncService>()
+                                KoinSdk.get<SyncApi>()
                             }
                             val syncResult = SdkBenchmark.measure("sync.sync()") { sync.sync() }
                             appendLine("✅ Sync: up=${syncResult.uploaded}, down=${syncResult.downloaded}")

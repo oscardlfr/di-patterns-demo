@@ -5,7 +5,7 @@ package com.grinwich.sdk.api
  * Needs Auth (for user identity), Storage (for offline queue),
  * and Encryption (for payload signing).
  */
-interface SyncService {
+interface SyncApi {
     fun sync(): SyncResult
     fun pendingCount(): Int
 }

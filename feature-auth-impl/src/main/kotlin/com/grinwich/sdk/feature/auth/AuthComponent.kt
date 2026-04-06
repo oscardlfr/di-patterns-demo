@@ -1,7 +1,7 @@
 package com.grinwich.sdk.feature.auth
 
-import com.grinwich.sdk.api.AuthService
-import com.grinwich.sdk.api.EncryptionService
+import com.grinwich.sdk.api.AuthApi
+import com.grinwich.sdk.api.EncryptionApi
 import com.grinwich.sdk.api.SdkLogger
 import com.grinwich.sdk.contracts.AuthProvisions
 import com.grinwich.sdk.contracts.AuthScope
@@ -16,7 +16,7 @@ import dagger.Provides
  *
  * dependencies = [CoreProvisions, EncProvisions]:
  *   - CoreProvisions.logger() → Dagger can inject SdkLogger
- *   - EncProvisions.encryption() → Dagger can inject EncryptionService
+ *   - EncProvisions.encryption() → Dagger can inject EncryptionApi
  *
  * This module NEVER imports EncComponent or CoreComponent.
  * It only knows contracts (provision interfaces) from di-contracts.
@@ -28,7 +28,7 @@ import dagger.Provides
 )
 interface AuthComponent : AuthProvisions {
 
-    override fun auth(): AuthService
+    override fun auth(): AuthApi
 
     @Component.Builder interface Builder {
         fun core(core: CoreProvisions): Builder
@@ -40,6 +40,6 @@ interface AuthComponent : AuthProvisions {
 @Module
 internal class AuthModule {
     @Provides @AuthScope
-    fun auth(enc: EncryptionService, logger: SdkLogger): AuthService =
+    fun auth(enc: EncryptionApi, logger: SdkLogger): AuthApi =
         DefaultAuthService(enc, logger)
 }

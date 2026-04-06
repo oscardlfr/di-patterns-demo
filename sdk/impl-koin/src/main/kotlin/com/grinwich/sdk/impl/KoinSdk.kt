@@ -99,8 +99,8 @@ object SdkModuleRegistry {
 object EncryptionRegistration : SdkModuleRegistration {
     override val module = SdkModule.Encryption.Default
     override val koinModule = module {
-        single<HashService> { DefaultHashService() }
-        single<EncryptionService> { DefaultEncryptionService(get()) }
+        single<HashApi> { DefaultHashService() }
+        single<EncryptionApi> { DefaultEncryptionService(get()) }
     }
     init { SdkModuleRegistry.register(module) { koinModule } }
 }
@@ -108,7 +108,7 @@ object EncryptionRegistration : SdkModuleRegistration {
 object AuthRegistration : SdkModuleRegistration {
     override val module = SdkModule.Auth.Default
     override val koinModule = module {
-        single<AuthService> { DefaultAuthService(get(), get()) }
+        single<AuthApi> { DefaultAuthService(get(), get()) }
     }
     init { SdkModuleRegistry.register(module) { koinModule } }
 }
@@ -116,7 +116,7 @@ object AuthRegistration : SdkModuleRegistration {
 object StorageRegistration : SdkModuleRegistration {
     override val module = SdkModule.Storage.Secure
     override val koinModule = module {
-        single<SecureStorageService> { DefaultSecureStorageService(get(), get(), get()) }
+        single<StorageApi> { DefaultSecureStorageService(get(), get(), get()) }
     }
     init { SdkModuleRegistry.register(module) { koinModule } }
 }
@@ -124,7 +124,7 @@ object StorageRegistration : SdkModuleRegistration {
 object AnalyticsRegistration : SdkModuleRegistration {
     override val module = SdkModule.Analytics.Default
     override val koinModule = module {
-        single<AnalyticsService> { DefaultAnalyticsService(get()) }
+        single<AnalyticsApi> { DefaultAnalyticsService(get()) }
     }
     init { SdkModuleRegistry.register(module) { koinModule } }
 }
@@ -133,7 +133,7 @@ object SyncRegistration : SdkModuleRegistration {
     override val module = SdkModule.Sync.Default
     override val koinModule = module {
         // HEAVY cross-feature: needs Auth + Storage + Encryption from same graph
-        single<SyncService> { DefaultSyncService(get(), get(), get(), get()) }
+        single<SyncApi> { DefaultSyncService(get(), get(), get(), get()) }
     }
     init { SdkModuleRegistry.register(module) { koinModule } }
 }

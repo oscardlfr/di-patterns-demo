@@ -33,7 +33,7 @@ internal fun coreAutoEntry(config: SdkConfig, logger: SdkLogger) = AutoProvision
 internal val encAutoEntry = AutoProvisionEntry(
     provisionClass = EncProvisions::class.java,
     dependencies = setOf(CoreProvisions::class.java),
-    serviceClasses = setOf(EncryptionService::class.java, HashService::class.java),
+    serviceClasses = setOf(EncryptionApi::class.java, HashApi::class.java),
     build = { registry ->
         DaggerEncComponent.builder()
             .core(registry.provision(CoreProvisions::class.java))
@@ -41,8 +41,8 @@ internal val encAutoEntry = AutoProvisionEntry(
     },
     services = { prov ->
         mapOf(
-            EncryptionService::class.java to prov.encryption(),
-            HashService::class.java to prov.hash(),
+            EncryptionApi::class.java to prov.encryption(),
+            HashApi::class.java to prov.hash(),
         )
     },
 )
@@ -50,7 +50,7 @@ internal val encAutoEntry = AutoProvisionEntry(
 internal val authAutoEntry = AutoProvisionEntry(
     provisionClass = AuthProvisions::class.java,
     dependencies = setOf(CoreProvisions::class.java, EncProvisions::class.java),
-    serviceClasses = setOf(AuthService::class.java),
+    serviceClasses = setOf(AuthApi::class.java),
     build = { registry ->
         DaggerAuthComponent.builder()
             .core(registry.provision(CoreProvisions::class.java))
@@ -58,14 +58,14 @@ internal val authAutoEntry = AutoProvisionEntry(
             .build()
     },
     services = { prov ->
-        mapOf(AuthService::class.java to prov.auth())
+        mapOf(AuthApi::class.java to prov.auth())
     },
 )
 
 internal val storAutoEntry = AutoProvisionEntry(
     provisionClass = StorProvisions::class.java,
     dependencies = setOf(CoreProvisions::class.java, EncProvisions::class.java),
-    serviceClasses = setOf(SecureStorageService::class.java),
+    serviceClasses = setOf(StorageApi::class.java),
     build = { registry ->
         DaggerStorComponent.builder()
             .core(registry.provision(CoreProvisions::class.java))
@@ -73,21 +73,21 @@ internal val storAutoEntry = AutoProvisionEntry(
             .build()
     },
     services = { prov ->
-        mapOf(SecureStorageService::class.java to prov.storage())
+        mapOf(StorageApi::class.java to prov.storage())
     },
 )
 
 internal val anaAutoEntry = AutoProvisionEntry(
     provisionClass = AnaProvisions::class.java,
     dependencies = setOf(CoreProvisions::class.java),
-    serviceClasses = setOf(AnalyticsService::class.java),
+    serviceClasses = setOf(AnalyticsApi::class.java),
     build = { registry ->
         DaggerAnaComponent.builder()
             .core(registry.provision(CoreProvisions::class.java))
             .build()
     },
     services = { prov ->
-        mapOf(AnalyticsService::class.java to prov.analytics())
+        mapOf(AnalyticsApi::class.java to prov.analytics())
     },
 )
 
@@ -99,7 +99,7 @@ internal val synAutoEntry = AutoProvisionEntry(
         AuthProvisions::class.java,
         StorProvisions::class.java,
     ),
-    serviceClasses = setOf(SyncService::class.java),
+    serviceClasses = setOf(SyncApi::class.java),
     build = { registry ->
         DaggerSynComponent.builder()
             .core(registry.provision(CoreProvisions::class.java))
@@ -109,7 +109,7 @@ internal val synAutoEntry = AutoProvisionEntry(
             .build()
     },
     services = { prov ->
-        mapOf(SyncService::class.java to prov.sync())
+        mapOf(SyncApi::class.java to prov.sync())
     },
 )
 

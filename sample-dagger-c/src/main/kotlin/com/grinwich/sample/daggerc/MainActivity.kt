@@ -36,7 +36,7 @@ class MainActivity : ComponentActivity() {
                                 DaggerCSdk.getOrInitModule("analytics")
                             }
                             appendLine("Cascaded: $anaInited")
-                            val analytics = DaggerCSdk.get<AnalyticsService>()
+                            val analytics = DaggerCSdk.get<AnalyticsApi>()
                             analytics.trackEvent("page_view")
                             appendLine("✅ Analytics: ${analytics.getTrackedEvents()}")
 
@@ -46,8 +46,8 @@ class MainActivity : ComponentActivity() {
                                 DaggerCSdk.getOrInitModule("sync")
                             }
                             appendLine("Cascaded: $syncInited")
-                            DaggerCSdk.get<AuthService>().login("user", "pass")
-                            val sync = SdkBenchmark.measure("sync()") { DaggerCSdk.get<SyncService>().sync() }
+                            DaggerCSdk.get<AuthApi>().login("user", "pass")
+                            val sync = SdkBenchmark.measure("sync()") { DaggerCSdk.get<SyncApi>().sync() }
                             appendLine("✅ Sync: up=${sync.uploaded}, down=${sync.downloaded}")
                             appendLine("After: ${DaggerCSdk.initializedModules}")
 

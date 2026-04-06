@@ -39,7 +39,7 @@ object MultiModuleSdkE2 {
      * Resolve a service by type. Auto-builds the providing component
      * (and all transitive dependencies) if not yet built.
      *
-     * get<SyncService>() -> auto-builds: Core -> Enc -> Auth -> Stor -> Syn
+     * get<SyncApi>() -> auto-builds: Core -> Enc -> Auth -> Stor -> Syn
      */
     @Suppress("UNCHECKED_CAST")
     fun <T : Any> get(clazz: Class<T>): T {

@@ -11,12 +11,12 @@ import javax.inject.Singleton
 @Singleton
 @Component(modules = [CoreMod::class, EncMod::class, AuthMod::class, StorageMod::class, AnalyticsMod::class, SyncMod::class])
 interface MonolithicComponent {
-    fun encryption(): EncryptionService
-    fun hash(): HashService
-    fun auth(): AuthService
-    fun storage(): SecureStorageService
-    fun analytics(): AnalyticsService
-    fun sync(): SyncService
+    fun encryption(): EncryptionApi
+    fun hash(): HashApi
+    fun auth(): AuthApi
+    fun storage(): StorageApi
+    fun analytics(): AnalyticsApi
+    fun sync(): SyncApi
 
     @Component.Builder interface Builder {
         @dagger.BindsInstance fun config(config: SdkConfig): Builder
@@ -33,22 +33,22 @@ interface MonolithicComponent {
 }
 
 @Module class EncMod {
-    @Provides @Singleton fun enc(logger: SdkLogger): EncryptionService = DefaultEncryptionService(logger)
-    @Provides @Singleton fun hash(): HashService = DefaultHashService()
+    @Provides @Singleton fun enc(logger: SdkLogger): EncryptionApi = DefaultEncryptionService(logger)
+    @Provides @Singleton fun hash(): HashApi = DefaultHashService()
 }
 
 @Module class AuthMod {
-    @Provides @Singleton fun auth(enc: EncryptionService, logger: SdkLogger): AuthService = DefaultAuthService(enc, logger)
+    @Provides @Singleton fun auth(enc: EncryptionApi, logger: SdkLogger): AuthApi = DefaultAuthService(enc, logger)
 }
 
 @Module class StorageMod {
-    @Provides @Singleton fun storage(enc: EncryptionService, hash: HashService, logger: SdkLogger): SecureStorageService = DefaultSecureStorageService(enc, hash, logger)
+    @Provides @Singleton fun storage(enc: EncryptionApi, hash: HashApi, logger: SdkLogger): StorageApi = DefaultSecureStorageService(enc, hash, logger)
 }
 
 @Module class AnalyticsMod {
-    @Provides @Singleton fun analytics(logger: SdkLogger): AnalyticsService = DefaultAnalyticsService(logger)
+    @Provides @Singleton fun analytics(logger: SdkLogger): AnalyticsApi = DefaultAnalyticsService(logger)
 }
 
 @Module class SyncMod {
-    @Provides @Singleton fun sync(auth: AuthService, storage: SecureStorageService, enc: EncryptionService, logger: SdkLogger): SyncService = DefaultSyncService(auth, storage, enc, logger)
+    @Provides @Singleton fun sync(auth: AuthApi, storage: StorageApi, enc: EncryptionApi, logger: SdkLogger): SyncApi = DefaultSyncService(auth, storage, enc, logger)
 }

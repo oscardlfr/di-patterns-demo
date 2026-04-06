@@ -14,8 +14,8 @@ import com.grinwich.sdk.api.AndroidSdkLogger
  * Consumer API (the simplest of all approaches):
  * ```
  * AutoSdk.init(SdkConfig(debug = true))
- * val sync = AutoSdk.get<SyncService>()   // auto-inits Core→Enc→Auth→Stor→Sync
- * val enc  = AutoSdk.get<EncryptionService>() // already built — instant
+ * val sync = AutoSdk.get<SyncApi>()   // auto-inits Core→Enc→Auth→Stor→Sync
+ * val enc  = AutoSdk.get<EncryptionApi>() // already built — instant
  * AutoSdk.shutdown()
  * ```
  *

@@ -1,15 +1,15 @@
 package com.grinwich.sdk.feature.stor
 
-import com.grinwich.sdk.api.EncryptionService
-import com.grinwich.sdk.api.HashService
+import com.grinwich.sdk.api.EncryptionApi
+import com.grinwich.sdk.api.HashApi
 import com.grinwich.sdk.api.SdkLogger
-import com.grinwich.sdk.api.SecureStorageService
+import com.grinwich.sdk.api.StorageApi
 
 internal class DefaultSecureStorageService(
-    private val encryption: EncryptionService,
-    private val hash: HashService,
+    private val encryption: EncryptionApi,
+    private val hash: HashApi,
     private val logger: SdkLogger,
-) : SecureStorageService {
+) : StorageApi {
 
     private val store = mutableMapOf<String, String>()
 

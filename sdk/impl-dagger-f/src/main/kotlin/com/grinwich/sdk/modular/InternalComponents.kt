@@ -22,8 +22,8 @@ import dagger.Provides
 // --- Encryption (depends on Core from :sdk:di-core) ---
 @EncScope @Component(dependencies = [CoreComponent::class], modules = [InternalEncModule::class])
 internal interface EncComponent {
-    fun encryption(): EncryptionService
-    fun hash(): HashService
+    fun encryption(): EncryptionApi
+    fun hash(): HashApi
     @Component.Builder interface Builder {
         fun core(core: CoreComponent): Builder
         fun build(): EncComponent
@@ -31,14 +31,14 @@ internal interface EncComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) internal annotation class EncScope
 @Module internal class InternalEncModule {
-    @Provides @EncScope fun enc(logger: SdkLogger): EncryptionService = DefaultEncryptionService(logger)
-    @Provides @EncScope fun hash(): HashService = DefaultHashService()
+    @Provides @EncScope fun enc(logger: SdkLogger): EncryptionApi = DefaultEncryptionService(logger)
+    @Provides @EncScope fun hash(): HashApi = DefaultHashService()
 }
 
 // --- Auth (depends on Core + Encryption) ---
 @AuthScope @Component(dependencies = [CoreComponent::class, EncComponent::class], modules = [InternalAuthModule::class])
 internal interface AuthComponent {
-    fun auth(): AuthService
+    fun auth(): AuthApi
     @Component.Builder interface Builder {
         fun core(core: CoreComponent): Builder
         fun enc(enc: EncComponent): Builder
@@ -47,13 +47,13 @@ internal interface AuthComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) internal annotation class AuthScope
 @Module internal class InternalAuthModule {
-    @Provides @AuthScope fun auth(enc: EncryptionService, logger: SdkLogger): AuthService = DefaultAuthService(enc, logger)
+    @Provides @AuthScope fun auth(enc: EncryptionApi, logger: SdkLogger): AuthApi = DefaultAuthService(enc, logger)
 }
 
 // --- Storage (depends on Core + Encryption) ---
 @StorScope @Component(dependencies = [CoreComponent::class, EncComponent::class], modules = [InternalStorModule::class])
 internal interface StorComponent {
-    fun storage(): SecureStorageService
+    fun storage(): StorageApi
     @Component.Builder interface Builder {
         fun core(core: CoreComponent): Builder
         fun enc(enc: EncComponent): Builder
@@ -62,14 +62,14 @@ internal interface StorComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) internal annotation class StorScope
 @Module internal class InternalStorModule {
-    @Provides @StorScope fun storage(enc: EncryptionService, hash: HashService, logger: SdkLogger): SecureStorageService =
+    @Provides @StorScope fun storage(enc: EncryptionApi, hash: HashApi, logger: SdkLogger): StorageApi =
         DefaultSecureStorageService(enc, hash, logger)
 }
 
 // --- Analytics (depends only on Core) ---
 @AnaScope @Component(dependencies = [CoreComponent::class], modules = [InternalAnaModule::class])
 internal interface AnaComponent {
-    fun analytics(): AnalyticsService
+    fun analytics(): AnalyticsApi
     @Component.Builder interface Builder {
         fun core(core: CoreComponent): Builder
         fun build(): AnaComponent
@@ -77,13 +77,13 @@ internal interface AnaComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) internal annotation class AnaScope
 @Module internal class InternalAnaModule {
-    @Provides @AnaScope fun analytics(logger: SdkLogger): AnalyticsService = DefaultAnalyticsService(logger)
+    @Provides @AnaScope fun analytics(logger: SdkLogger): AnalyticsApi = DefaultAnalyticsService(logger)
 }
 
 // --- Sync (depends on Core + Encryption + Auth + Storage) ---
 @SynScope @Component(dependencies = [CoreComponent::class, EncComponent::class, AuthComponent::class, StorComponent::class], modules = [InternalSynModule::class])
 internal interface SynComponent {
-    fun sync(): SyncService
+    fun sync(): SyncApi
     @Component.Builder interface Builder {
         fun core(core: CoreComponent): Builder
         fun enc(enc: EncComponent): Builder
@@ -94,6 +94,6 @@ internal interface SynComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) internal annotation class SynScope
 @Module internal class InternalSynModule {
-    @Provides @SynScope fun sync(auth: AuthService, storage: SecureStorageService, enc: EncryptionService, logger: SdkLogger): SyncService =
+    @Provides @SynScope fun sync(auth: AuthApi, storage: StorageApi, enc: EncryptionApi, logger: SdkLogger): SyncApi =
         DefaultSyncService(auth, storage, enc, logger)
 }

@@ -63,7 +63,7 @@ object DaggerBSdk {
                 _enc = DaggerIntEncComp.builder().core(core).build()
             }
             Feature.AUTH -> {
-                // CoreApis extended with EncryptionService — manual bridge
+                // CoreApis extended with EncryptionApi — manual bridge
                 val authCore = AuthCoreApisImpl(core, _enc!!.encryption())
                 _auth = DaggerIntAuthComp.builder().core(authCore).build()
             }
@@ -91,12 +91,12 @@ object DaggerBSdk {
     fun <T : Any> get(clazz: Class<T>): T {
         check(_initialized) { "DaggerBSdk not initialized." }
         return when (clazz) {
-            EncryptionService::class.java -> _enc?.encryption()
-            HashService::class.java -> _enc?.hash()
-            AuthService::class.java -> _auth?.auth()
-            SecureStorageService::class.java -> _storage?.storage()
-            AnalyticsService::class.java -> _analytics?.analytics()
-            SyncService::class.java -> _sync?.sync()
+            EncryptionApi::class.java -> _enc?.encryption()
+            HashApi::class.java -> _enc?.hash()
+            AuthApi::class.java -> _auth?.auth()
+            StorageApi::class.java -> _storage?.storage()
+            AnalyticsApi::class.java -> _analytics?.analytics()
+            SyncApi::class.java -> _sync?.sync()
             SdkLogger::class.java -> foundationLogger
             else -> null
         } as? T ?: error("Service ${clazz.simpleName} not available.")

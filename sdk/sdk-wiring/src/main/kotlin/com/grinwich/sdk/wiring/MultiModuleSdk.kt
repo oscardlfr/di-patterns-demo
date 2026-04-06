@@ -70,7 +70,7 @@ object MultiModuleSdk {
     /**
      * Resolve a service by type. Builds the feature + dependencies on demand.
      *
-     * get<AuthService>() → builds Enc (if needed) → builds Auth → returns AuthService
+     * get<AuthApi>() → builds Enc (if needed) → builds Auth → returns AuthApi
      */
     @Suppress("UNCHECKED_CAST")
     fun <T : Any> get(clazz: Class<T>): T {
@@ -78,20 +78,20 @@ object MultiModuleSdk {
         val core = _core!!
         val result: Any = when (clazz) {
             // --- Encryption (depends on Core) ---
-            EncryptionService::class.java -> ensureEnc(core).encryption()
-            HashService::class.java -> ensureEnc(core).hash()
+            EncryptionApi::class.java -> ensureEnc(core).encryption()
+            HashApi::class.java -> ensureEnc(core).hash()
 
             // --- Auth (depends on Core + Enc) ---
-            AuthService::class.java -> ensureAuth(core).auth()
+            AuthApi::class.java -> ensureAuth(core).auth()
 
             // --- Storage (depends on Core + Enc) ---
-            SecureStorageService::class.java -> ensureStor(core).storage()
+            StorageApi::class.java -> ensureStor(core).storage()
 
             // --- Analytics (depends on Core only) ---
-            AnalyticsService::class.java -> ensureAna(core).analytics()
+            AnalyticsApi::class.java -> ensureAna(core).analytics()
 
             // --- Sync (depends on Core + Enc + Auth + Storage) ---
-            SyncService::class.java -> ensureSyn(core).sync()
+            SyncApi::class.java -> ensureSyn(core).sync()
 
             // --- Infra ---
             SdkLogger::class.java -> _logger

@@ -34,7 +34,7 @@ class MainActivity : ComponentActivity() {
                             appendLine("Init modules: ${app.activeModules()}\n")
 
                             // --- Encryption (active at startup) ---
-                            val enc = SdkBenchmark.measure("resolve encryption") { sdk.encryptionService() }
+                            val enc = SdkBenchmark.measure("resolve encryption") { sdk.encryptionApi() }
                             SdkBenchmark.measure("encrypt+decrypt") {
                                 enc.decrypt(enc.encrypt("hello"))
                             }
@@ -47,7 +47,7 @@ class MainActivity : ComponentActivity() {
                                 app.getOrInitFeature("analytics")
                             }
                             appendLine("Inited: $analyticsInited")
-                            val analytics = SdkBenchmark.measure("resolve analytics") { sdk.analyticsService() }
+                            val analytics = SdkBenchmark.measure("resolve analytics") { sdk.analyticsApi() }
                             SdkBenchmark.measure("track event") { analytics.trackEvent("screen_view", mapOf("screen" to "settings")) }
                             appendLine("✅ Analytics: ${analytics.getTrackedEvents()}")
                             appendLine("⚠️ Code was ALREADY in binary — only activation flag changed")
@@ -63,10 +63,10 @@ class MainActivity : ComponentActivity() {
                             appendLine("Inited: $syncInited")
 
                             // Login first (Sync requires authenticated user)
-                            val auth = sdk.authService()
+                            val auth = sdk.authApi()
                             SdkBenchmark.measure("auth.login") { auth.login("user", "pass") }
 
-                            val sync = SdkBenchmark.measure("resolve sync") { sdk.syncService() }
+                            val sync = SdkBenchmark.measure("resolve sync") { sdk.syncApi() }
                             val syncResult = SdkBenchmark.measure("sync.sync()") { sync.sync() }
                             appendLine("✅ Sync: uploaded=${syncResult.uploaded}, downloaded=${syncResult.downloaded}")
                             appendLine("⚠️ Dagger resolved Auth+Storage+Encryption automatically")

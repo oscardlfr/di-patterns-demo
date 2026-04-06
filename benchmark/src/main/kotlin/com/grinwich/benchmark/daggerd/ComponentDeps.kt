@@ -32,8 +32,8 @@ interface DCoreComponent {
 // --- Encryption (depends on Core) ---
 @DEncScope @Component(dependencies = [DCoreComponent::class], modules = [DEncModule::class])
 interface DEncComponent {
-    fun encryption(): EncryptionService
-    fun hash(): HashService
+    fun encryption(): EncryptionApi
+    fun hash(): HashApi
     @Component.Builder interface Builder {
         fun core(core: DCoreComponent): Builder
         fun build(): DEncComponent
@@ -41,14 +41,14 @@ interface DEncComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) annotation class DEncScope
 @Module class DEncModule {
-    @Provides @DEncScope fun enc(logger: SdkLogger): EncryptionService = DefaultEncryptionService(logger)
-    @Provides @DEncScope fun hash(): HashService = DefaultHashService()
+    @Provides @DEncScope fun enc(logger: SdkLogger): EncryptionApi = DefaultEncryptionService(logger)
+    @Provides @DEncScope fun hash(): HashApi = DefaultHashService()
 }
 
 // --- Auth (depends on Core + Encryption) ---
 @DAuthScope @Component(dependencies = [DCoreComponent::class, DEncComponent::class], modules = [DAuthModule::class])
 interface DAuthComponent {
-    fun auth(): AuthService
+    fun auth(): AuthApi
     @Component.Builder interface Builder {
         fun core(core: DCoreComponent): Builder
         fun enc(enc: DEncComponent): Builder
@@ -57,13 +57,13 @@ interface DAuthComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) annotation class DAuthScope
 @Module class DAuthModule {
-    @Provides @DAuthScope fun auth(enc: EncryptionService, logger: SdkLogger): AuthService = DefaultAuthService(enc, logger)
+    @Provides @DAuthScope fun auth(enc: EncryptionApi, logger: SdkLogger): AuthApi = DefaultAuthService(enc, logger)
 }
 
 // --- Storage (depends on Core + Encryption) ---
 @DStorageScope @Component(dependencies = [DCoreComponent::class, DEncComponent::class], modules = [DStorageModule::class])
 interface DStorageComponent {
-    fun storage(): SecureStorageService
+    fun storage(): StorageApi
     @Component.Builder interface Builder {
         fun core(core: DCoreComponent): Builder
         fun enc(enc: DEncComponent): Builder
@@ -72,13 +72,13 @@ interface DStorageComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) annotation class DStorageScope
 @Module class DStorageModule {
-    @Provides @DStorageScope fun storage(enc: EncryptionService, hash: HashService, logger: SdkLogger): SecureStorageService = DefaultSecureStorageService(enc, hash, logger)
+    @Provides @DStorageScope fun storage(enc: EncryptionApi, hash: HashApi, logger: SdkLogger): StorageApi = DefaultSecureStorageService(enc, hash, logger)
 }
 
 // --- Analytics (depends only on Core) ---
 @DAnalyticsScope @Component(dependencies = [DCoreComponent::class], modules = [DAnalyticsModule::class])
 interface DAnalyticsComponent {
-    fun analytics(): AnalyticsService
+    fun analytics(): AnalyticsApi
     @Component.Builder interface Builder {
         fun core(core: DCoreComponent): Builder
         fun build(): DAnalyticsComponent
@@ -86,13 +86,13 @@ interface DAnalyticsComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) annotation class DAnalyticsScope
 @Module class DAnalyticsModule {
-    @Provides @DAnalyticsScope fun analytics(logger: SdkLogger): AnalyticsService = DefaultAnalyticsService(logger)
+    @Provides @DAnalyticsScope fun analytics(logger: SdkLogger): AnalyticsApi = DefaultAnalyticsService(logger)
 }
 
 // --- Sync (depends on Core + Encryption + Auth + Storage) ---
 @DSyncScope @Component(dependencies = [DCoreComponent::class, DEncComponent::class, DAuthComponent::class, DStorageComponent::class], modules = [DSyncModule::class])
 interface DSyncComponent {
-    fun sync(): SyncService
+    fun sync(): SyncApi
     @Component.Builder interface Builder {
         fun core(core: DCoreComponent): Builder
         fun enc(enc: DEncComponent): Builder
@@ -103,5 +103,5 @@ interface DSyncComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) annotation class DSyncScope
 @Module class DSyncModule {
-    @Provides @DSyncScope fun sync(auth: AuthService, storage: SecureStorageService, enc: EncryptionService, logger: SdkLogger): SyncService = DefaultSyncService(auth, storage, enc, logger)
+    @Provides @DSyncScope fun sync(auth: AuthApi, storage: StorageApi, enc: EncryptionApi, logger: SdkLogger): SyncApi = DefaultSyncService(auth, storage, enc, logger)
 }

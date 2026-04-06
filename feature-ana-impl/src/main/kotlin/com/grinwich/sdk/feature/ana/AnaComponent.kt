@@ -1,6 +1,6 @@
 package com.grinwich.sdk.feature.ana
 
-import com.grinwich.sdk.api.AnalyticsService
+import com.grinwich.sdk.api.AnalyticsApi
 import com.grinwich.sdk.api.SdkLogger
 import com.grinwich.sdk.contracts.AnaProvisions
 import com.grinwich.sdk.contracts.AnaScope
@@ -20,7 +20,7 @@ import dagger.Provides
 )
 interface AnaComponent : AnaProvisions {
 
-    override fun analytics(): AnalyticsService
+    override fun analytics(): AnalyticsApi
 
     @Component.Builder interface Builder {
         fun core(core: CoreProvisions): Builder
@@ -31,5 +31,5 @@ interface AnaComponent : AnaProvisions {
 @Module
 internal class AnaModule {
     @Provides @AnaScope
-    fun analytics(logger: SdkLogger): AnalyticsService = DefaultAnalyticsService(logger)
+    fun analytics(logger: SdkLogger): AnalyticsApi = DefaultAnalyticsService(logger)
 }

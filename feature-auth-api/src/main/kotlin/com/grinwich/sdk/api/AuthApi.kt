@@ -3,7 +3,7 @@ package com.grinwich.sdk.api
 /**
  * Authenticates users and provides auth tokens.
  */
-interface AuthService {
+interface AuthApi {
     fun login(username: String, password: String): AuthToken
     fun refreshToken(token: AuthToken): AuthToken
     fun isAuthenticated(): Boolean

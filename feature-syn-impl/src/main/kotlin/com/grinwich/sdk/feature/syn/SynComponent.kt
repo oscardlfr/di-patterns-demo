@@ -29,7 +29,7 @@ import dagger.Provides
 )
 interface SynComponent : SynProvisions {
 
-    override fun sync(): SyncService
+    override fun sync(): SyncApi
 
     @Component.Builder interface Builder {
         fun core(core: CoreProvisions): Builder
@@ -44,9 +44,9 @@ interface SynComponent : SynProvisions {
 internal class SynModule {
     @Provides @SynScope
     fun sync(
-        auth: AuthService,
-        storage: SecureStorageService,
-        enc: EncryptionService,
+        auth: AuthApi,
+        storage: StorageApi,
+        enc: EncryptionApi,
         logger: SdkLogger,
-    ): SyncService = DefaultSyncService(auth, storage, enc, logger)
+    ): SyncApi = DefaultSyncService(auth, storage, enc, logger)
 }

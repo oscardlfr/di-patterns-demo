@@ -37,7 +37,7 @@ class MainActivity : ComponentActivity() {
                                 RegistrySdk.getOrInitModule(Feature.ANALYTICS)
                             }
                             appendLine("Cascaded: $anaInited")
-                            val analytics = RegistrySdk.get<AnalyticsService>()
+                            val analytics = RegistrySdk.get<AnalyticsApi>()
                             analytics.trackEvent("screen_view")
                             appendLine("Analytics: ${analytics.getTrackedEvents()}")
 
@@ -47,8 +47,8 @@ class MainActivity : ComponentActivity() {
                                 RegistrySdk.getOrInitModule(Feature.SYNC)
                             }
                             appendLine("Cascaded: $syncInited")
-                            RegistrySdk.get<AuthService>().login("user", "pass")
-                            val sync = SdkBenchmark.measure("sync()") { RegistrySdk.get<SyncService>().sync() }
+                            RegistrySdk.get<AuthApi>().login("user", "pass")
+                            val sync = SdkBenchmark.measure("sync()") { RegistrySdk.get<SyncApi>().sync() }
                             appendLine("Sync: up=${sync.uploaded}, down=${sync.downloaded}")
                             appendLine("After: ${RegistrySdk.initializedModules}")
 

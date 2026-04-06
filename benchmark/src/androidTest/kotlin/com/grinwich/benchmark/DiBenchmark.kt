@@ -86,12 +86,12 @@ class DiBenchmark {
             single<SdkConfig> { config }
             single<SdkLogger> { noopLogger }
             single<CoreApis> { CoreApisImpl(get(), get()) }
-            single<HashService> { DefaultHashService() }
-            single<EncryptionService> { DefaultEncryptionService(get()) }
-            single<AuthService> { DefaultAuthService(get(), get()) }
-            single<SecureStorageService> { DefaultSecureStorageService(get(), get(), get()) }
-            single<AnalyticsService> { DefaultAnalyticsService(get()) }
-            single<SyncService> { DefaultSyncService(get(), get(), get(), get()) }
+            single<HashApi> { DefaultHashService() }
+            single<EncryptionApi> { DefaultEncryptionService(get()) }
+            single<AuthApi> { DefaultAuthService(get(), get()) }
+            single<StorageApi> { DefaultSecureStorageService(get(), get(), get()) }
+            single<AnalyticsApi> { DefaultAnalyticsService(get()) }
+            single<SyncApi> { DefaultSyncService(get(), get(), get(), get()) }
         })
     }
 
@@ -100,8 +100,8 @@ class DiBenchmark {
             single<SdkConfig> { config }
             single<SdkLogger> { noopLogger }
             single<CoreApis> { CoreApisImpl(get(), get()) }
-            single<HashService> { DefaultHashService() }
-            single<EncryptionService> { DefaultEncryptionService(get()) }
+            single<HashApi> { DefaultHashService() }
+            single<EncryptionApi> { DefaultEncryptionService(get()) }
         })
     }
 
@@ -153,8 +153,8 @@ class DiBenchmark {
     fun initCold_koin() = benchmarkRule.measureRepeated {
         val app = buildKoinFull()
         val k = app.koin
-        k.get<EncryptionService>(); k.get<HashService>(); k.get<AuthService>()
-        k.get<SecureStorageService>(); k.get<AnalyticsService>(); k.get<SyncService>()
+        k.get<EncryptionApi>(); k.get<HashApi>(); k.get<AuthApi>()
+        k.get<StorageApi>(); k.get<AnalyticsApi>(); k.get<SyncApi>()
         runWithTimingDisabled { app.close() }
     }
 
@@ -185,7 +185,7 @@ class DiBenchmark {
     fun resolveFirst_koin() {
         val app = buildKoinBase()
         benchmarkRule.measureRepeated {
-            app.koin.get<EncryptionService>()
+            app.koin.get<EncryptionApi>()
         }
         app.close()
     }
@@ -221,10 +221,10 @@ class DiBenchmark {
         val app = buildKoinBase()
         benchmarkRule.measureRepeated {
             val analyticsModule = module {
-                single<AnalyticsService> { DefaultAnalyticsService(get()) }
+                single<AnalyticsApi> { DefaultAnalyticsService(get()) }
             }
             app.koin.loadModules(listOf(analyticsModule))
-            app.koin.get<AnalyticsService>()
+            app.koin.get<AnalyticsApi>()
             runWithTimingDisabled {
                 app.koin.unloadModules(listOf(analyticsModule))
             }
@@ -265,11 +265,11 @@ class DiBenchmark {
     fun lazyInit_cascade_koin_sync() {
         val app = buildKoinBase()
         benchmarkRule.measureRepeated {
-            val authMod = module { single<AuthService> { DefaultAuthService(get(), get()) } }
-            val storageMod = module { single<SecureStorageService> { DefaultSecureStorageService(get(), get(), get()) } }
-            val syncMod = module { single<SyncService> { DefaultSyncService(get(), get(), get(), get()) } }
+            val authMod = module { single<AuthApi> { DefaultAuthService(get(), get()) } }
+            val storageMod = module { single<StorageApi> { DefaultSecureStorageService(get(), get(), get()) } }
+            val syncMod = module { single<SyncApi> { DefaultSyncService(get(), get(), get(), get()) } }
             app.koin.loadModules(listOf(authMod, storageMod, syncMod))
-            app.koin.get<SyncService>()
+            app.koin.get<SyncApi>()
             runWithTimingDisabled {
                 app.koin.unloadModules(listOf(authMod, storageMod, syncMod))
             }
@@ -307,8 +307,8 @@ class DiBenchmark {
     @Test
     fun crossFeatureOp_koin_sync() {
         val app = buildKoinFull()
-        val auth = app.koin.get<AuthService>()
-        val sync = app.koin.get<SyncService>()
+        val auth = app.koin.get<AuthApi>()
+        val sync = app.koin.get<SyncApi>()
         auth.login("bench", "pass")
         benchmarkRule.measureRepeated {
             sync.sync()  // resolved once outside loop — same as Dagger
@@ -398,12 +398,12 @@ class DiBenchmark {
     fun initCold_daggerE_registry() = benchmarkRule.measureRepeated {
         val reg = buildDaggerERegistry()
         // Force service resolution (same as other approaches)
-        reg.get(EncryptionService::class.java)
-        reg.get(HashService::class.java)
-        reg.get(AuthService::class.java)
-        reg.get(SecureStorageService::class.java)
-        reg.get(AnalyticsService::class.java)
-        reg.get(SyncService::class.java)
+        reg.get(EncryptionApi::class.java)
+        reg.get(HashApi::class.java)
+        reg.get(AuthApi::class.java)
+        reg.get(StorageApi::class.java)
+        reg.get(AnalyticsApi::class.java)
+        reg.get(SyncApi::class.java)
     }
 
     @Test
@@ -412,7 +412,7 @@ class DiBenchmark {
         reg.register(eCoreEntry(config, noopLogger))
         reg.register(eEncEntry)
         benchmarkRule.measureRepeated {
-            reg.get(EncryptionService::class.java)
+            reg.get(EncryptionApi::class.java)
         }
     }
 
@@ -429,7 +429,7 @@ class DiBenchmark {
             localReg.components.putAll(reg.components)
             localReg.services.putAll(reg.services)
             localReg.register(eAnalyticsEntry)
-            localReg.get(AnalyticsService::class.java)
+            localReg.get(AnalyticsApi::class.java)
         }
     }
 
@@ -447,15 +447,15 @@ class DiBenchmark {
             localReg.register(eAuthEntry)
             localReg.register(eStorageEntry)
             localReg.register(eSyncEntry)
-            localReg.get(SyncService::class.java)
+            localReg.get(SyncApi::class.java)
         }
     }
 
     @Test
     fun crossFeatureOp_daggerE_sync() {
         val reg = buildDaggerERegistry()
-        reg.get(AuthService::class.java).login("bench", "pass")
-        val sync = reg.get(SyncService::class.java)
+        reg.get(AuthApi::class.java).login("bench", "pass")
+        val sync = reg.get(SyncApi::class.java)
         benchmarkRule.measureRepeated {
             sync.sync()
         }
@@ -466,12 +466,12 @@ class DiBenchmark {
         // Full graph already built — measure registry lookup overhead for all 6 services
         val reg = buildDaggerERegistry()
         benchmarkRule.measureRepeated {
-            reg.get(EncryptionService::class.java)
-            reg.get(HashService::class.java)
-            reg.get(AuthService::class.java)
-            reg.get(SecureStorageService::class.java)
-            reg.get(AnalyticsService::class.java)
-            reg.get(SyncService::class.java)
+            reg.get(EncryptionApi::class.java)
+            reg.get(HashApi::class.java)
+            reg.get(AuthApi::class.java)
+            reg.get(StorageApi::class.java)
+            reg.get(AnalyticsApi::class.java)
+            reg.get(SyncApi::class.java)
         }
     }
 
@@ -495,7 +495,7 @@ class DiBenchmark {
         // Full graph built, same service resolved repeatedly — measures raw ConcurrentHashMap.get
         val reg = buildDaggerERegistry()
         benchmarkRule.measureRepeated {
-            reg.get(EncryptionService::class.java)
+            reg.get(EncryptionApi::class.java)
         }
     }
 
@@ -603,12 +603,12 @@ class DiBenchmark {
     fun initCold_daggerE2_autoRegistry() = benchmarkRule.measureRepeated {
         // Install all entries (cheap catalog) + force all service builds via get
         val reg = buildE2FullRegistry()
-        reg.get(EncryptionService::class.java)
-        reg.get(HashService::class.java)
-        reg.get(AuthService::class.java)
-        reg.get(SecureStorageService::class.java)
-        reg.get(AnalyticsService::class.java)
-        reg.get(SyncService::class.java)
+        reg.get(EncryptionApi::class.java)
+        reg.get(HashApi::class.java)
+        reg.get(AuthApi::class.java)
+        reg.get(StorageApi::class.java)
+        reg.get(AnalyticsApi::class.java)
+        reg.get(SyncApi::class.java)
     }
 
     @Test
@@ -617,7 +617,7 @@ class DiBenchmark {
         val reg = BenchAutoRegistry()
         reg.installAll(allE2Entries(config, noopLogger))
         benchmarkRule.measureRepeated {
-            reg.get(EncryptionService::class.java)
+            reg.get(EncryptionApi::class.java)
         }
     }
 
@@ -626,7 +626,7 @@ class DiBenchmark {
         // Core + Encryption already built, Analytics not yet
         val reg = BenchAutoRegistry()
         reg.installAll(allE2Entries(config, noopLogger))
-        reg.get(EncryptionService::class.java) // builds Core + Enc
+        reg.get(EncryptionApi::class.java) // builds Core + Enc
         benchmarkRule.measureRepeated {
             val localReg = BenchAutoRegistry()
             localReg.installAll(allE2Entries(config, noopLogger))
@@ -634,7 +634,7 @@ class DiBenchmark {
             localReg.components.putAll(reg.components)
             localReg.services.putAll(reg.services)
             // Auto-build analytics on demand
-            localReg.get(AnalyticsService::class.java)
+            localReg.get(AnalyticsApi::class.java)
         }
     }
 
@@ -643,22 +643,22 @@ class DiBenchmark {
         // Core + Encryption already built, Sync triggers Auth + Storage cascade
         val reg = BenchAutoRegistry()
         reg.installAll(allE2Entries(config, noopLogger))
-        reg.get(EncryptionService::class.java) // builds Core + Enc
+        reg.get(EncryptionApi::class.java) // builds Core + Enc
         benchmarkRule.measureRepeated {
             val localReg = BenchAutoRegistry()
             localReg.installAll(allE2Entries(config, noopLogger))
             localReg.components.putAll(reg.components)
             localReg.services.putAll(reg.services)
             // Auto-cascade: Sync → Auth + Storage (Enc already built)
-            localReg.get(SyncService::class.java)
+            localReg.get(SyncApi::class.java)
         }
     }
 
     @Test
     fun crossFeatureOp_daggerE2_sync() {
         val reg = buildE2FullRegistry()
-        reg.get(AuthService::class.java).login("bench", "pass")
-        val sync = reg.get(SyncService::class.java)
+        reg.get(AuthApi::class.java).login("bench", "pass")
+        val sync = reg.get(SyncApi::class.java)
         benchmarkRule.measureRepeated {
             sync.sync()
         }
@@ -668,12 +668,12 @@ class DiBenchmark {
     fun resolveAll_daggerE2_viaAutoRegistry() {
         val reg = buildE2FullRegistry()
         benchmarkRule.measureRepeated {
-            reg.get(EncryptionService::class.java)
-            reg.get(HashService::class.java)
-            reg.get(AuthService::class.java)
-            reg.get(SecureStorageService::class.java)
-            reg.get(AnalyticsService::class.java)
-            reg.get(SyncService::class.java)
+            reg.get(EncryptionApi::class.java)
+            reg.get(HashApi::class.java)
+            reg.get(AuthApi::class.java)
+            reg.get(StorageApi::class.java)
+            reg.get(AnalyticsApi::class.java)
+            reg.get(SyncApi::class.java)
         }
     }
 
@@ -760,9 +760,9 @@ class DiBenchmark {
         // Bridge built with full module — but analytics not in Koin yet
         // For lazy: we rebuild bridge after loadModules (real app would use Provider<>)
         benchmarkRule.measureRepeated {
-            val mod = module { single<AnalyticsService> { DefaultAnalyticsService(get()) } }
+            val mod = module { single<AnalyticsApi> { DefaultAnalyticsService(get()) } }
             app.koin.loadModules(listOf(mod))
-            app.koin.get<AnalyticsService>()  // resolve via Koin directly (lazy feature)
+            app.koin.get<AnalyticsApi>()  // resolve via Koin directly (lazy feature)
             runWithTimingDisabled {
                 app.koin.unloadModules(listOf(mod))
             }
@@ -775,11 +775,11 @@ class DiBenchmark {
         val app = buildKoinBase()
         KoinSdkBenchHelper.init(app)
         benchmarkRule.measureRepeated {
-            val authMod = module { single<AuthService> { DefaultAuthService(get(), get()) } }
-            val storageMod = module { single<SecureStorageService> { DefaultSecureStorageService(get(), get(), get()) } }
-            val syncMod = module { single<SyncService> { DefaultSyncService(get(), get(), get(), get()) } }
+            val authMod = module { single<AuthApi> { DefaultAuthService(get(), get()) } }
+            val storageMod = module { single<StorageApi> { DefaultSecureStorageService(get(), get(), get()) } }
+            val syncMod = module { single<SyncApi> { DefaultSyncService(get(), get(), get(), get()) } }
             app.koin.loadModules(listOf(authMod, storageMod, syncMod))
-            app.koin.get<SyncService>()  // lazy feature via Koin
+            app.koin.get<SyncApi>()  // lazy feature via Koin
             runWithTimingDisabled {
                 app.koin.unloadModules(listOf(authMod, storageMod, syncMod))
             }

@@ -23,12 +23,12 @@ import javax.inject.Singleton
     StorageModule::class, AnalyticsModule::class, SyncModule::class,
 ])
 interface SdkComponent {
-    fun encryptionService(): EncryptionService
-    fun hashService(): HashService
-    fun authService(): AuthService
-    fun storageService(): SecureStorageService
-    fun analyticsService(): AnalyticsService
-    fun syncService(): SyncService
+    fun encryptionApi(): EncryptionApi
+    fun hashApi(): HashApi
+    fun authApi(): AuthApi
+    fun storageApi(): StorageApi
+    fun analyticsApi(): AnalyticsApi
+    fun syncApi(): SyncApi
     fun logger(): SdkLogger
 
     @Component.Builder
@@ -44,27 +44,27 @@ interface SdkComponent {
 }
 
 @Module class EncryptionModule {
-    @Provides @Singleton fun encryption(logger: SdkLogger): EncryptionService = DefaultEncryptionService(logger)
-    @Provides @Singleton fun hash(): HashService = DefaultHashService()
+    @Provides @Singleton fun encryption(logger: SdkLogger): EncryptionApi = DefaultEncryptionService(logger)
+    @Provides @Singleton fun hash(): HashApi = DefaultHashService()
 }
 
 @Module class AuthModule {
-    @Provides @Singleton fun auth(enc: EncryptionService, logger: SdkLogger): AuthService = DefaultAuthService(enc, logger)
+    @Provides @Singleton fun auth(enc: EncryptionApi, logger: SdkLogger): AuthApi = DefaultAuthService(enc, logger)
 }
 
 @Module class StorageModule {
-    @Provides @Singleton fun storage(enc: EncryptionService, hash: HashService, logger: SdkLogger): SecureStorageService = DefaultSecureStorageService(enc, hash, logger)
+    @Provides @Singleton fun storage(enc: EncryptionApi, hash: HashApi, logger: SdkLogger): StorageApi = DefaultSecureStorageService(enc, hash, logger)
 }
 
 @Module class AnalyticsModule {
     // Case 1: ZERO deps (only logger from Core)
-    @Provides @Singleton fun analytics(logger: SdkLogger): AnalyticsService = DefaultAnalyticsService(logger)
+    @Provides @Singleton fun analytics(logger: SdkLogger): AnalyticsApi = DefaultAnalyticsService(logger)
 }
 
 @Module class SyncModule {
     // Case 2: HEAVY cross-feature deps — Auth + Storage + Encryption
     @Provides @Singleton fun sync(
-        auth: AuthService, storage: SecureStorageService,
-        enc: EncryptionService, logger: SdkLogger,
-    ): SyncService = DefaultSyncService(auth, storage, enc, logger)
+        auth: AuthApi, storage: StorageApi,
+        enc: EncryptionApi, logger: SdkLogger,
+    ): SyncApi = DefaultSyncService(auth, storage, enc, logger)
 }

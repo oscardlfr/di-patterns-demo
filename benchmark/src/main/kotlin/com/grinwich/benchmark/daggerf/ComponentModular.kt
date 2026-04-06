@@ -33,8 +33,8 @@ interface FCoreComponent {
 // --- Encryption (depends on Core) ---
 @FEncScope @Component(dependencies = [FCoreComponent::class], modules = [FEncModule::class])
 interface FEncComponent {
-    fun encryption(): EncryptionService
-    fun hash(): HashService
+    fun encryption(): EncryptionApi
+    fun hash(): HashApi
     @Component.Builder interface Builder {
         fun core(core: FCoreComponent): Builder
         fun build(): FEncComponent
@@ -42,14 +42,14 @@ interface FEncComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) annotation class FEncScope
 @Module class FEncModule {
-    @Provides @FEncScope fun enc(logger: SdkLogger): EncryptionService = DefaultEncryptionService(logger)
-    @Provides @FEncScope fun hash(): HashService = DefaultHashService()
+    @Provides @FEncScope fun enc(logger: SdkLogger): EncryptionApi = DefaultEncryptionService(logger)
+    @Provides @FEncScope fun hash(): HashApi = DefaultHashService()
 }
 
 // --- Auth (depends on Core + Encryption) ---
 @FAuthScope @Component(dependencies = [FCoreComponent::class, FEncComponent::class], modules = [FAuthModule::class])
 interface FAuthComponent {
-    fun auth(): AuthService
+    fun auth(): AuthApi
     @Component.Builder interface Builder {
         fun core(core: FCoreComponent): Builder
         fun enc(enc: FEncComponent): Builder
@@ -58,13 +58,13 @@ interface FAuthComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) annotation class FAuthScope
 @Module class FAuthModule {
-    @Provides @FAuthScope fun auth(enc: EncryptionService, logger: SdkLogger): AuthService = DefaultAuthService(enc, logger)
+    @Provides @FAuthScope fun auth(enc: EncryptionApi, logger: SdkLogger): AuthApi = DefaultAuthService(enc, logger)
 }
 
 // --- Storage (depends on Core + Encryption) ---
 @FStorageScope @Component(dependencies = [FCoreComponent::class, FEncComponent::class], modules = [FStorageModule::class])
 interface FStorageComponent {
-    fun storage(): SecureStorageService
+    fun storage(): StorageApi
     @Component.Builder interface Builder {
         fun core(core: FCoreComponent): Builder
         fun enc(enc: FEncComponent): Builder
@@ -73,14 +73,14 @@ interface FStorageComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) annotation class FStorageScope
 @Module class FStorageModule {
-    @Provides @FStorageScope fun storage(enc: EncryptionService, hash: HashService, logger: SdkLogger): SecureStorageService =
+    @Provides @FStorageScope fun storage(enc: EncryptionApi, hash: HashApi, logger: SdkLogger): StorageApi =
         DefaultSecureStorageService(enc, hash, logger)
 }
 
 // --- Analytics (depends only on Core) ---
 @FAnalyticsScope @Component(dependencies = [FCoreComponent::class], modules = [FAnalyticsModule::class])
 interface FAnalyticsComponent {
-    fun analytics(): AnalyticsService
+    fun analytics(): AnalyticsApi
     @Component.Builder interface Builder {
         fun core(core: FCoreComponent): Builder
         fun build(): FAnalyticsComponent
@@ -88,13 +88,13 @@ interface FAnalyticsComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) annotation class FAnalyticsScope
 @Module class FAnalyticsModule {
-    @Provides @FAnalyticsScope fun analytics(logger: SdkLogger): AnalyticsService = DefaultAnalyticsService(logger)
+    @Provides @FAnalyticsScope fun analytics(logger: SdkLogger): AnalyticsApi = DefaultAnalyticsService(logger)
 }
 
 // --- Sync (depends on Core + Encryption + Auth + Storage) ---
 @FSyncScope @Component(dependencies = [FCoreComponent::class, FEncComponent::class, FAuthComponent::class, FStorageComponent::class], modules = [FSyncModule::class])
 interface FSyncComponent {
-    fun sync(): SyncService
+    fun sync(): SyncApi
     @Component.Builder interface Builder {
         fun core(core: FCoreComponent): Builder
         fun enc(enc: FEncComponent): Builder
@@ -105,6 +105,6 @@ interface FSyncComponent {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) annotation class FSyncScope
 @Module class FSyncModule {
-    @Provides @FSyncScope fun sync(auth: AuthService, storage: SecureStorageService, enc: EncryptionService, logger: SdkLogger): SyncService =
+    @Provides @FSyncScope fun sync(auth: AuthApi, storage: StorageApi, enc: EncryptionApi, logger: SdkLogger): SyncApi =
         DefaultSyncService(auth, storage, enc, logger)
 }
