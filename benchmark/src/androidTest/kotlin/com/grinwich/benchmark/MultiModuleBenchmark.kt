@@ -7,6 +7,7 @@ import com.grinwich.sdk.api.*
 import com.grinwich.sdk.wiring.MultiModuleSdk
 import com.grinwich.sdk.wiring.e.MultiModuleSdkE
 import com.grinwich.sdk.wiring.e2.MultiModuleSdkE2
+import com.grinwich.sdk.wiring.g.MultiModuleSdkG
 import org.junit.After
 import org.junit.Rule
 import org.junit.Test
@@ -45,6 +46,7 @@ class MultiModuleBenchmark {
         MultiModuleSdk.shutdown()
         MultiModuleSdkE.shutdown()
         MultiModuleSdkE2.shutdown()
+        MultiModuleSdkG.shutdown()
     }
 
     // ════════════════════════════════════════════════════════
@@ -223,5 +225,61 @@ class MultiModuleBenchmark {
             sync.sync()
         }
         MultiModuleSdkE2.shutdown()
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 5. PATTERN G — Factory Functions (no DaggerXxx imports)
+    // ════════════════════════════════════════════════════════
+
+    @Test
+    fun initCold_multiModuleG() = benchmarkRule.measureRepeated {
+        MultiModuleSdkG.init(config, noopLogger)
+        MultiModuleSdkG.get<EncryptionApi>()
+        MultiModuleSdkG.get<HashApi>()
+        MultiModuleSdkG.get<AuthApi>()
+        MultiModuleSdkG.get<StorageApi>()
+        MultiModuleSdkG.get<AnalyticsApi>()
+        MultiModuleSdkG.get<SyncApi>()
+        runWithTimingDisabled { MultiModuleSdkG.shutdown() }
+    }
+
+    @Test
+    fun resolveFirst_multiModuleG() {
+        MultiModuleSdkG.init(config, noopLogger)
+        benchmarkRule.measureRepeated {
+            MultiModuleSdkG.get<EncryptionApi>()
+        }
+        MultiModuleSdkG.shutdown()
+    }
+
+    @Test
+    fun lazyInit_noDeps_multiModuleG_analytics() = benchmarkRule.measureRepeated {
+        runWithTimingDisabled {
+            MultiModuleSdkG.init(config, noopLogger)
+            MultiModuleSdkG.get<EncryptionApi>()
+        }
+        MultiModuleSdkG.get<AnalyticsApi>()
+        runWithTimingDisabled { MultiModuleSdkG.shutdown() }
+    }
+
+    @Test
+    fun lazyInit_cascade_multiModuleG_sync() = benchmarkRule.measureRepeated {
+        runWithTimingDisabled {
+            MultiModuleSdkG.init(config, noopLogger)
+            MultiModuleSdkG.get<EncryptionApi>()
+        }
+        MultiModuleSdkG.get<SyncApi>()
+        runWithTimingDisabled { MultiModuleSdkG.shutdown() }
+    }
+
+    @Test
+    fun crossFeatureOp_multiModuleG_sync() {
+        MultiModuleSdkG.init(config, noopLogger)
+        MultiModuleSdkG.get<AuthApi>().login("bench", "pass")
+        val sync = MultiModuleSdkG.get<SyncApi>()
+        benchmarkRule.measureRepeated {
+            sync.sync()
+        }
+        MultiModuleSdkG.shutdown()
     }
 }

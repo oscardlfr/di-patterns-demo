@@ -45,6 +45,7 @@ dependencies {
     implementation(project(":sdk:sdk-wiring"))
     implementation(project(":sdk:wiring-e"))
     implementation(project(":sdk:wiring-e2"))
+    implementation(project(":sdk:wiring-g"))
 
     implementation(libs.dagger)
     ksp(libs.dagger.compiler)

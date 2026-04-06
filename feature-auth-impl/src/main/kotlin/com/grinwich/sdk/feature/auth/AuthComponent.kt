@@ -11,6 +11,10 @@ import dagger.Component
 import dagger.Module
 import dagger.Provides
 
+/** Factory: builds AuthProvisions without exposing DaggerAuthComponent. */
+fun buildAuthProvisions(core: CoreProvisions, enc: EncProvisions): AuthProvisions =
+    DaggerAuthComponent.builder().core(core).enc(enc).build()
+
 /**
  * AuthComponent — cross-feature dependency via provision interfaces.
  *

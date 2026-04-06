@@ -10,6 +10,10 @@ import dagger.Component
 import dagger.Module
 import dagger.Provides
 
+/** Factory: builds EncProvisions without exposing DaggerEncComponent. */
+fun buildEncProvisions(core: CoreProvisions): EncProvisions =
+    DaggerEncComponent.builder().core(core).build()
+
 /**
  * EncComponent depends on CoreProvisions (contract), NOT CoreComponent (impl).
  *

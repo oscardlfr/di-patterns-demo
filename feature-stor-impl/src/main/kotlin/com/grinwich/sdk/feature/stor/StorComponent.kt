@@ -12,6 +12,10 @@ import dagger.Component
 import dagger.Module
 import dagger.Provides
 
+/** Factory: builds StorProvisions without exposing DaggerStorComponent. */
+fun buildStorProvisions(core: CoreProvisions, enc: EncProvisions): StorProvisions =
+    DaggerStorComponent.builder().core(core).enc(enc).build()
+
 /**
  * StorComponent — depends on CoreProvisions + EncProvisions.
  * Same cross-dep pattern as Auth: provision interfaces, not Components.

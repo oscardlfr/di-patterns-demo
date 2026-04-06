@@ -7,11 +7,15 @@ import dagger.BindsInstance
 import dagger.Component
 import javax.inject.Singleton
 
+/** Factory: builds CoreProvisions without exposing DaggerCoreComponent. */
+fun buildCoreProvisions(config: SdkConfig, logger: SdkLogger): CoreProvisions =
+    DaggerCoreComponent.builder().config(config).logger(logger).build()
+
 /**
  * CoreComponent implements CoreProvisions (the contract from di-contracts).
  *
  * Other feature modules depend on CoreProvisions, not on this @Component.
- * Only sdk-wiring imports this to call DaggerCoreComponent.builder().
+ * Wiring modules can use [buildCoreProvisions] or DaggerCoreComponent directly.
  */
 @Singleton
 @Component

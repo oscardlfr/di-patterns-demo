@@ -53,10 +53,11 @@ include(":feature-stor-impl")
 include(":feature-ana-impl")
 include(":feature-syn-impl")
 
-// ── Wiring variants (D=when-block, E=registry+toposort, E2=auto-init+DFS) ──
+// ── Wiring variants (D=when-block, E=registry+toposort, E2=auto-init+DFS, G=factories) ──
 include(":sdk:sdk-wiring")        // Pattern D: direct lazy ensure*()
 include(":sdk:wiring-e")          // Pattern E: ProvisionRegistry + topo-sort
 include(":sdk:wiring-e2")         // Pattern E2: AutoProvisionRegistry + DFS lazy
+include(":sdk:wiring-g")          // Pattern G: factory functions (no DaggerXxx imports)
 
 // ── Sample apps ──
 include(":sample-dagger-a")

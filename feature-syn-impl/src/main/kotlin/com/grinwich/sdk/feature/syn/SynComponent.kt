@@ -6,6 +6,15 @@ import dagger.Component
 import dagger.Module
 import dagger.Provides
 
+/** Factory: builds SynProvisions without exposing DaggerSynComponent. */
+fun buildSynProvisions(
+    core: CoreProvisions,
+    enc: EncProvisions,
+    auth: AuthProvisions,
+    stor: StorProvisions,
+): SynProvisions = DaggerSynComponent.builder()
+    .core(core).enc(enc).auth(auth).storage(stor).build()
+
 /**
  * SynComponent — heaviest cross-deps in the SDK.
  *

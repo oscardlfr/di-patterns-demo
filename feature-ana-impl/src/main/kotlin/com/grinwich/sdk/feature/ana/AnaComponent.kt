@@ -9,6 +9,10 @@ import dagger.Component
 import dagger.Module
 import dagger.Provides
 
+/** Factory: builds AnaProvisions without exposing DaggerAnaComponent. */
+fun buildAnaProvisions(core: CoreProvisions): AnaProvisions =
+    DaggerAnaComponent.builder().core(core).build()
+
 /**
  * AnaComponent — standalone, only depends on CoreProvisions.
  * No cross-feature deps. Good test case for lazy init without cascading.
