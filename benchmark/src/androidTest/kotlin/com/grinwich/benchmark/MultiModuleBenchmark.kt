@@ -337,4 +337,404 @@ class MultiModuleBenchmark {
         }
         MultiModuleSdkH.shutdown()
     }
+
+    // ════════════════════════════════════════════════════════
+    // 7. STRESS — Init/Shutdown cycle
+    //    Measures overhead of repeated init→get one service→shutdown
+    // ════════════════════════════════════════════════════════
+
+    @Test
+    fun stress_initShutdownCycle_multiModuleD() = benchmarkRule.measureRepeated {
+        MultiModuleSdk.init(config)
+        MultiModuleSdk.get<EncryptionApi>()
+        MultiModuleSdk.shutdown()
+    }
+
+    @Test
+    fun stress_initShutdownCycle_multiModuleE() = benchmarkRule.measureRepeated {
+        MultiModuleSdkE.init(config, setOf(MultiModuleSdkE.Feature.ENCRYPTION))
+        MultiModuleSdkE.get<EncryptionApi>()
+        MultiModuleSdkE.shutdown()
+    }
+
+    @Test
+    fun stress_initShutdownCycle_multiModuleE2() = benchmarkRule.measureRepeated {
+        MultiModuleSdkE2.init(config)
+        MultiModuleSdkE2.get<EncryptionApi>()
+        MultiModuleSdkE2.shutdown()
+    }
+
+    @Test
+    fun stress_initShutdownCycle_multiModuleG() = benchmarkRule.measureRepeated {
+        MultiModuleSdkG.init(config)
+        MultiModuleSdkG.get<EncryptionApi>()
+        MultiModuleSdkG.shutdown()
+    }
+
+    @Test
+    fun stress_initShutdownCycle_multiModuleH() = benchmarkRule.measureRepeated {
+        MultiModuleSdkH.init(config)
+        MultiModuleSdkH.get<EncryptionApi>()
+        MultiModuleSdkH.shutdown()
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 8. STRESS — Concurrent resolve
+    //    Multiple threads calling get<T>() simultaneously on a built graph
+    // ════════════════════════════════════════════════════════
+
+    @Test
+    fun stress_concurrentResolve_multiModuleD() {
+        MultiModuleSdk.init(config)
+        MultiModuleSdk.get<SyncApi>()
+        MultiModuleSdk.get<AnalyticsApi>()
+        benchmarkRule.measureRepeated {
+            val threads = listOf(
+                Thread { MultiModuleSdk.get<EncryptionApi>() },
+                Thread { MultiModuleSdk.get<AuthApi>() },
+                Thread { MultiModuleSdk.get<StorageApi>() },
+                Thread { MultiModuleSdk.get<SyncApi>() },
+            )
+            threads.forEach { it.start() }
+            threads.forEach { it.join() }
+        }
+        MultiModuleSdk.shutdown()
+    }
+
+    @Test
+    fun stress_concurrentResolve_multiModuleE() {
+        MultiModuleSdkE.init(config, MultiModuleSdkE.Feature.entries.toSet())
+        MultiModuleSdkE.get<SyncApi>()
+        MultiModuleSdkE.get<AnalyticsApi>()
+        benchmarkRule.measureRepeated {
+            val threads = listOf(
+                Thread { MultiModuleSdkE.get<EncryptionApi>() },
+                Thread { MultiModuleSdkE.get<AuthApi>() },
+                Thread { MultiModuleSdkE.get<StorageApi>() },
+                Thread { MultiModuleSdkE.get<SyncApi>() },
+            )
+            threads.forEach { it.start() }
+            threads.forEach { it.join() }
+        }
+        MultiModuleSdkE.shutdown()
+    }
+
+    @Test
+    fun stress_concurrentResolve_multiModuleE2() {
+        MultiModuleSdkE2.init(config)
+        MultiModuleSdkE2.get<SyncApi>()
+        MultiModuleSdkE2.get<AnalyticsApi>()
+        benchmarkRule.measureRepeated {
+            val threads = listOf(
+                Thread { MultiModuleSdkE2.get<EncryptionApi>() },
+                Thread { MultiModuleSdkE2.get<AuthApi>() },
+                Thread { MultiModuleSdkE2.get<StorageApi>() },
+                Thread { MultiModuleSdkE2.get<SyncApi>() },
+            )
+            threads.forEach { it.start() }
+            threads.forEach { it.join() }
+        }
+        MultiModuleSdkE2.shutdown()
+    }
+
+    @Test
+    fun stress_concurrentResolve_multiModuleG() {
+        MultiModuleSdkG.init(config)
+        MultiModuleSdkG.get<SyncApi>()
+        MultiModuleSdkG.get<AnalyticsApi>()
+        benchmarkRule.measureRepeated {
+            val threads = listOf(
+                Thread { MultiModuleSdkG.get<EncryptionApi>() },
+                Thread { MultiModuleSdkG.get<AuthApi>() },
+                Thread { MultiModuleSdkG.get<StorageApi>() },
+                Thread { MultiModuleSdkG.get<SyncApi>() },
+            )
+            threads.forEach { it.start() }
+            threads.forEach { it.join() }
+        }
+        MultiModuleSdkG.shutdown()
+    }
+
+    @Test
+    fun stress_concurrentResolve_multiModuleH() {
+        MultiModuleSdkH.init(config)
+        MultiModuleSdkH.get<SyncApi>()
+        MultiModuleSdkH.get<AnalyticsApi>()
+        benchmarkRule.measureRepeated {
+            val threads = listOf(
+                Thread { MultiModuleSdkH.get<EncryptionApi>() },
+                Thread { MultiModuleSdkH.get<AuthApi>() },
+                Thread { MultiModuleSdkH.get<StorageApi>() },
+                Thread { MultiModuleSdkH.get<SyncApi>() },
+            )
+            threads.forEach { it.start() }
+            threads.forEach { it.join() }
+        }
+        MultiModuleSdkH.shutdown()
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 9. STRESS — Resolve all sequential
+    //    Resolve all 6 services one by one from a built graph
+    // ════════════════════════════════════════════════════════
+
+    @Test
+    fun stress_resolveAllSequential_multiModuleD() {
+        MultiModuleSdk.init(config)
+        MultiModuleSdk.get<SyncApi>()
+        MultiModuleSdk.get<AnalyticsApi>()
+        benchmarkRule.measureRepeated {
+            MultiModuleSdk.get<EncryptionApi>()
+            MultiModuleSdk.get<HashApi>()
+            MultiModuleSdk.get<AuthApi>()
+            MultiModuleSdk.get<StorageApi>()
+            MultiModuleSdk.get<AnalyticsApi>()
+            MultiModuleSdk.get<SyncApi>()
+        }
+        MultiModuleSdk.shutdown()
+    }
+
+    @Test
+    fun stress_resolveAllSequential_multiModuleE() {
+        MultiModuleSdkE.init(config, MultiModuleSdkE.Feature.entries.toSet())
+        MultiModuleSdkE.get<SyncApi>()
+        MultiModuleSdkE.get<AnalyticsApi>()
+        benchmarkRule.measureRepeated {
+            MultiModuleSdkE.get<EncryptionApi>()
+            MultiModuleSdkE.get<HashApi>()
+            MultiModuleSdkE.get<AuthApi>()
+            MultiModuleSdkE.get<StorageApi>()
+            MultiModuleSdkE.get<AnalyticsApi>()
+            MultiModuleSdkE.get<SyncApi>()
+        }
+        MultiModuleSdkE.shutdown()
+    }
+
+    @Test
+    fun stress_resolveAllSequential_multiModuleE2() {
+        MultiModuleSdkE2.init(config)
+        MultiModuleSdkE2.get<SyncApi>()
+        MultiModuleSdkE2.get<AnalyticsApi>()
+        benchmarkRule.measureRepeated {
+            MultiModuleSdkE2.get<EncryptionApi>()
+            MultiModuleSdkE2.get<HashApi>()
+            MultiModuleSdkE2.get<AuthApi>()
+            MultiModuleSdkE2.get<StorageApi>()
+            MultiModuleSdkE2.get<AnalyticsApi>()
+            MultiModuleSdkE2.get<SyncApi>()
+        }
+        MultiModuleSdkE2.shutdown()
+    }
+
+    @Test
+    fun stress_resolveAllSequential_multiModuleG() {
+        MultiModuleSdkG.init(config)
+        MultiModuleSdkG.get<SyncApi>()
+        MultiModuleSdkG.get<AnalyticsApi>()
+        benchmarkRule.measureRepeated {
+            MultiModuleSdkG.get<EncryptionApi>()
+            MultiModuleSdkG.get<HashApi>()
+            MultiModuleSdkG.get<AuthApi>()
+            MultiModuleSdkG.get<StorageApi>()
+            MultiModuleSdkG.get<AnalyticsApi>()
+            MultiModuleSdkG.get<SyncApi>()
+        }
+        MultiModuleSdkG.shutdown()
+    }
+
+    @Test
+    fun stress_resolveAllSequential_multiModuleH() {
+        MultiModuleSdkH.init(config)
+        MultiModuleSdkH.get<SyncApi>()
+        MultiModuleSdkH.get<AnalyticsApi>()
+        benchmarkRule.measureRepeated {
+            MultiModuleSdkH.get<EncryptionApi>()
+            MultiModuleSdkH.get<HashApi>()
+            MultiModuleSdkH.get<AuthApi>()
+            MultiModuleSdkH.get<StorageApi>()
+            MultiModuleSdkH.get<AnalyticsApi>()
+            MultiModuleSdkH.get<SyncApi>()
+        }
+        MultiModuleSdkH.shutdown()
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 10. STRESS — Selective init (1 of 6)
+    //     Only request 1 feature. Measures that other features are NOT built
+    // ════════════════════════════════════════════════════════
+
+    @Test
+    fun stress_selectiveInit_multiModuleD() = benchmarkRule.measureRepeated {
+        MultiModuleSdk.init(config)
+        MultiModuleSdk.get<AnalyticsApi>()  // only Analytics + Core, nothing else
+        runWithTimingDisabled { MultiModuleSdk.shutdown() }
+    }
+
+    @Test
+    fun stress_selectiveInit_multiModuleE() = benchmarkRule.measureRepeated {
+        MultiModuleSdkE.init(config, setOf(MultiModuleSdkE.Feature.ANALYTICS))
+        MultiModuleSdkE.get<AnalyticsApi>()  // only Analytics + Core, nothing else
+        runWithTimingDisabled { MultiModuleSdkE.shutdown() }
+    }
+
+    @Test
+    fun stress_selectiveInit_multiModuleE2() = benchmarkRule.measureRepeated {
+        MultiModuleSdkE2.init(config)
+        MultiModuleSdkE2.get<AnalyticsApi>()  // only Analytics + Core, nothing else
+        runWithTimingDisabled { MultiModuleSdkE2.shutdown() }
+    }
+
+    @Test
+    fun stress_selectiveInit_multiModuleG() = benchmarkRule.measureRepeated {
+        MultiModuleSdkG.init(config)
+        MultiModuleSdkG.get<AnalyticsApi>()  // only Analytics + Core, nothing else
+        runWithTimingDisabled { MultiModuleSdkG.shutdown() }
+    }
+
+    @Test
+    fun stress_selectiveInit_multiModuleH() = benchmarkRule.measureRepeated {
+        MultiModuleSdkH.init(config)
+        MultiModuleSdkH.get<AnalyticsApi>()  // only Analytics + Core, nothing else
+        runWithTimingDisabled { MultiModuleSdkH.shutdown() }
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 11. STRESS — Re-init after shutdown
+    //     Full cycle: init→get all→shutdown→init→get all. Second cycle must be clean
+    // ════════════════════════════════════════════════════════
+
+    @Test
+    fun stress_reInitAfterShutdown_multiModuleD() = benchmarkRule.measureRepeated {
+        // First cycle
+        MultiModuleSdk.init(config)
+        MultiModuleSdk.get<SyncApi>()
+        MultiModuleSdk.get<AnalyticsApi>()
+        MultiModuleSdk.shutdown()
+        // Second cycle — must be clean
+        MultiModuleSdk.init(config)
+        MultiModuleSdk.get<SyncApi>()
+        MultiModuleSdk.get<AnalyticsApi>()
+        MultiModuleSdk.shutdown()
+    }
+
+    @Test
+    fun stress_reInitAfterShutdown_multiModuleE() = benchmarkRule.measureRepeated {
+        // First cycle
+        MultiModuleSdkE.init(config, MultiModuleSdkE.Feature.entries.toSet())
+        MultiModuleSdkE.get<SyncApi>()
+        MultiModuleSdkE.get<AnalyticsApi>()
+        MultiModuleSdkE.shutdown()
+        // Second cycle — must be clean
+        MultiModuleSdkE.init(config, MultiModuleSdkE.Feature.entries.toSet())
+        MultiModuleSdkE.get<SyncApi>()
+        MultiModuleSdkE.get<AnalyticsApi>()
+        MultiModuleSdkE.shutdown()
+    }
+
+    @Test
+    fun stress_reInitAfterShutdown_multiModuleE2() = benchmarkRule.measureRepeated {
+        // First cycle
+        MultiModuleSdkE2.init(config)
+        MultiModuleSdkE2.get<SyncApi>()
+        MultiModuleSdkE2.get<AnalyticsApi>()
+        MultiModuleSdkE2.shutdown()
+        // Second cycle — must be clean
+        MultiModuleSdkE2.init(config)
+        MultiModuleSdkE2.get<SyncApi>()
+        MultiModuleSdkE2.get<AnalyticsApi>()
+        MultiModuleSdkE2.shutdown()
+    }
+
+    @Test
+    fun stress_reInitAfterShutdown_multiModuleG() = benchmarkRule.measureRepeated {
+        // First cycle
+        MultiModuleSdkG.init(config)
+        MultiModuleSdkG.get<SyncApi>()
+        MultiModuleSdkG.get<AnalyticsApi>()
+        MultiModuleSdkG.shutdown()
+        // Second cycle — must be clean
+        MultiModuleSdkG.init(config)
+        MultiModuleSdkG.get<SyncApi>()
+        MultiModuleSdkG.get<AnalyticsApi>()
+        MultiModuleSdkG.shutdown()
+    }
+
+    @Test
+    fun stress_reInitAfterShutdown_multiModuleH() = benchmarkRule.measureRepeated {
+        // First cycle
+        MultiModuleSdkH.init(config)
+        MultiModuleSdkH.get<SyncApi>()
+        MultiModuleSdkH.get<AnalyticsApi>()
+        MultiModuleSdkH.shutdown()
+        // Second cycle — must be clean
+        MultiModuleSdkH.init(config)
+        MultiModuleSdkH.get<SyncApi>()
+        MultiModuleSdkH.get<AnalyticsApi>()
+        MultiModuleSdkH.shutdown()
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 12. STRESS — Incremental build (add features one by one)
+    //     Start with 1 feature, add more incrementally. Measures lazy cascade cost
+    // ════════════════════════════════════════════════════════
+
+    @Test
+    fun stress_incrementalBuild_multiModuleD() = benchmarkRule.measureRepeated {
+        MultiModuleSdk.init(config)
+        MultiModuleSdk.get<EncryptionApi>()    // builds Core + Enc
+        MultiModuleSdk.get<AuthApi>()           // builds Auth (Enc cached)
+        MultiModuleSdk.get<StorageApi>()        // builds Stor (Enc cached)
+        MultiModuleSdk.get<AnalyticsApi>()      // builds Ana (Core cached)
+        MultiModuleSdk.get<SyncApi>()           // builds Syn (Auth+Stor+Enc cached)
+        MultiModuleSdk.get<HashApi>()           // already cached
+        runWithTimingDisabled { MultiModuleSdk.shutdown() }
+    }
+
+    @Test
+    fun stress_incrementalBuild_multiModuleE() = benchmarkRule.measureRepeated {
+        MultiModuleSdkE.init(config, MultiModuleSdkE.Feature.entries.toSet())
+        MultiModuleSdkE.get<EncryptionApi>()    // builds Core + Enc
+        MultiModuleSdkE.get<AuthApi>()           // builds Auth (Enc cached)
+        MultiModuleSdkE.get<StorageApi>()        // builds Stor (Enc cached)
+        MultiModuleSdkE.get<AnalyticsApi>()      // builds Ana (Core cached)
+        MultiModuleSdkE.get<SyncApi>()           // builds Syn (Auth+Stor+Enc cached)
+        MultiModuleSdkE.get<HashApi>()           // already cached
+        runWithTimingDisabled { MultiModuleSdkE.shutdown() }
+    }
+
+    @Test
+    fun stress_incrementalBuild_multiModuleE2() = benchmarkRule.measureRepeated {
+        MultiModuleSdkE2.init(config)
+        MultiModuleSdkE2.get<EncryptionApi>()    // builds Core + Enc
+        MultiModuleSdkE2.get<AuthApi>()           // builds Auth (Enc cached)
+        MultiModuleSdkE2.get<StorageApi>()        // builds Stor (Enc cached)
+        MultiModuleSdkE2.get<AnalyticsApi>()      // builds Ana (Core cached)
+        MultiModuleSdkE2.get<SyncApi>()           // builds Syn (Auth+Stor+Enc cached)
+        MultiModuleSdkE2.get<HashApi>()           // already cached
+        runWithTimingDisabled { MultiModuleSdkE2.shutdown() }
+    }
+
+    @Test
+    fun stress_incrementalBuild_multiModuleG() = benchmarkRule.measureRepeated {
+        MultiModuleSdkG.init(config)
+        MultiModuleSdkG.get<EncryptionApi>()    // builds Core + Enc
+        MultiModuleSdkG.get<AuthApi>()           // builds Auth (Enc cached)
+        MultiModuleSdkG.get<StorageApi>()        // builds Stor (Enc cached)
+        MultiModuleSdkG.get<AnalyticsApi>()      // builds Ana (Core cached)
+        MultiModuleSdkG.get<SyncApi>()           // builds Syn (Auth+Stor+Enc cached)
+        MultiModuleSdkG.get<HashApi>()           // already cached
+        runWithTimingDisabled { MultiModuleSdkG.shutdown() }
+    }
+
+    @Test
+    fun stress_incrementalBuild_multiModuleH() = benchmarkRule.measureRepeated {
+        MultiModuleSdkH.init(config)
+        MultiModuleSdkH.get<EncryptionApi>()    // builds Core + Enc
+        MultiModuleSdkH.get<AuthApi>()           // builds Auth (Enc cached)
+        MultiModuleSdkH.get<StorageApi>()        // builds Stor (Enc cached)
+        MultiModuleSdkH.get<AnalyticsApi>()      // builds Ana (Core cached)
+        MultiModuleSdkH.get<SyncApi>()           // builds Syn (Auth+Stor+Enc cached)
+        MultiModuleSdkH.get<HashApi>()           // already cached
+        runWithTimingDisabled { MultiModuleSdkH.shutdown() }
+    }
 }
