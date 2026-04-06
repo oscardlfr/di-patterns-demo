@@ -18,11 +18,11 @@ dependencies {
 
     // PRIVATE -- the app NEVER sees these
     implementation(project(":sdk:di-contracts"))
-    implementation(project(":sdk:feature-core-impl"))
-    implementation(project(":sdk:feature-enc-impl"))
-    implementation(project(":sdk:feature-auth-impl"))
-    implementation(project(":sdk:feature-stor-impl"))
-    implementation(project(":sdk:feature-ana-impl"))
-    implementation(project(":sdk:feature-syn-impl"))
-    implementation(project(":sdk:impl-common"))
+    implementation(project(":feature-core-impl"))
+    implementation(project(":feature-enc-impl"))
+    implementation(project(":feature-auth-impl"))
+    implementation(project(":feature-stor-impl"))
+    implementation(project(":feature-ana-impl"))
+    implementation(project(":feature-syn-impl"))
+    // AndroidSdkLogger via :observability-api (transitive from :sdk:api) — no impl-common
 }

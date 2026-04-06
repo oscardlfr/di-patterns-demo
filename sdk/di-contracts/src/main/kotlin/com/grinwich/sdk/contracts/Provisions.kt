@@ -1,12 +1,48 @@
 package com.grinwich.sdk.contracts
 
-// Provision interfaces moved to per-feature contracts modules:
-// - CoreProvisions  → :sdk:feature-core-contracts
-// - EncProvisions   → :sdk:feature-enc-contracts
-// - AuthProvisions  → :sdk:feature-auth-contracts
-// - StorProvisions  → :sdk:feature-stor-contracts
-// - AnaProvisions   → :sdk:feature-ana-contracts
-// - SynProvisions   → :sdk:feature-syn-contracts
+import com.grinwich.sdk.api.*
+
+// ============================================================
+// Provision interfaces — plain Kotlin interfaces, NO @Component.
 //
-// This module re-exports all of them via api() deps in build.gradle.kts.
-// Existing code with `import com.grinwich.sdk.contracts.*` works unchanged.
+// Dagger's `dependencies=[...]` accepts ANY interface with
+// provision methods. It does NOT require @Component.
+//
+// Each feature's @Component implements the relevant provision
+// interface. Features depend on provision interfaces (contracts),
+// never on other features' @Component classes (implementations).
+//
+// This module has ZERO Dagger dependency — it's pure Kotlin.
+// ============================================================
+
+/** Core services available to all features. */
+interface CoreProvisions {
+    fun config(): SdkConfig
+    fun logger(): SdkLogger
+}
+
+/** Encryption services — consumed by Auth, Storage, Sync. */
+interface EncProvisions {
+    fun encryption(): EncryptionService
+    fun hash(): HashService
+}
+
+/** Auth services — consumed by Sync. */
+interface AuthProvisions {
+    fun auth(): AuthService
+}
+
+/** Storage services — consumed by Sync. */
+interface StorProvisions {
+    fun storage(): SecureStorageService
+}
+
+/** Analytics services — standalone, no consumers. */
+interface AnaProvisions {
+    fun analytics(): AnalyticsService
+}
+
+/** Sync services — leaf node, depends on Auth + Storage + Encryption. */
+interface SynProvisions {
+    fun sync(): SyncService
+}

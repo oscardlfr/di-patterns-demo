@@ -13,11 +13,12 @@ android {
 }
 
 dependencies {
-    // Umbrella: re-exports core-api + all feature APIs so existing consumers need no changes
-    api(project(":sdk:core-api"))
-    api(project(":sdk:feature-enc-api"))
-    api(project(":sdk:feature-auth-api"))
-    api(project(":sdk:feature-stor-api"))
-    api(project(":sdk:feature-ana-api"))
-    api(project(":sdk:feature-syn-api"))
+    // Umbrella: re-exports core-api + observability + all feature APIs
+    api(project(":feature-core-api"))
+    api(project(":observability-api"))
+    api(project(":feature-enc-api"))
+    api(project(":feature-auth-api"))
+    api(project(":feature-stor-api"))
+    api(project(":feature-ana-api"))
+    api(project(":feature-syn-api"))
 }

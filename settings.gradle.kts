@@ -21,26 +21,19 @@ dependencyResolutionManagement {
 
 rootProject.name = "di-patterns-demo"
 
-// ── Core API (SdkConfig, SdkLogger, CoreApis) ──
-include(":sdk:core-api")
+// ── Observability ──
+include(":observability-api")  // SdkLogger (interface) + AndroidSdkLogger (impl)
 
 // ── Feature API modules (per-feature public interfaces) ──
-include(":sdk:feature-enc-api")
-include(":sdk:feature-auth-api")
-include(":sdk:feature-stor-api")
-include(":sdk:feature-ana-api")
-include(":sdk:feature-syn-api")
+include(":feature-core-api")   // SdkConfig
+include(":feature-enc-api")
+include(":feature-auth-api")
+include(":feature-stor-api")
+include(":feature-ana-api")
+include(":feature-syn-api")
 
-// ── Per-feature contracts (provision interfaces + scopes) ──
-include(":sdk:feature-core-contracts")
-include(":sdk:feature-enc-contracts")
-include(":sdk:feature-auth-contracts")
-include(":sdk:feature-stor-contracts")
-include(":sdk:feature-ana-contracts")
-include(":sdk:feature-syn-contracts")
-
-// ── SDK core modules (monolithic patterns) ──
-include(":sdk:api")                // umbrella: re-exports core-api + all feature-apis
+// ── SDK umbrella + monolithic patterns ──
+include(":sdk:api")                // umbrella: re-exports all feature-apis + observability-api
 include(":sdk:impl-common")
 include(":sdk:impl-koin")
 include(":sdk:impl-dagger-b")
@@ -51,14 +44,14 @@ include(":sdk:impl-dagger-e2")
 include(":sdk:di-core")
 include(":sdk:impl-dagger-f")
 
-// ── Multi-module realistic example (provision interfaces pattern) ──
-include(":sdk:di-contracts")       // umbrella: re-exports all feature-contracts + RegistryInfra
-include(":sdk:feature-core-impl")
-include(":sdk:feature-enc-impl")
-include(":sdk:feature-auth-impl")
-include(":sdk:feature-stor-impl")
-include(":sdk:feature-ana-impl")
-include(":sdk:feature-syn-impl")
+// ── Multi-module (provision interfaces pattern) ──
+include(":sdk:di-contracts")       // provision interfaces + scopes + RegistryInfra
+include(":feature-core-impl")
+include(":feature-enc-impl")
+include(":feature-auth-impl")
+include(":feature-stor-impl")
+include(":feature-ana-impl")
+include(":feature-syn-impl")
 
 // ── Wiring variants (D=when-block, E=registry+toposort, E2=auto-init+DFS) ──
 include(":sdk:sdk-wiring")        // Pattern D: direct lazy ensure*()

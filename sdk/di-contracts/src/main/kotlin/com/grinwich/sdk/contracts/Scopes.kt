@@ -1,10 +1,16 @@
 package com.grinwich.sdk.contracts
 
-// Scope annotations moved alongside their provision interfaces:
-// - EncScope   → :sdk:feature-enc-contracts
-// - AuthScope  → :sdk:feature-auth-contracts
-// - StorScope  → :sdk:feature-stor-contracts
-// - AnaScope   → :sdk:feature-ana-contracts
-// - SynScope   → :sdk:feature-syn-contracts
+import javax.inject.Scope
+
+// ============================================================
+// Scope annotations shared across feature impl modules.
 //
-// This module re-exports all of them via api() deps in build.gradle.kts.
+// Each feature's @Component uses its own scope to ensure
+// Dagger generates singletons per-component (not per-app).
+// ============================================================
+
+@Scope @Retention(AnnotationRetention.RUNTIME) annotation class EncScope
+@Scope @Retention(AnnotationRetention.RUNTIME) annotation class AuthScope
+@Scope @Retention(AnnotationRetention.RUNTIME) annotation class StorScope
+@Scope @Retention(AnnotationRetention.RUNTIME) annotation class AnaScope
+@Scope @Retention(AnnotationRetention.RUNTIME) annotation class SynScope

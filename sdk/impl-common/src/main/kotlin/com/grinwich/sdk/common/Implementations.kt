@@ -1,18 +1,8 @@
 package com.grinwich.sdk.common
 
-import android.util.Log
 import com.grinwich.sdk.api.*
 
-// ============================================================
-// Logger
-// ============================================================
-
-class AndroidSdkLogger : SdkLogger {
-    override fun d(tag: String, msg: String) = Log.d("SDK-$tag", msg).let { }
-    override fun e(tag: String, msg: String, throwable: Throwable?) {
-        Log.e("SDK-$tag", msg, throwable)
-    }
-}
+// AndroidSdkLogger → :sdk:observability-api (com.grinwich.sdk.api.AndroidSdkLogger)
 
 // ============================================================
 // CoreApis implementation

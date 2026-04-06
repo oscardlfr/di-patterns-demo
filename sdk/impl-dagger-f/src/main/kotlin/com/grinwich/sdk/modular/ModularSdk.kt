@@ -1,7 +1,7 @@
 package com.grinwich.sdk.modular
 
 import com.grinwich.sdk.api.*
-import com.grinwich.sdk.common.AndroidSdkLogger
+import com.grinwich.sdk.api.AndroidSdkLogger
 import com.grinwich.sdk.dicore.CoreComponent
 import com.grinwich.sdk.dicore.DaggerCoreComponent
 

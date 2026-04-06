@@ -13,13 +13,14 @@ android {
 }
 
 dependencies {
-    // Umbrella: re-exports all per-feature contracts so wiring modules need only one dep
-    api(project(":sdk:feature-core-contracts"))
-    api(project(":sdk:feature-enc-contracts"))
-    api(project(":sdk:feature-auth-contracts"))
-    api(project(":sdk:feature-stor-contracts"))
-    api(project(":sdk:feature-ana-contracts"))
-    api(project(":sdk:feature-syn-contracts"))
-
-    // RegistryInfra.kt lives here — no external deps needed (pure Kotlin generics)
+    // Provision interfaces reference these types
+    api(project(":feature-core-api"))      // SdkConfig
+    api(project(":observability-api"))      // SdkLogger
+    api(project(":feature-enc-api"))        // EncryptionService, HashService
+    api(project(":feature-auth-api"))       // AuthService
+    api(project(":feature-stor-api"))       // SecureStorageService
+    api(project(":feature-ana-api"))        // AnalyticsService
+    api(project(":feature-syn-api"))        // SyncService
+    // javax.inject for @Scope annotations
+    implementation(libs.javax.inject)
 }

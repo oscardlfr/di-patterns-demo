@@ -18,11 +18,11 @@ dependencies {
 
     // PRIVATE — the app NEVER sees these
     implementation(project(":sdk:di-contracts"))        // provision interfaces (used internally)
-    implementation(project(":sdk:feature-core-impl"))   // DaggerCoreComponent
-    implementation(project(":sdk:feature-enc-impl"))    // DaggerEncComponent
-    implementation(project(":sdk:feature-auth-impl"))   // DaggerAuthComponent
-    implementation(project(":sdk:feature-stor-impl"))   // DaggerStorComponent
-    implementation(project(":sdk:feature-ana-impl"))    // DaggerAnaComponent
-    implementation(project(":sdk:feature-syn-impl"))    // DaggerSynComponent
-    implementation(project(":sdk:impl-common"))         // AndroidSdkLogger
+    implementation(project(":feature-core-impl"))   // DaggerCoreComponent
+    implementation(project(":feature-enc-impl"))    // DaggerEncComponent
+    implementation(project(":feature-auth-impl"))   // DaggerAuthComponent
+    implementation(project(":feature-stor-impl"))   // DaggerStorComponent
+    implementation(project(":feature-ana-impl"))    // DaggerAnaComponent
+    implementation(project(":feature-syn-impl"))    // DaggerSynComponent
+    // AndroidSdkLogger comes from :feature-core-impl — no impl-common needed
 }

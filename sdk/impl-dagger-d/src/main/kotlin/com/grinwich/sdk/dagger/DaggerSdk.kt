@@ -1,7 +1,7 @@
 package com.grinwich.sdk.dagger
 
 import com.grinwich.sdk.api.*
-import com.grinwich.sdk.common.AndroidSdkLogger
+import com.grinwich.sdk.api.AndroidSdkLogger
 
 /**
  * Dagger 2 SDK facade — same public API as KoinSdk.

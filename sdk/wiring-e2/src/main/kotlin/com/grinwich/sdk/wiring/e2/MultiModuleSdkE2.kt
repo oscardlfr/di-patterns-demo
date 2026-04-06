@@ -1,7 +1,7 @@
 package com.grinwich.sdk.wiring.e2
 
 import com.grinwich.sdk.api.*
-import com.grinwich.sdk.common.AndroidSdkLogger
+import com.grinwich.sdk.api.AndroidSdkLogger
 import com.grinwich.sdk.contracts.AutoProvisionRegistry
 
 /**
