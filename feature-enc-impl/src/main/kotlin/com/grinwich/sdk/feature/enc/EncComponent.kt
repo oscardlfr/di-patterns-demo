@@ -6,13 +6,14 @@ import com.grinwich.sdk.api.SdkLogger
 import com.grinwich.sdk.contracts.CoreProvisions
 import com.grinwich.sdk.contracts.EncProvisions
 import com.grinwich.sdk.contracts.EncScope
+import dagger.BindsInstance
 import dagger.Component
 import dagger.Module
 import dagger.Provides
 
 /** Factory: builds EncProvisions without exposing DaggerEncComponent. */
-fun buildEncProvisions(core: CoreProvisions): EncProvisions =
-    DaggerEncComponent.builder().core(core).build()
+fun buildEncProvisions(core: CoreProvisions, logger: SdkLogger): EncProvisions =
+    DaggerEncComponent.builder().core(core).logger(logger).build()
 
 /**
  * EncComponent depends on CoreProvisions (contract), NOT CoreComponent (impl).
@@ -35,6 +36,7 @@ interface EncComponent : EncProvisions {
 
     @Component.Builder interface Builder {
         fun core(core: CoreProvisions): Builder
+        @BindsInstance fun logger(logger: SdkLogger): Builder
         fun build(): EncComponent
     }
 }

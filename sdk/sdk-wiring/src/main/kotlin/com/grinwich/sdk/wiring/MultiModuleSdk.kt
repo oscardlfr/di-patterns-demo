@@ -3,15 +3,11 @@ package com.grinwich.sdk.wiring
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.feature.observability.AndroidSdkLogger
 import com.grinwich.sdk.contracts.*
-import com.grinwich.sdk.feature.ana.AnaComponent
 import com.grinwich.sdk.feature.ana.DaggerAnaComponent
-import com.grinwich.sdk.feature.auth.AuthComponent
 import com.grinwich.sdk.feature.auth.DaggerAuthComponent
 import com.grinwich.sdk.feature.core.DaggerCoreComponent
 import com.grinwich.sdk.feature.enc.DaggerEncComponent
-import com.grinwich.sdk.feature.enc.EncComponent
 import com.grinwich.sdk.feature.stor.DaggerStorComponent
-import com.grinwich.sdk.feature.stor.StorComponent
 import com.grinwich.sdk.feature.syn.DaggerSynComponent
 
 /**
@@ -62,7 +58,6 @@ object MultiModuleSdk {
         _logger = logger
         _core = DaggerCoreComponent.builder()
             .config(config)
-            .logger(logger)
             .build()
         _initialized = true
     }
@@ -108,21 +103,21 @@ object MultiModuleSdk {
     // ============================================================
 
     private fun ensureEnc(core: CoreProvisions): EncProvisions {
-        return _enc ?: DaggerEncComponent.builder().core(core).build().also { _enc = it }
+        return _enc ?: DaggerEncComponent.builder().core(core).logger(_logger).build().also { _enc = it }
     }
 
     private fun ensureAuth(core: CoreProvisions): AuthProvisions {
         val enc = ensureEnc(core)
-        return _auth ?: DaggerAuthComponent.builder().core(core).enc(enc).build().also { _auth = it }
+        return _auth ?: DaggerAuthComponent.builder().core(core).logger(_logger).enc(enc).build().also { _auth = it }
     }
 
     private fun ensureStor(core: CoreProvisions): StorProvisions {
         val enc = ensureEnc(core)
-        return _storage ?: DaggerStorComponent.builder().core(core).enc(enc).build().also { _storage = it }
+        return _storage ?: DaggerStorComponent.builder().core(core).logger(_logger).enc(enc).build().also { _storage = it }
     }
 
     private fun ensureAna(core: CoreProvisions): AnaProvisions {
-        return _analytics ?: DaggerAnaComponent.builder().core(core).build().also { _analytics = it }
+        return _analytics ?: DaggerAnaComponent.builder().core(core).logger(_logger).build().also { _analytics = it }
     }
 
     private fun ensureSyn(core: CoreProvisions): SynProvisions {
@@ -130,7 +125,7 @@ object MultiModuleSdk {
         val auth = ensureAuth(core)
         val stor = ensureStor(core)
         return _sync ?: DaggerSynComponent.builder()
-            .core(core).enc(enc).auth(auth).storage(stor)
+            .core(core).logger(_logger).enc(enc).auth(auth).storage(stor)
             .build()
             .also { _sync = it }
     }

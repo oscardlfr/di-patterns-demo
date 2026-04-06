@@ -5,13 +5,14 @@ import com.grinwich.sdk.api.SdkLogger
 import com.grinwich.sdk.contracts.AnaProvisions
 import com.grinwich.sdk.contracts.AnaScope
 import com.grinwich.sdk.contracts.CoreProvisions
+import dagger.BindsInstance
 import dagger.Component
 import dagger.Module
 import dagger.Provides
 
 /** Factory: builds AnaProvisions without exposing DaggerAnaComponent. */
-fun buildAnaProvisions(core: CoreProvisions): AnaProvisions =
-    DaggerAnaComponent.builder().core(core).build()
+fun buildAnaProvisions(core: CoreProvisions, logger: SdkLogger): AnaProvisions =
+    DaggerAnaComponent.builder().core(core).logger(logger).build()
 
 /**
  * AnaComponent — standalone, only depends on CoreProvisions.
@@ -28,6 +29,7 @@ interface AnaComponent : AnaProvisions {
 
     @Component.Builder interface Builder {
         fun core(core: CoreProvisions): Builder
+        @BindsInstance fun logger(logger: SdkLogger): Builder
         fun build(): AnaComponent
     }
 }

@@ -8,13 +8,14 @@ import com.grinwich.sdk.contracts.CoreProvisions
 import com.grinwich.sdk.contracts.EncProvisions
 import com.grinwich.sdk.contracts.StorProvisions
 import com.grinwich.sdk.contracts.StorScope
+import dagger.BindsInstance
 import dagger.Component
 import dagger.Module
 import dagger.Provides
 
 /** Factory: builds StorProvisions without exposing DaggerStorComponent. */
-fun buildStorProvisions(core: CoreProvisions, enc: EncProvisions): StorProvisions =
-    DaggerStorComponent.builder().core(core).enc(enc).build()
+fun buildStorProvisions(core: CoreProvisions, logger: SdkLogger, enc: EncProvisions): StorProvisions =
+    DaggerStorComponent.builder().core(core).logger(logger).enc(enc).build()
 
 /**
  * StorComponent — depends on CoreProvisions + EncProvisions.
@@ -31,6 +32,7 @@ interface StorComponent : StorProvisions {
 
     @Component.Builder interface Builder {
         fun core(core: CoreProvisions): Builder
+        @BindsInstance fun logger(logger: SdkLogger): Builder
         fun enc(enc: EncProvisions): Builder
         fun build(): StorComponent
     }

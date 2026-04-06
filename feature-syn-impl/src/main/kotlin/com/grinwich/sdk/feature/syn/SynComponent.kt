@@ -2,6 +2,7 @@ package com.grinwich.sdk.feature.syn
 
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.contracts.*
+import dagger.BindsInstance
 import dagger.Component
 import dagger.Module
 import dagger.Provides
@@ -9,11 +10,12 @@ import dagger.Provides
 /** Factory: builds SynProvisions without exposing DaggerSynComponent. */
 fun buildSynProvisions(
     core: CoreProvisions,
+    logger: SdkLogger,
     enc: EncProvisions,
     auth: AuthProvisions,
     stor: StorProvisions,
 ): SynProvisions = DaggerSynComponent.builder()
-    .core(core).enc(enc).auth(auth).storage(stor).build()
+    .core(core).logger(logger).enc(enc).auth(auth).storage(stor).build()
 
 /**
  * SynComponent — heaviest cross-deps in the SDK.
@@ -42,6 +44,7 @@ interface SynComponent : SynProvisions {
 
     @Component.Builder interface Builder {
         fun core(core: CoreProvisions): Builder
+        @BindsInstance fun logger(logger: SdkLogger): Builder
         fun enc(enc: EncProvisions): Builder
         fun auth(auth: AuthProvisions): Builder
         fun storage(storage: StorProvisions): Builder

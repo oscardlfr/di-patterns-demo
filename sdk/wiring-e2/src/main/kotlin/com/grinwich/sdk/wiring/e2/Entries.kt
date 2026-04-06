@@ -20,23 +20,24 @@ internal fun coreAutoEntry(config: SdkConfig, logger: SdkLogger) = AutoProvision
     provisionClass = CoreProvisions::class.java,
     serviceClasses = setOf(SdkConfig::class.java, SdkLogger::class.java),
     build = {
-        DaggerCoreComponent.builder().config(config).logger(logger).build()
+        DaggerCoreComponent.builder().config(config).build()
     },
     services = { prov ->
         mapOf(
             SdkConfig::class.java to prov.config(),
-            SdkLogger::class.java to prov.logger(),
+            SdkLogger::class.java to logger,
         )
     },
 )
 
-internal val encAutoEntry = AutoProvisionEntry(
+internal fun encAutoEntry(logger: SdkLogger) = AutoProvisionEntry(
     provisionClass = EncProvisions::class.java,
     dependencies = setOf(CoreProvisions::class.java),
     serviceClasses = setOf(EncryptionApi::class.java, HashApi::class.java),
     build = { registry ->
         DaggerEncComponent.builder()
             .core(registry.provision(CoreProvisions::class.java))
+            .logger(logger)
             .build()
     },
     services = { prov ->
@@ -47,13 +48,14 @@ internal val encAutoEntry = AutoProvisionEntry(
     },
 )
 
-internal val authAutoEntry = AutoProvisionEntry(
+internal fun authAutoEntry(logger: SdkLogger) = AutoProvisionEntry(
     provisionClass = AuthProvisions::class.java,
     dependencies = setOf(CoreProvisions::class.java, EncProvisions::class.java),
     serviceClasses = setOf(AuthApi::class.java),
     build = { registry ->
         DaggerAuthComponent.builder()
             .core(registry.provision(CoreProvisions::class.java))
+            .logger(logger)
             .enc(registry.provision(EncProvisions::class.java))
             .build()
     },
@@ -62,13 +64,14 @@ internal val authAutoEntry = AutoProvisionEntry(
     },
 )
 
-internal val storAutoEntry = AutoProvisionEntry(
+internal fun storAutoEntry(logger: SdkLogger) = AutoProvisionEntry(
     provisionClass = StorProvisions::class.java,
     dependencies = setOf(CoreProvisions::class.java, EncProvisions::class.java),
     serviceClasses = setOf(StorageApi::class.java),
     build = { registry ->
         DaggerStorComponent.builder()
             .core(registry.provision(CoreProvisions::class.java))
+            .logger(logger)
             .enc(registry.provision(EncProvisions::class.java))
             .build()
     },
@@ -77,13 +80,14 @@ internal val storAutoEntry = AutoProvisionEntry(
     },
 )
 
-internal val anaAutoEntry = AutoProvisionEntry(
+internal fun anaAutoEntry(logger: SdkLogger) = AutoProvisionEntry(
     provisionClass = AnaProvisions::class.java,
     dependencies = setOf(CoreProvisions::class.java),
     serviceClasses = setOf(AnalyticsApi::class.java),
     build = { registry ->
         DaggerAnaComponent.builder()
             .core(registry.provision(CoreProvisions::class.java))
+            .logger(logger)
             .build()
     },
     services = { prov ->
@@ -91,7 +95,7 @@ internal val anaAutoEntry = AutoProvisionEntry(
     },
 )
 
-internal val synAutoEntry = AutoProvisionEntry(
+internal fun synAutoEntry(logger: SdkLogger) = AutoProvisionEntry(
     provisionClass = SynProvisions::class.java,
     dependencies = setOf(
         CoreProvisions::class.java,
@@ -103,6 +107,7 @@ internal val synAutoEntry = AutoProvisionEntry(
     build = { registry ->
         DaggerSynComponent.builder()
             .core(registry.provision(CoreProvisions::class.java))
+            .logger(logger)
             .enc(registry.provision(EncProvisions::class.java))
             .auth(registry.provision(AuthProvisions::class.java))
             .storage(registry.provision(StorProvisions::class.java))
@@ -115,9 +120,9 @@ internal val synAutoEntry = AutoProvisionEntry(
 
 internal fun allAutoEntries(config: SdkConfig, logger: SdkLogger) = listOf(
     coreAutoEntry(config, logger),
-    encAutoEntry,
-    authAutoEntry,
-    storAutoEntry,
-    anaAutoEntry,
-    synAutoEntry,
+    encAutoEntry(logger),
+    authAutoEntry(logger),
+    storAutoEntry(logger),
+    anaAutoEntry(logger),
+    synAutoEntry(logger),
 )

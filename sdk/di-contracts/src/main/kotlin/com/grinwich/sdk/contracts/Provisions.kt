@@ -15,9 +15,13 @@ import com.grinwich.sdk.api.*
 // This module has ZERO Dagger dependency — it's pure Kotlin.
 // ============================================================
 
-/** Core services available to all features. */
+/** Core configuration — available to all features. */
 interface CoreProvisions {
     fun config(): SdkConfig
+}
+
+/** Observability — logging available to all features. */
+interface ObservabilityProvisions {
     fun logger(): SdkLogger
 }
 

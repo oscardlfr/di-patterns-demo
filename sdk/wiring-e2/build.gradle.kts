@@ -24,5 +24,5 @@ dependencies {
     implementation(project(":feature-stor-impl"))
     implementation(project(":feature-ana-impl"))
     implementation(project(":feature-syn-impl"))
-    implementation(project(":feature-observability-impl")) // AndroidSdkLogger
+    implementation(project(":feature-observability-impl")) // AndroidSdkLogger (default logger)
 }

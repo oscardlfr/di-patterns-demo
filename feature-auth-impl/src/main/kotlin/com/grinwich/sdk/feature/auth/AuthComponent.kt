@@ -7,13 +7,14 @@ import com.grinwich.sdk.contracts.AuthProvisions
 import com.grinwich.sdk.contracts.AuthScope
 import com.grinwich.sdk.contracts.CoreProvisions
 import com.grinwich.sdk.contracts.EncProvisions
+import dagger.BindsInstance
 import dagger.Component
 import dagger.Module
 import dagger.Provides
 
 /** Factory: builds AuthProvisions without exposing DaggerAuthComponent. */
-fun buildAuthProvisions(core: CoreProvisions, enc: EncProvisions): AuthProvisions =
-    DaggerAuthComponent.builder().core(core).enc(enc).build()
+fun buildAuthProvisions(core: CoreProvisions, logger: SdkLogger, enc: EncProvisions): AuthProvisions =
+    DaggerAuthComponent.builder().core(core).logger(logger).enc(enc).build()
 
 /**
  * AuthComponent — cross-feature dependency via provision interfaces.
@@ -36,6 +37,7 @@ interface AuthComponent : AuthProvisions {
 
     @Component.Builder interface Builder {
         fun core(core: CoreProvisions): Builder
+        @BindsInstance fun logger(logger: SdkLogger): Builder
         fun enc(enc: EncProvisions): Builder
         fun build(): AuthComponent
     }

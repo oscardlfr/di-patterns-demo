@@ -39,7 +39,7 @@ object MultiModuleSdkG {
     fun init(config: SdkConfig, logger: SdkLogger = AndroidSdkLogger()) {
         check(!_initialized) { "MultiModuleSdkG already initialized. Call shutdown() first." }
         _logger = logger
-        _core = buildCoreProvisions(config, logger)
+        _core = buildCoreProvisions(config)
         _initialized = true
     }
 
@@ -65,26 +65,26 @@ object MultiModuleSdkG {
     // Key difference vs D: calls buildXxxProvisions() instead of DaggerXxxComponent.builder()
 
     private fun ensureEnc(core: CoreProvisions): EncProvisions =
-        _enc ?: buildEncProvisions(core).also { _enc = it }
+        _enc ?: buildEncProvisions(core, _logger).also { _enc = it }
 
     private fun ensureAuth(core: CoreProvisions): AuthProvisions {
         val enc = ensureEnc(core)
-        return _auth ?: buildAuthProvisions(core, enc).also { _auth = it }
+        return _auth ?: buildAuthProvisions(core, _logger, enc).also { _auth = it }
     }
 
     private fun ensureStor(core: CoreProvisions): StorProvisions {
         val enc = ensureEnc(core)
-        return _storage ?: buildStorProvisions(core, enc).also { _storage = it }
+        return _storage ?: buildStorProvisions(core, _logger, enc).also { _storage = it }
     }
 
     private fun ensureAna(core: CoreProvisions): AnaProvisions =
-        _analytics ?: buildAnaProvisions(core).also { _analytics = it }
+        _analytics ?: buildAnaProvisions(core, _logger).also { _analytics = it }
 
     private fun ensureSyn(core: CoreProvisions): SynProvisions {
         val enc = ensureEnc(core)
         val auth = ensureAuth(core)
         val stor = ensureStor(core)
-        return _sync ?: buildSynProvisions(core, enc, auth, stor).also { _sync = it }
+        return _sync ?: buildSynProvisions(core, _logger, enc, auth, stor).also { _sync = it }
     }
 
     fun shutdown() {

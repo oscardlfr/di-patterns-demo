@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.android.library)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -13,5 +14,9 @@ android {
 }
 
 dependencies {
-    api(project(":observability-api"))  // SdkLogger interface
+    api(project(":sdk:di-contracts"))  // ObservabilityProvisions
+
+    implementation(libs.dagger)
+    ksp(libs.dagger.compiler)
+    implementation(libs.javax.inject)
 }

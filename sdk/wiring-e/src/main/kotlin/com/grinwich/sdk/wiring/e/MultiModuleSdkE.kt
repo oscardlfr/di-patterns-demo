@@ -41,6 +41,7 @@ object MultiModuleSdkE {
     }
 
     private var _initialized = false
+    private var _logger: SdkLogger = AndroidSdkLogger()
     private val registry = ProvisionRegistry()
     private val _initializedFeatures = mutableSetOf<Feature>()
 
@@ -56,6 +57,7 @@ object MultiModuleSdkE {
         logger: SdkLogger = AndroidSdkLogger(),
     ) {
         check(!_initialized) { "MultiModuleSdkE already initialized." }
+        _logger = logger
 
         // Always register core
         registry.register(coreEntry(config, logger))
@@ -105,10 +107,10 @@ object MultiModuleSdkE {
     }
 
     private fun featureToEntry(feature: Feature): ProvisionEntry<*> = when (feature) {
-        Feature.ENCRYPTION -> encEntry
-        Feature.AUTH -> authEntry
-        Feature.STORAGE -> storEntry
-        Feature.ANALYTICS -> anaEntry
-        Feature.SYNC -> synEntry
+        Feature.ENCRYPTION -> encEntry(_logger)
+        Feature.AUTH -> authEntry(_logger)
+        Feature.STORAGE -> storEntry(_logger)
+        Feature.ANALYTICS -> anaEntry(_logger)
+        Feature.SYNC -> synEntry(_logger)
     }
 }

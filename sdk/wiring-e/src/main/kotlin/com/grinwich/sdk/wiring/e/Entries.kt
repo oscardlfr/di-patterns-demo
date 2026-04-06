@@ -19,22 +19,23 @@ import com.grinwich.sdk.feature.syn.DaggerSynComponent
 internal fun coreEntry(config: SdkConfig, logger: SdkLogger) = ProvisionEntry(
     provisionClass = CoreProvisions::class.java,
     build = {
-        DaggerCoreComponent.builder().config(config).logger(logger).build()
+        DaggerCoreComponent.builder().config(config).build()
     },
     services = { prov ->
         mapOf(
             SdkConfig::class.java to prov.config(),
-            SdkLogger::class.java to prov.logger(),
+            SdkLogger::class.java to logger,
         )
     },
 )
 
-internal val encEntry = ProvisionEntry(
+internal fun encEntry(logger: SdkLogger) = ProvisionEntry(
     provisionClass = EncProvisions::class.java,
     dependencies = setOf(CoreProvisions::class.java),
     build = { registry ->
         DaggerEncComponent.builder()
             .core(registry.provision(CoreProvisions::class.java))
+            .logger(logger)
             .build()
     },
     services = { prov ->
@@ -45,12 +46,13 @@ internal val encEntry = ProvisionEntry(
     },
 )
 
-internal val authEntry = ProvisionEntry(
+internal fun authEntry(logger: SdkLogger) = ProvisionEntry(
     provisionClass = AuthProvisions::class.java,
     dependencies = setOf(CoreProvisions::class.java, EncProvisions::class.java),
     build = { registry ->
         DaggerAuthComponent.builder()
             .core(registry.provision(CoreProvisions::class.java))
+            .logger(logger)
             .enc(registry.provision(EncProvisions::class.java))
             .build()
     },
@@ -59,12 +61,13 @@ internal val authEntry = ProvisionEntry(
     },
 )
 
-internal val storEntry = ProvisionEntry(
+internal fun storEntry(logger: SdkLogger) = ProvisionEntry(
     provisionClass = StorProvisions::class.java,
     dependencies = setOf(CoreProvisions::class.java, EncProvisions::class.java),
     build = { registry ->
         DaggerStorComponent.builder()
             .core(registry.provision(CoreProvisions::class.java))
+            .logger(logger)
             .enc(registry.provision(EncProvisions::class.java))
             .build()
     },
@@ -73,12 +76,13 @@ internal val storEntry = ProvisionEntry(
     },
 )
 
-internal val anaEntry = ProvisionEntry(
+internal fun anaEntry(logger: SdkLogger) = ProvisionEntry(
     provisionClass = AnaProvisions::class.java,
     dependencies = setOf(CoreProvisions::class.java),
     build = { registry ->
         DaggerAnaComponent.builder()
             .core(registry.provision(CoreProvisions::class.java))
+            .logger(logger)
             .build()
     },
     services = { prov ->
@@ -86,7 +90,7 @@ internal val anaEntry = ProvisionEntry(
     },
 )
 
-internal val synEntry = ProvisionEntry(
+internal fun synEntry(logger: SdkLogger) = ProvisionEntry(
     provisionClass = SynProvisions::class.java,
     dependencies = setOf(
         CoreProvisions::class.java,
@@ -97,6 +101,7 @@ internal val synEntry = ProvisionEntry(
     build = { registry ->
         DaggerSynComponent.builder()
             .core(registry.provision(CoreProvisions::class.java))
+            .logger(logger)
             .enc(registry.provision(EncProvisions::class.java))
             .auth(registry.provision(AuthProvisions::class.java))
             .storage(registry.provision(StorProvisions::class.java))
@@ -109,9 +114,9 @@ internal val synEntry = ProvisionEntry(
 
 internal fun allEntries(config: SdkConfig, logger: SdkLogger) = listOf(
     coreEntry(config, logger),
-    encEntry,
-    authEntry,
-    storEntry,
-    anaEntry,
-    synEntry,
+    encEntry(logger),
+    authEntry(logger),
+    storEntry(logger),
+    anaEntry(logger),
+    synEntry(logger),
 )
