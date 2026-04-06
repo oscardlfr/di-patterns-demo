@@ -97,8 +97,110 @@ En un SDK real con 15 módulos, el fichero tiene ~180 líneas. Manejable.
 | **Dagger C** (monolítico) | 5 | 3 + META-INF | +2 Components, +1 Initializer | Errores runtime | |
 | **Koin** (monolítico) | 4 | 3 | 0 | Errores runtime | 🟢 menos coste |
 
-Para el coste de añadir features en los patterns multi-módulo (D, E, E2, G, H), ver
-la sección [Multi-módulo: Complejidad del Wiring](#multi-módulo-complejidad-del-wiring).
+#### Dagger D — Component Dependencies (multi-módulo: sdk-wiring)
+
+| Paso | Fichero | Tipo de cambio |
+|------|---------|---------------|
+| 1 | `feature-xxx-api/XxxApi.kt` | Nueva interfaz del servicio (módulo nuevo) |
+| 2 | `sdk/di-contracts/Provisions.kt` | Nuevo `XxxProvisions` + `@XxxScope` |
+| 3 | `feature-xxx-impl/XxxComponent.kt` | Nuevo `@Component` + `@Module` + factory `buildXxxProvisions()` |
+| 4 | `feature-xxx-impl/DefaultXxxService.kt` | Nueva implementación (`internal`) |
+| 5 | `sdk/sdk-wiring/MultiModuleSdk.kt` | Nuevo `ensureXxx()` + caso en `when` block de `get()` |
+| 6 | `sdk/sdk-wiring/build.gradle.kts` | Añadir `implementation(project(":feature-xxx-impl"))` |
+| 7 | `settings.gradle.kts` | Añadir 2 `include()` (api + impl) |
+
+**Total: 7 puntos de contacto en 5 módulos.** El paso 5 es el cuello de botella — el wiring
+module crece linealmente. Compile-time safe por Component individual.
+
+**Riesgo a escala:** `MultiModuleSdk.kt` crece con cada feature (1 `ensureXxx()` + 1-N `when` cases).
+A 30 features, el fichero supera las 500 líneas de wiring manual.
+
+#### Dagger E — Registry + Topo-sort (multi-módulo: wiring-e)
+
+| Paso | Fichero | Tipo de cambio |
+|------|---------|---------------|
+| 1 | `feature-xxx-api/XxxApi.kt` | Nueva interfaz del servicio (módulo nuevo) |
+| 2 | `sdk/di-contracts/Provisions.kt` | Nuevo `XxxProvisions` + `@XxxScope` |
+| 3 | `feature-xxx-impl/XxxComponent.kt` | Nuevo `@Component` + `@Module` + factory |
+| 4 | `feature-xxx-impl/DefaultXxxService.kt` | Nueva implementación (`internal`) |
+| 5 | `sdk/wiring-e/Entries.kt` | Nuevo `ProvisionEntry` (~10 líneas) |
+| 6 | `sdk/wiring-e/MultiModuleSdkE.kt` | Nuevo caso en `Feature` enum |
+| 7 | `sdk/wiring-e/build.gradle.kts` | Añadir `implementation(project(":feature-xxx-impl"))` |
+| 8 | `settings.gradle.kts` | Añadir 2 `include()` |
+
+**Total: 8 puntos de contacto.** Más boilerplate que D por el `ProvisionEntry` que duplica
+las dependencias que Dagger ya conoce via `dependencies=[...]`.
+
+**Riesgo a escala:** El `Feature` enum se expone al consumidor y crece linealmente.
+El `ProvisionEntry` duplica información de dependencias.
+
+#### Dagger E2 — Auto-Init + DFS (multi-módulo: wiring-e2)
+
+| Paso | Fichero | Tipo de cambio |
+|------|---------|---------------|
+| 1 | `feature-xxx-api/XxxApi.kt` | Nueva interfaz del servicio (módulo nuevo) |
+| 2 | `sdk/di-contracts/Provisions.kt` | Nuevo `XxxProvisions` + `@XxxScope` |
+| 3 | `feature-xxx-impl/XxxComponent.kt` | Nuevo `@Component` + `@Module` + factory |
+| 4 | `feature-xxx-impl/DefaultXxxService.kt` | Nueva implementación (`internal`) |
+| 5 | `sdk/wiring-e2/Entries.kt` | Nuevo `AutoProvisionEntry` (~10 líneas) |
+| 6 | `sdk/wiring-e2/build.gradle.kts` | Añadir `implementation(project(":feature-xxx-impl"))` |
+| 7 | `settings.gradle.kts` | Añadir 2 `include()` |
+
+**Total: 7 puntos de contacto.** Sin `Feature` enum (vs E). Pero el `AutoProvisionEntry`
+sigue duplicando dependencias y service mappings.
+
+**Riesgo a escala:** `AutoProvisionEntry` es boilerplate mecánico (~10 líneas por feature).
+A 50 features, el fichero de entries tiene ~500 líneas de declaraciones repetitivas.
+
+#### Dagger G — Factory Functions (multi-módulo: wiring-g)
+
+| Paso | Fichero | Tipo de cambio |
+|------|---------|---------------|
+| 1 | `feature-xxx-api/XxxApi.kt` | Nueva interfaz del servicio (módulo nuevo) |
+| 2 | `sdk/di-contracts/Provisions.kt` | Nuevo `XxxProvisions` + `@XxxScope` |
+| 3 | `feature-xxx-impl/XxxComponent.kt` | Nuevo `@Component` + `@Module` + factory `buildXxxProvisions()` |
+| 4 | `feature-xxx-impl/DefaultXxxService.kt` | Nueva implementación (`internal`) |
+| 5 | `sdk/wiring-g/MultiModuleSdkG.kt` | Nuevo `ensureXxx()` + caso en `when` block |
+| 6 | `sdk/wiring-g/build.gradle.kts` | Añadir `implementation(project(":feature-xxx-impl"))` |
+| 7 | `settings.gradle.kts` | Añadir 2 `include()` |
+
+**Total: 7 puntos de contacto.** Idéntico a D pero `DaggerXxxComponent` queda `internal`.
+Mismo cuello de botella: el wiring file crece linealmente.
+
+**Riesgo a escala:** Igual que D — `when` blocks + `ensureXxx()` crecen.
+
+#### Dagger H — Auto-Discovery FeatureProviders (multi-módulo: wiring-h)
+
+| Paso | Fichero | Tipo de cambio |
+|------|---------|---------------|
+| 1 | `feature-xxx-api/XxxApi.kt` | Nueva interfaz del servicio (módulo nuevo) |
+| 2 | `sdk/di-contracts/Provisions.kt` | Nuevo `XxxProvisions` + `@XxxScope` |
+| 3 | `feature-xxx-impl/XxxComponent.kt` | Nuevo `@Component` + `@Module` + factory `buildXxxProvisions()` |
+| 4 | `feature-xxx-impl/DefaultXxxService.kt` | Nueva implementación (`internal`) |
+| 5 | `feature-xxx-impl/XxxProvider.kt` | Nuevo `FeatureProvider` (~8 líneas, deps implícitas) |
+| 6 | `sdk/wiring-h/MultiModuleSdkH.kt` | Añadir `resolver.register(XxxProvider())` |
+| 7 | `sdk/wiring-h/build.gradle.kts` | Añadir `implementation(project(":feature-xxx-impl"))` |
+| 8 | `settings.gradle.kts` | Añadir 2 `include()` |
+
+**Total: 8 puntos de contacto.** El paso 6 es 1 línea (vs ensureXxx + when en D/G).
+El `FeatureProvider` es autocontenido: deps implícitas via `resolver.provision()`.
+Con ServiceLoader, el paso 6 desaparece — zero edición del wiring module.
+
+**Riesgo a escala:** Mínimo. El `FeatureProvider` es mecánico (~8 líneas). El wiring module
+crece 1 línea por feature (solo `register()`). Con ServiceLoader, 0 líneas.
+
+### Resumen: coste por feature nueva (todos los approaches)
+
+| Approach | Puntos de contacto | Edición central | Boilerplate por feature | Riesgo principal | |
+|----------|-------------------|----------------|------------------------|-----------------|---|
+| **Dagger B** (mono) | 6 | DaggerBSdk.kt (when + CoreApis) | Alto | God Object | 🔴 |
+| **Dagger C** (mono) | 5 | Ninguno (ServiceLoader) | Medio | Errores silenciosos | |
+| **Dagger D** (multi) | 7 | MultiModuleSdk.kt (when + ensure) | Bajo | Wiring crece | |
+| **Dagger E** (multi) | 8 | Entries.kt + Feature enum | Alto (entry duplica deps) | Enum crece | 🔴 |
+| **Dagger E2** (multi) | 7 | Entries.kt (1 línea) | Alto (entry duplica deps) | Entries verbose | |
+| **Dagger G** (multi) | 7 | MultiModuleSdkG.kt (when + ensure) | Bajo | Wiring crece | |
+| **Dagger H** (multi) | 8 (7 con ServiceLoader) | 1 línea register() (0 con SL) | Bajo (8 líneas provider) | ~3.5x init overhead | 🟢 |
+| **Koin** (mono) | 4 | KoinSdk.kt (sealed class) | Mínimo | Errores runtime | 🟢 |
 
 ### Depuración: ¿qué pasa cuando algo falla?
 

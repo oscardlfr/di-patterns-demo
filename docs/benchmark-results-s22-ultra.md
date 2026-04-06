@@ -29,31 +29,31 @@ Tiempo para crear el grafo DI completo desde cero e instanciar todos los singlet
 |--------|---------|----------|
 | MM-D | 947 ns | == |
 | MM-G | 966 ns | == |
-| Dagger-B | 3.2 us | 3.4x |
+| Dagger-B | 2.5 us | 2.6x |
 | MM-H | 3.5 us | 3.7x |
 | MM-E2 | 5.4 us | 5.7x |
 | Dagger-C | 5.6 us | 5.9x |
 | MM-E | 10.2 us | 10.8x |
-| Hybrid | 53.0 us | 56.0x |
-| Koin | 53.2 us | 56.2x |
+| Hybrid | 48.6 us | 51.3x |
+| Koin | 48.2 us | 50.9x |
 
-**Observacion:** D y G multi-modulo son los mas rapidos (~950 ns). H paga overhead de HashMap + registro de providers (~3.5 us, ~3.5x sobre G). E2 (~5.4 us) y E (~10.2 us) son mas lentos por install+DFS y topo-sort respectivamente. Koin/Hybrid ~53 us — imperceptible (<0.003 frames) pero 56x mas que D.
+**Observacion:** D y G multi-modulo son los mas rapidos (~950 ns). H paga overhead de HashMap + registro de providers (~3.5 us, ~3.5x sobre G). E2 (~5.4 us) y E (~10.2 us) son mas lentos por install+DFS y topo-sort respectivamente. Koin/Hybrid ~48 us — imperceptible (<0.003 frames) pero ~51x mas que D.
 
 ## Resolve First (primer acceso a un singleton)
 
 | Patron | Mediana | vs Mejor |
 |--------|---------|----------|
-| Hybrid | 2.3 ns | == |
-| Dagger-B | 8.1 ns | 3.5x |
-| MM-D | 10.6 ns | 4.6x |
-| MM-G | 14.2 ns | 6.2x |
-| MM-E | 20.1 ns | 8.7x |
-| MM-H | 23.3 ns | 10.1x |
-| MM-E2 | 23.3 ns | 10.1x |
-| Dagger-C | 36.8 ns | 16.0x |
-| Koin | 910.7 ns | 396.0x |
+| Hybrid | 1.9 ns | == |
+| Dagger-B | 7.5 ns | 3.9x |
+| MM-D | 10.6 ns | 5.6x |
+| MM-G | 14.2 ns | 7.5x |
+| MM-E | 20.1 ns | 10.6x |
+| MM-H | 23.3 ns | 12.3x |
+| MM-E2 | 23.3 ns | 12.3x |
+| Dagger-C | 33.9 ns | 17.8x |
+| Koin | 835.8 ns | 439.9x |
 
-**Observacion:** Hybrid es el mas rapido en resolve (Dagger @Singleton cache: 2.3 ns). Koin paga lookup runtime (~911 ns). Todos los Dagger multi-modulo <24 ns. H y E2 son identicos en resolve (~23 ns).
+**Observacion:** Hybrid es el mas rapido en resolve (Dagger @Singleton cache: 1.9 ns). Koin paga lookup runtime (~836 ns). Todos los Dagger multi-modulo <24 ns. H y E2 son identicos en resolve (~23 ns).
 
 ## Lazy Init — Feature sin dependencias (Analytics)
 
@@ -63,14 +63,14 @@ Tiempo de anadir Analytics (solo depende de Core) a un grafo en ejecucion.
 |--------|---------|----------|
 | MM-D | 211 ns | == |
 | MM-G | 216 ns | == |
-| Dagger-B | 420.5 ns | 2.0x |
+| Dagger-B | 389 ns | 1.8x |
+| Dagger-C | 436 ns | 2.1x |
 | MM-H | 482 ns | 2.3x |
-| Dagger-C | 517.7 ns | 2.5x |
 | MM-E2 | 545 ns | 2.6x |
 | MM-E | 1.8 us | 8.5x |
-| Koin | 9.4 us | 44.5x |
+| Koin | 7.4 us | 35.1x |
 
-**Observacion:** D y G son los mas rapidos (~213 ns). H (~482 ns) es ligeramente mas lento por overhead de resolver. E paga topo-sort (~1.8 us). Koin paga loadModules (~9.4 us).
+**Observacion:** D y G son los mas rapidos (~213 ns). H (~482 ns) es ligeramente mas lento por overhead de resolver. E paga topo-sort (~1.8 us). Koin paga loadModules (~7.4 us).
 
 ## Lazy Init — Cascada (Sync -> Auth + Storage + Encryption)
 
@@ -81,13 +81,13 @@ Tiempo de inicializacion en cascada: pedir Sync desencadena Auth -> Encryption, 
 | MM-D | 600 ns | == |
 | MM-G | 606 ns | == |
 | MM-H | 1.4 us | 2.3x |
+| Dagger-B | 1.6 us | 2.7x |
 | MM-E2 | 1.8 us | 3.0x |
-| Dagger-B | 3.4 us | 5.7x |
-| Dagger-C | 3.5 us | 5.8x |
+| Dagger-C | 1.9 us | 3.2x |
 | MM-E | 5.8 us | 9.7x |
-| Koin | 27.7 us | 46.2x |
+| Koin | 25.3 us | 42.2x |
 
-**Observacion:** D y G resuelven la cascada en ~600 ns. H (1.4 us) es mas rapido que E2 (1.8 us) en cascada — DFS resolver es eficiente. Ambos son mas rapidos que B/C monoliticos (3.4 us) — provision interfaces son mas eficientes que CoreApis extendidas.
+**Observacion:** D y G resuelven la cascada en ~600 ns. H (1.4 us) es mas rapido que E2 (1.8 us) en cascada — DFS resolver es eficiente. Dagger B/C monoliticos (1.6-1.9 us) se situan entre H y E2 — provision interfaces son eficientes.
 
 ## Cross-Feature Op (Sync.sync())
 
@@ -95,17 +95,11 @@ Tiempo de una operacion real que cruza Auth + Storage + Encryption. Singletons r
 
 | Patron | Mediana | vs Mejor |
 |--------|---------|----------|
-| MM-E | 101.7 us | == |
-| Hybrid | 101.3 us | == |
-| MM-D | 102.5 us | == |
-| MM-G | 102.3 us | == |
-| MM-E2 | 103.0 us | == |
-| MM-H | 103.2 us | == |
-| Dagger-C | 106.4 us | 1.0x |
-| Dagger-B | 107.8 us | 1.1x |
-| Koin | 168.3 us | 1.7x |
+| Todos | ~98–168 us | == |
 
-**Observacion:** Con singletons resueltos, el framework DI no participa. La variacion (~101-168 us) es atribuible a thermal throttle y orden de ejecucion. Todos los approaches son equivalentes en operacion real.
+Todos los approaches se situan en el rango ~98–168 us. La variacion es atribuible a thermal throttle y orden de ejecucion.
+
+**Observacion:** Con singletons resueltos, el framework DI no participa. Todos los approaches son equivalentes en operacion real.
 
 ---
 
@@ -128,6 +122,8 @@ Tiempo de una operacion real que cruza Auth + Storage + Encryption. Singletons r
 
 ## Conclusion
 
-Todos los approaches Dagger estan en el rango de microsegundos. La diferencia maxima entre el mejor (D: 947 ns) y el peor Dagger (E: 10.2 us) en init cold es ~9 us — 0.0006 frames. **Imperceptible para el usuario.** La eleccion entre approaches es de arquitectura y mantenibilidad, no de rendimiento.
+Todos los approaches Dagger (B, C, D, E, E2, G, H) estan en el rango de microsegundos para init cold. La diferencia maxima entre el mejor (MM-D: 947 ns) y el peor Dagger (MM-E: 10.2 us) en init cold es ~9 us — 0.0006 frames. Koin/Hybrid pagan ~48 us — imperceptible (<0.003 frames). **Ninguna diferencia es perceptible para el usuario.** La eleccion entre approaches es de arquitectura y mantenibilidad, no de rendimiento.
+
+En resolve, Hybrid es el mas rapido (1.9 ns, Dagger @Singleton cache) y Koin el mas lento (835.8 ns, lookup runtime). Todos los Dagger multi-modulo estan en el rango 10-24 ns.
 
 H ofrece el mejor trade-off para equipos grandes: ~3.5 us de init (vs 966 ns de G) a cambio de wiring inmutable y zero edicion central. Para equipos pequenos donde la edicion del facade no es un problema, D o G son la opcion mas rapida.

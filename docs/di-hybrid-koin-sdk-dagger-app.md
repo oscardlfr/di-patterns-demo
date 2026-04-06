@@ -184,27 +184,60 @@ val sync = KoinSdk.get<SyncApi>()  // directo desde Koin
 
 ## Benchmarks
 
-Del S22 Ultra (vía facades reales):
+Del S22 Ultra (vía facades reales). Todos los approaches para contexto completo:
 
-| Operación | Hybrid | Koin puro |
-|-----------|--------|-----------|
-| Init cold | 43.527 ns | 46.606 ns |
-| Resolve cached (bridge) | 2,8 ns | 900 ns |
-| Cross-feature op | 69.713 ns 🟢 | 118.587 ns 🔴 |
+### initCold (grafo completo, 6 features)
+
+| Approach | Mediana |
+|----------|---------|
+| MM-D | 947 ns |
+| MM-G | 966 ns |
+| Dagger-B | 2,5 µs |
+| MM-H | 3,5 µs |
+| MM-E2 | 5,4 µs |
+| Dagger-C | 5,6 µs |
+| MM-E | 10,2 µs |
+| **Hybrid** | **48,6 µs** |
+| Koin | 48,2 µs |
+
+### resolveFirst (primer acceso a singleton)
+
+| Approach | Mediana |
+|----------|---------|
+| **Hybrid** | **1,9 ns** 🟢 |
+| Dagger-B | 7,5 ns |
+| MM-D | 10,6 ns |
+| MM-G | 14,2 ns |
+| MM-E | 20,1 ns |
+| MM-H | 23,3 ns |
+| MM-E2 | 23,3 ns |
+| Dagger-C | 33,9 ns |
+| Koin | 835,8 ns |
+
+### crossFeatureOp (Sync.sync())
+
+| Approach | Mediana |
+|----------|---------|
+| Todos | ~98–168 µs (ruido térmico) |
 
 El bridge cached hace que el acceso post-init sea **idéntico a Dagger puro**.
+Hybrid es el más rápido en resolve (1,9 ns) gracias al `@Singleton` cache de Dagger.
+En initCold, Hybrid paga el coste de Koin (~48 µs) — imperceptible en producción.
 
 ---
 
 ## Cuándo Usar
 
-| Escenario | ¿Hybrid? |
-|----------|----------|
-| SDK es KMP, app es Android con Dagger | ✅ Este patrón |
-| SDK es Android exclusivo | Considerar Dagger D/E2 (multi-módulo) para todo |
-| App ya usa Koin | No necesita bridge — usar `appModules` |
-| Múltiples apps consumen el SDK (unas Dagger, otras Koin) | ✅ Cada app conecta diferente |
-| SDK necesita acceso heavy a internos de la app | Reconsiderar — el SDK debería exponer extension points |
+| Escenario | ¿Hybrid? | Alternativa |
+|----------|----------|-------------|
+| SDK es KMP, app es Android con Dagger | ✅ Este patrón | — |
+| SDK es Android exclusivo, < 30 features | No — usar Dagger puro | D, G (multi-módulo) |
+| SDK es Android exclusivo, 30+ features | No — usar Dagger puro | E2, H (multi-módulo) |
+| SDK es Android exclusivo, zero codegen | No — usar Koin puro | Koin |
+| App ya usa Koin | No necesita bridge | Koin puro con `appModules` |
+| Múltiples apps consumen el SDK (unas Dagger, otras Koin) | ✅ Cada app conecta diferente | — |
+| Features independientes, monolítico | No — usar Dagger monolítico | B, C |
+| SDK necesita acceso heavy a internos de la app | Reconsiderar — el SDK debería exponer extension points | — |
 
 ---
 

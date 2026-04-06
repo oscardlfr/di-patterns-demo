@@ -28,7 +28,7 @@ por constructor.
 
 ## Grafo Único: Resolución Automática
 
-**Funciona en:** Dagger Monolítico (A), Koin, Dagger D (multi-módulo), Dagger E (multi-módulo)
+**Funciona en:** Dagger Monolítico (A), Koin, Hybrid, Dagger D (multi-módulo), Dagger E (multi-módulo), Dagger E2 (multi-módulo), Dagger G (multi-módulo), Dagger H (multi-módulo)
 
 Todos los servicios están en UN contenedor (o registry). Cualquier servicio puede pedir cualquier otro.
 
@@ -114,6 +114,33 @@ Dagger E usa `dependencies=[...]` igual que D para resolver cross-deps.
 La diferencia es que el registry gestiona el orden de registro (topo-sort)
 y desacopla el facade de los builders DaggerXxx.
 
+### Dagger E2 — Auto-Init Registry (multi-módulo: `sdk/wiring-e2/`)
+
+Misma jerarquía de Components que D/E con `dependencies=[...]`. La diferencia es que
+`get<SyncApi>()` dispara DFS recursivo: auto-construye Enc, Auth, Stor y Sync on-demand
+sin que el consumidor enumere features. El indexado `serviceClasses` permite mapear
+`SyncApi → SynComponent` automáticamente.
+
+### Dagger G — Factory Functions (multi-módulo: `sdk/wiring-g/`)
+
+Misma jerarquía de Components que D con `dependencies=[...]`. La diferencia es que cada
+feature-impl expone una factory function (`buildSynProvisions(core, enc, auth, stor)`) que
+recibe provision interfaces directamente. El wiring llama factory functions — nunca importa
+`DaggerSynComponent`. Cross-deps se resuelven igual que D: provision interfaces como parámetros.
+
+### Dagger H — Auto-Discovery FeatureProviders (multi-módulo: `sdk/wiring-h/`)
+
+Misma base de factory functions que G. Cada feature-impl declara un `FeatureProvider` (~8 líneas)
+cuya lambda `build` llama `resolver.provision(CoreProvisions::class.java)` para obtener
+dependencias. El resolver construye la cadena completa vía DFS automático. El wiring module
+es inmutable — zero edición al añadir features.
+
+### Hybrid — Koin SDK + Dagger App
+
+Hereda de Koin: internamente el SDK resuelve cross-deps vía `get()` desde el mismo grafo Koin.
+La app Dagger consume los servicios del SDK vía un bridge `@Component` — pero dentro del SDK
+las cross-deps son automáticas, idénticas a Koin puro.
+
 ---
 
 ## Per-Feature: Wiring Manual Necesario
@@ -185,6 +212,7 @@ todo el SDK — es un God Object que anula el propósito del aislamiento per-fea
 | **Dagger G** (multi-módulo) | ✅ Automático | Factory functions reciben provision interfaces | ensure*() no escalan (= D) |
 | **Dagger H** (multi-módulo) | ✅ Automático | FeatureProviders + DFS vía `resolver.provision()` | ~3,5x más lento init que G, wiring inmutable |
 | **Koin** (1 koinApplication) | ✅ Automático | `get()` desde el mismo grafo | Resolución runtime |
+| **Hybrid** (Koin SDK + Dagger app) | ✅ Automático | Koin `get()` dentro del SDK (hereda de Koin) | Puente unidireccional app ← SDK |
 | **Dagger B** (monolítico) | ⚠️ Manual | CoreApis extendido | God Object a escala |
 | **Dagger C** (monolítico) | ⚠️ Manual | ServiceResolver runtime | God Object + JVM only |
 

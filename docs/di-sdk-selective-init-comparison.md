@@ -12,24 +12,24 @@ Para el approach hybrid, ver [di-hybrid-koin-sdk-dagger-app.md](di-hybrid-koin-s
 
 ## Lado a Lado
 
-| Criterio | Koin | Dagger B | Dagger C | Dagger D (multi) | Dagger E (multi) | Dagger E2 (multi) | Dagger G (multi) | Dagger H (multi) | |
-|----------|------|----------|----------|------------------|------------------|-------------------|------------------|------------------|---|
-| **Paradigma DI** | Service Locator | DI puro | DI puro | DI puro | DI + Registry | DI + AutoRegistry | DI puro | DI + FeatureProviders | |
-| **Aislamiento máximo** | Nivel 2 | Nivel 1 | Nivel 1 | Nivel 1 | Nivel 1 | Nivel 1 | Nivel 1 | Nivel 1 | 🟢 Koin |
-| **Cross-feature** | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | 🔴 B, C |
-| **Binario lean** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | |
-| **Compile-time** | ❌ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ⚠️ | 🟢 D-G · 🔴 Koin |
-| **KMP** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | 🟢 Koin |
-| **Auto-discovery** | ✅ | ❌ | ✅ | ❌ | ⚠️ topo-sort | ✅ DFS on-demand | ❌ | ✅ DFS resolver | |
-| **Multi-módulo** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | |
-| **Escala 50+** | ✅ | ❌ | ⚠️ | ❌ | ❌ | **✅** | ❌ | **✅** | 🟢 Koin, E2, H |
-| **Feature enum** | N/A | Expuesto | N/A | N/A | Expuesto | **Oculto** | N/A | **Oculto** | 🟢 E2, H |
-| **Build speed** | ✅ | ❌ KSP | ❌ KSP | ❌ KSP | ❌ KSP | ❌ KSP | ❌ KSP | ❌ KSP | 🟢 Koin |
-| **Singletons** | koinApp | CoreApis ⚠️ | CoreApis ⚠️ | Provision | Registry | AutoRegistry | Provision | Resolver cache | 🔴 B, C |
-| **Wiring inmutable** | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | **✅** | 🟢 Koin, C, H |
+| Criterio | Koin | Hybrid | Dagger B | Dagger C | Dagger D (multi) | Dagger E (multi) | Dagger E2 (multi) | Dagger G (multi) | Dagger H (multi) | |
+|----------|------|--------|----------|----------|------------------|------------------|-------------------|------------------|------------------|---|
+| **Paradigma DI** | Service Locator | Koin SDK + Dagger bridge | DI puro | DI puro | DI puro | DI + Registry | DI + AutoRegistry | DI puro | DI + FeatureProviders | |
+| **Aislamiento máximo** | Nivel 2 | Nivel 2 (SDK) / 1 (app) | Nivel 1 | Nivel 1 | Nivel 1 | Nivel 1 | Nivel 1 | Nivel 1 | Nivel 1 | 🟢 Koin, Hybrid |
+| **Cross-feature** | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | 🔴 B, C |
+| **Binario lean** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | |
+| **Compile-time** | ❌ | ⚠️ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ⚠️ | 🟢 D-G · 🔴 Koin |
+| **KMP** | ✅ | ✅ (SDK) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | 🟢 Koin, Hybrid |
+| **Auto-discovery** | ✅ | ✅ (hereda Koin) | ❌ | ✅ | ❌ | ⚠️ topo-sort | ✅ DFS on-demand | ❌ | ✅ DFS resolver | |
+| **Multi-módulo** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | |
+| **Escala 50+** | ✅ | ✅ | ❌ | ⚠️ | ❌ | ❌ | **✅** | ❌ | **✅** | 🟢 Koin, Hybrid, E2, H |
+| **Feature enum** | N/A | N/A | Expuesto | N/A | N/A | Expuesto | **Oculto** | N/A | **Oculto** | 🟢 E2, H |
+| **Build speed** | ✅ | ⚠️ (Koin + KSP bridge) | ❌ KSP | ❌ KSP | ❌ KSP | ❌ KSP | ❌ KSP | ❌ KSP | ❌ KSP | 🟢 Koin |
+| **Singletons** | koinApp | Koin + Dagger cache | CoreApis ⚠️ | CoreApis ⚠️ | Provision | Registry | AutoRegistry | Provision | Resolver cache | 🔴 B, C |
+| **Wiring inmutable** | ✅ | ✅ (hereda Koin) | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | **✅** | 🟢 Koin, Hybrid, C, H |
 
 **Nota:** D, E, E2, G y H solo existen como variantes multi-módulo con provision interfaces.
-B y C son patrones monolíticos.
+B y C son patrones monolíticos. Hybrid combina Koin (SDK) + Dagger (app bridge).
 
 ### Variantes multi-módulo
 
@@ -62,6 +62,7 @@ val service = SecurityServiceImpl(network)
 val service = DaggerBSdk.get<SecurityService>()    // Dagger B (monolítico)
 val service = DaggerCSdk.get<SecurityService>()    // Dagger C (monolítico)
 val service = KoinSdk.get<SecurityService>()       // Koin (monolítico)
+val service = bridge.security()                    // Hybrid (Koin SDK + Dagger bridge)
 
 // ✅ Multi-módulo — misma API, wiring diferente
 val service = MultiModuleSdk.get<SecurityService>()     // Multi-módulo D (sdk-wiring)

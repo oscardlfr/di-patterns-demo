@@ -109,6 +109,15 @@ val sync: SyncApi = MultiModuleSdkH.get()  // resolver.provision() auto-builds c
 MultiModuleSdkH.shutdown()
 ```
 
+### Multi-Module Pattern E (Registry + topo-sort)
+
+```kotlin
+// Feature enum expuesto al consumidor.
+MultiModuleSdkE.init(SdkConfig(debug = true), features = setOf(Feature.SYNC))
+val sync: SyncApi = MultiModuleSdkE.get()
+MultiModuleSdkE.shutdown()
+```
+
 ### Multi-Module Pattern E2 (Registry + auto-init)
 
 ```kotlin
@@ -116,6 +125,40 @@ MultiModuleSdkH.shutdown()
 MultiModuleSdkE2.init(SdkConfig(debug = true))
 val sync: SyncApi = MultiModuleSdkE2.get()  // auto-builds entire chain
 MultiModuleSdkE2.shutdown()
+```
+
+### Monolitico B (Per-Feature Components)
+
+```kotlin
+DaggerBSdk.init(SdkConfig(debug = true), setOf(Feature.ENCRYPTION, Feature.SYNC))
+val enc: EncryptionApi = DaggerBSdk.get()
+DaggerBSdk.shutdown()
+```
+
+### Monolitico C (ServiceLoader Discovery)
+
+```kotlin
+DaggerCSdk.init(SdkConfig(debug = true), setOf("encryption", "sync"))
+val enc: EncryptionApi = DaggerCSdk.get()
+DaggerCSdk.shutdown()
+```
+
+### Koin
+
+```kotlin
+KoinSdk.init(modules = setOf(SdkModule.Encryption.Default), config = SdkConfig(debug = true))
+val enc: EncryptionApi = KoinSdk.get()
+KoinSdk.shutdown()
+```
+
+### Hybrid (Koin SDK + Dagger 2 app)
+
+```kotlin
+// SDK init (Koin interno)
+KoinSdk.init(modules = setOf(SdkModule.Encryption.Default), config = SdkConfig(debug = true))
+// Bridge Dagger — la app nunca importa Koin
+val bridge = DaggerSdkBridgeComponent.builder().build()
+val enc: EncryptionApi = bridge.encryption()  // Dagger cached (~1.9 ns)
 ```
 
 ## Compilar

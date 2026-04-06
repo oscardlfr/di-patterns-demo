@@ -128,6 +128,7 @@ El consumidor nunca importa ningún módulo impl en código. Solo la dependencia
 | **Dagger G (multi-módulo)** | 1 | Facade con factory functions. Components `internal` |
 | **Dagger H (multi-módulo)** | 1 | Facade con FeatureProviders + DFS resolver. Wiring inmutable |
 | **Koin** | 2 | Descubrimiento runtime vía Class.forName / @EagerInit |
+| **Hybrid (Koin SDK + Dagger app)** | 2 (SDK) / 1 (app) | SDK internamente Koin (Nivel 2). App consume vía bridge Dagger (Nivel 1) |
 | **kotlin-inject** | 1 | Consumidor compone components explícitamente |
 
 **Por qué Dagger no llega a Nivel 2:** Dagger necesita conocer TODAS las clases `@Module`
@@ -141,10 +142,11 @@ dependencia Gradle después de compilar el Component.
 Ver documento dedicado: [di-cross-feature-deps.md](di-cross-feature-deps.md).
 
 Resumen:
-- **Grafo único (A / Koin):** Automático — declara dependencias, el framework resuelve.
+- **Grafo único (A / Koin / Hybrid):** Automático — declara dependencias, el framework resuelve.
 - **Per-feature (B / C):** Manual — a través de CoreApis (God Object a escala) o init ordenado.
 - **Component Dependencies D (multi-módulo):** Automático — `dependencies=[ProvisionInterface]`.
 - **Component Registry E (multi-módulo):** Automático — `dependencies=[...]` + registry topo-sort.
+- **Auto-Init Registry E2 (multi-módulo):** Automático — `dependencies=[...]` + DFS on-demand, sin Feature enum.
 - **Factory Functions G (multi-módulo):** Automático — factory functions reciben provision interfaces.
 - **Auto-Discovery H (multi-módulo):** Automático — DFS vía `resolver.provision()`, wiring inmutable.
 

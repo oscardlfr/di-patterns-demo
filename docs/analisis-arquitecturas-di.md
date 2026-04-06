@@ -242,6 +242,21 @@ Todo el wiring interno está encapsulado en el módulo SDK correspondiente.
 | 9 | Seguridad en compilación | ⚠️ | Koin runtime + Dagger compile-time en el bridge |
 | 10 | KMP | ✅ | SDK KMP, bridge solo Android |
 
+### Dagger G — Factory Functions (multi-módulo: wiring-g)
+
+| # | Requisito | Estado | Notas |
+|---|-----------|--------|-------|
+| 1 | Inicialización selectiva | ✅ | Lazy `ensure*()` construye on-demand vía factory functions |
+| 2 | Aislamiento del consumidor | ✅ | Components `internal`, app solo ve facade |
+| 3 | Singletons compartidos | ✅ | CoreComponent provee config vía CoreProvisions, logger vía ObservabilityProvisions |
+| 4 | Instanciación lazy | ✅ | `ensure*()` con cascada automática vía factory functions |
+| 5 | Independencia del core | ✅ | Cada feature-impl compila independientemente con provision interfaces |
+| 6 | Auto-registro | ❌ | Añadir feature requiere editar `ensure*()` en el facade (= D) |
+| 7 | Binario eficiente | ✅ | Solo los feature-impl incluidos en Gradle |
+| 8 | Dependencias cruzadas | ✅ | Factory functions reciben provision interfaces — Dagger resuelve |
+| 9 | Seguridad en compilación | ✅ | Dagger valida cada Component + dependencias en compilación |
+| 10 | KMP | ❌ | Dagger es JVM |
+
 ### Dagger H — Auto-Discovery FeatureProviders (multi-módulo: wiring-h)
 
 | # | Requisito | Estado | Notas |
@@ -416,6 +431,73 @@ de dependencias entre features. Esto permite aislar el coste del wiring del cost
 
 Referencia: `benchmark/.../MultiModuleBenchmark.kt`
 
+### Todos los approaches — Vista unificada
+
+Tabla consolidada con los 9 approaches (monolíticos + multi-módulo). Permite comparar
+directamente entre familias de patrones. Valores del S22 Ultra.
+
+#### initCold (grafo completo, 6 features)
+
+| Approach | Mediana | Tipo |
+|----------|---------|------|
+| MM-D | 947 ns | Multi-módulo |
+| MM-G | 966 ns | Multi-módulo |
+| Dagger-B | 2,5 µs | Monolítico |
+| MM-H | 3,5 µs | Multi-módulo |
+| MM-E2 | 5,4 µs | Multi-módulo |
+| Dagger-C | 5,6 µs | Monolítico |
+| MM-E | 10,2 µs | Multi-módulo |
+| Hybrid | 48,6 µs | Monolítico |
+| Koin | 48,2 µs | Monolítico |
+
+#### resolveFirst (primer acceso a singleton)
+
+| Approach | Mediana | Tipo |
+|----------|---------|------|
+| Hybrid | 1,9 ns | Monolítico |
+| Dagger-B | 7,5 ns | Monolítico |
+| MM-D | 10,6 ns | Multi-módulo |
+| MM-G | 14,2 ns | Multi-módulo |
+| MM-E | 20,1 ns | Multi-módulo |
+| MM-H | 23,3 ns | Multi-módulo |
+| MM-E2 | 23,3 ns | Multi-módulo |
+| Dagger-C | 33,9 ns | Monolítico |
+| Koin | 835,8 ns | Monolítico |
+
+#### lazyInit — Feature sin dependencias (Analytics)
+
+| Approach | Mediana | Tipo |
+|----------|---------|------|
+| MM-D | 211 ns | Multi-módulo |
+| MM-G | 216 ns | Multi-módulo |
+| Dagger-B | 389 ns | Monolítico |
+| Dagger-C | 436 ns | Monolítico |
+| MM-H | 482 ns | Multi-módulo |
+| MM-E2 | 545 ns | Multi-módulo |
+| MM-E | 1,8 µs | Multi-módulo |
+| Koin | 7,4 µs | Monolítico |
+
+#### lazyInit — Cascada (Sync -> Auth + Storage + Encryption)
+
+| Approach | Mediana | Tipo |
+|----------|---------|------|
+| MM-D | 600 ns | Multi-módulo |
+| MM-G | 606 ns | Multi-módulo |
+| MM-H | 1,4 µs | Multi-módulo |
+| Dagger-B | 1,6 µs | Monolítico |
+| MM-E2 | 1,8 µs | Multi-módulo |
+| Dagger-C | 1,9 µs | Monolítico |
+| MM-E | 5,8 µs | Multi-módulo |
+| Koin | 25,3 µs | Monolítico |
+
+#### crossFeatureOp (Sync.sync())
+
+| Approach | Mediana | Tipo |
+|----------|---------|------|
+| Todos | ~98–168 µs | — |
+
+**Observación:** En crossFeatureOp las diferencias son ruido térmico — el framework DI no participa.
+
 ---
 
 ## Lazy init y dependencias cruzadas
@@ -488,15 +570,15 @@ Resumen rápido:
 
 | Restricción del proyecto | Approach más adecuado |
 |--------------------------|----------------------|
-| Compile-time safety máxima | Dagger D, E o E2 (multi-módulo) |
+| Compile-time safety máxima | Dagger D, E, E2 o G (multi-módulo) |
 | Pure DI (no service locator) | Dagger B, C (monolítico) o D, E, E2, G, H (multi-módulo) |
-| Features con dependencias cruzadas fuertes | Dagger D, E, E2, G, H (multi-módulo) o Koin |
+| Features con dependencias cruzadas fuertes | Dagger D, E, E2, G, H (multi-módulo) o Koin/Hybrid |
 | Features verdaderamente independientes | Dagger B o C (monolítico) |
 | KMP necesario | Koin o Hybrid |
-| Android exclusivo, equipo con experiencia Dagger | Dagger D o E2 (multi-módulo) |
-| Multi-módulo Gradle corporativo (api/impl por feature) | Dagger E o E2 (vía wiring-e / wiring-e2) |
+| Android exclusivo, equipo con experiencia Dagger | Dagger D, G o E2 (multi-módulo) |
+| Multi-módulo Gradle corporativo (api/impl por feature) | Dagger E, E2, G o H (vía wiring-e / wiring-e2 / wiring-g / wiring-h) |
 | Publicación per-feature en Maven | Dagger B, C o E, E2 (multi-módulo) |
-| 20+ features, adiciones frecuentes | Dagger E2 o Koin |
+| 20+ features, adiciones frecuentes | Dagger E2, H o Koin |
 | SDK escalable a 50+ módulos sin tocar facade | **Dagger E2**, **H** o Koin |
 | API mínima para consumidor (sin Feature enum) | **Dagger E2**, **H** o Koin |
 | Zero codegen, builds más rápidos | Koin |

@@ -522,14 +522,17 @@ el enum y el when block (misma limitación que D).
 |----------|----------|
 | SDK pequeño (≤5 features), features interdependientes | **A** (educativo) |
 | SDK modular monolítico, publicación per-feature Maven | **B** |
+| Features independientes + auto-discovery JVM | **C** (ServiceLoader) |
+| 10–30 features, compile-time safety, Components `internal` | **G** (factory functions, multi-módulo) |
+| 10–30 features, compile-time safety, wiring directo | **D** (Component Dependencies, multi-módulo) |
 | 20+ features, adiciones frecuentes, JVM | **E** o **E2** (multi-módulo) |
-| Cross-deps complejas + compile-time safety | **D**, **E**, o **E2** (multi-módulo) |
-| Multi-módulo Gradle corporativo (api/impl por feature) | **E** o **E2** (vía wiring-e / wiring-e2) |
-| API mínima para consumidor (sin Feature enum) | **E2** (multi-módulo) |
+| Cross-deps complejas + compile-time safety | **D**, **E**, **E2**, **G** o **H** (multi-módulo) |
+| Multi-módulo Gradle corporativo (api/impl por feature) | **E**, **E2**, **G** o **H** (vía wiring-e / wiring-e2 / wiring-g / wiring-h) |
+| API mínima para consumidor (sin Feature enum) | **E2** o **H** (multi-módulo) |
 | SDK escalable a 50+ módulos | **E2**, **H** o Koin |
 | Equipos grandes (10+), zero edición central | **H** (wiring inmutable, FeatureProviders) |
 | Consumidor necesita excluir features explícitamente | **E** (Feature enum, multi-módulo) |
-| KMP necesario | Ninguno — ver Koin en [comparación](di-sdk-selective-init-comparison.md) |
+| KMP necesario | Ninguno — ver Koin/Hybrid en [comparación](di-sdk-selective-init-comparison.md) |
 
 ---
 
