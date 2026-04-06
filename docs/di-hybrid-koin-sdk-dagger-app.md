@@ -105,24 +105,24 @@ durante la creación del Component Dagger. Crash al arrancar — fácil de diagn
 @Singleton
 @Component(modules = [SdkBridgeModule::class])
 interface SdkBridgeComponent {
-    fun encryption(): EncryptionService
-    fun hash(): HashService
+    fun encryption(): EncryptionApi
+    fun hash(): HashApi
 }
 
 @Module
 class SdkBridgeModule {
     @Provides @Singleton
-    fun provideEncryption(): EncryptionService = KoinSdk.get()
+    fun provideEncryption(): EncryptionApi = KoinSdk.get()
 
     @Provides @Singleton
-    fun provideHash(): HashService = KoinSdk.get()
+    fun provideHash(): HashApi = KoinSdk.get()
 }
 ```
 
 **Qué pasa en runtime:**
 1. Dagger crea `SdkBridgeComponent`
 2. Llama a `provideEncryption()` una vez (`@Singleton`)
-3. Ese método llama `KoinSdk.get<EncryptionService>()` — Koin resuelve desde su grafo
+3. Ese método llama `KoinSdk.get<EncryptionApi>()` — Koin resuelve desde su grafo
 4. Dagger cachea el resultado
 5. Accesos posteriores devuelven la instancia cacheada (~2.8 ns, igual que Dagger puro)
 
@@ -140,7 +140,7 @@ class MainActivity : ComponentActivity() {
 }
 ```
 
-La Activity no sabe que `EncryptionService` viene de Koin.
+La Activity no sabe que `EncryptionApi` viene de Koin.
 Es acceso a un singleton Dagger.
 
 ---
@@ -177,7 +177,7 @@ Para features lazy, acceder directamente desde `KoinSdk.get()`:
 ```kotlin
 // Lazy — NO pasa por el bridge Dagger
 KoinSdk.getOrInitModule(SdkModule.Sync.Default)
-val sync = KoinSdk.get<SyncService>()  // directo desde Koin
+val sync = KoinSdk.get<SyncApi>()  // directo desde Koin
 ```
 
 ---

@@ -7,50 +7,37 @@ para SDKs modulares Android. Incluye benchmarks con Jetpack Benchmark en disposi
 ## Estructura
 
 ```
+observability-api/        -> SdkLogger + AndroidSdkLogger (zero deps)
+
+feature-core-api/         -> SdkConfig
+feature-enc-api/          -> EncryptionApi, HashApi
+feature-auth-api/         -> AuthApi, AuthToken
+feature-stor-api/         -> StorageApi
+feature-ana-api/          -> AnalyticsApi
+feature-syn-api/          -> SyncApi, SyncResult
+
+feature-core-impl/        -> CoreComponent : CoreProvisions
+feature-enc-impl/         -> EncComponent + DefaultEncryptionService (internal)
+feature-auth-impl/        -> AuthComponent + DefaultAuthService (internal)
+feature-stor-impl/        -> StorComponent + DefaultSecureStorageService (internal)
+feature-ana-impl/         -> AnaComponent + DefaultAnalyticsService (internal)
+feature-syn-impl/         -> SynComponent + DefaultSyncService (internal)
+
 sdk/
-  # Core API (SdkConfig, SdkLogger, CoreApis)
-  core-api/           -> Interfaces base que todos los features necesitan
-
-  # Feature API modules (per-feature public interfaces)
-  feature-enc-api/    -> EncryptionService, HashService
-  feature-auth-api/   -> AuthService, AuthToken
-  feature-stor-api/   -> SecureStorageService
-  feature-ana-api/    -> AnalyticsService
-  feature-syn-api/    -> SyncService, SyncResult
-
-  api/              -> Umbrella (re-exports feature-apis + core-api)
-
-  # Per-feature contracts (provision interfaces + scopes)
-  feature-core-contracts/  -> CoreProvisions (depende solo de core-api)
-  feature-enc-contracts/   -> EncProvisions + EncScope
-  feature-auth-contracts/  -> AuthProvisions + AuthScope
-  feature-stor-contracts/  -> StorProvisions + StorScope
-  feature-ana-contracts/   -> AnaProvisions + AnaScope
-  feature-syn-contracts/   -> SynProvisions + SynScope
-
-  impl-common/      -> Implementaciones compartidas
-  impl-koin/        -> KoinSdk (koinApplication aislado, loadModules, auto-discovery)
-  impl-dagger-b/    -> DaggerBSdk (Per-Feature Components + CoreApis)
-  impl-dagger-c/    -> DaggerCSdk (ServiceLoader + META-INF/services)
-  impl-dagger-d/    -> DaggerSdk (Component Dependencies - cross-deps automaticas)
-  impl-dagger-e/    -> RegistrySdk (Component Registry - explicit bindings, auto topo-sort)
-  impl-dagger-e2/   -> AutoSdk (Auto-Init Registry - evolucion de E, sin Feature enum)
-  di-core/          -> CoreComponent compartido (para F educativo)
-  impl-dagger-f/    -> ModularSdk (F educativo: @Component sharing directo vs provision interfaces)
-
-  # Ejemplo realista: separacion api/impl con provision interfaces
-  di-contracts/         -> Umbrella: re-exporta todos los feature-contracts + RegistryInfra
-  feature-core-impl/    -> CoreComponent : CoreProvisions (dep: feature-core-contracts)
-  feature-enc-impl/     -> EncComponent : EncProvisions (deps: feature-enc-contracts + feature-core-contracts)
-  feature-auth-impl/    -> AuthComponent : AuthProvisions (deps: feature-auth-contracts + core + enc contracts)
-  feature-stor-impl/    -> StorComponent : StorProvisions (deps: feature-stor-contracts + core + enc contracts)
-  feature-ana-impl/     -> AnaComponent : AnaProvisions (deps: feature-ana-contracts + feature-core-contracts)
-  feature-syn-impl/     -> SynComponent : SynProvisions (deps: feature-syn-contracts + core + enc + auth + stor contracts)
-
-  # Wiring variants (cada uno demuestra un patron distinto con provision interfaces)
-  sdk-wiring/           -> MultiModuleSdk (Pattern D: when-block directo, lazy ensure*)
-  wiring-e/             -> MultiModuleSdkE (Pattern E: ProvisionRegistry + topo-sort)
-  wiring-e2/            -> MultiModuleSdkE2 (Pattern E2: AutoProvisionRegistry + DFS lazy)
+  api/                    -> Umbrella: CoreApis + re-exports all feature-apis + observability-api
+  di-contracts/           -> Provisions + Scopes + RegistryInfra
+  sdk-wiring/             -> Pattern D: direct lazy ensure*()
+  wiring-e/               -> Pattern E: ProvisionRegistry + topo-sort
+  wiring-e2/              -> Pattern E2: AutoProvisionRegistry + DFS lazy
+  impl-common/            -> Implementaciones compartidas (solo patrones monoliticos)
+  impl-koin/              -> KoinSdk (koinApplication aislado, loadModules, auto-discovery)
+  impl-dagger-b/          -> DaggerBSdk (Per-Feature Components + CoreApis)
+  impl-dagger-c/          -> DaggerCSdk (ServiceLoader + META-INF/services)
+  impl-dagger-d/          -> DaggerSdk (Component Dependencies - cross-deps automaticas)
+  impl-dagger-e/          -> RegistrySdk (Component Registry - explicit bindings, auto topo-sort)
+  impl-dagger-e2/         -> AutoSdk (Auto-Init Registry - evolucion de E, sin Feature enum)
+  di-core/                -> CoreComponent compartido (F educativo)
+  impl-dagger-f/          -> ModularSdk (F educativo: @Component sharing directo vs provision interfaces)
 
 sample-dagger-a/    -> Educativo: @Component monolitico
 sample-dagger-b/    -> Consumidor de DaggerBSdk
@@ -69,19 +56,23 @@ docs/               -> 8 documentos tecnicos (espanol)
 
 ## Feature-API Modules
 
-Cada feature tiene su propio modulo api con las interfaces publicas:
+Las features son modulos TOP-LEVEL (no dentro de `sdk/`). Cada feature tiene su propio
+modulo api con las interfaces publicas:
 
 ```
-:sdk:feature-enc-api   -> EncryptionService, HashService
-:sdk:feature-auth-api  -> AuthService, AuthToken
-:sdk:feature-stor-api  -> SecureStorageService
-:sdk:feature-ana-api   -> AnalyticsService
-:sdk:feature-syn-api   -> SyncService, SyncResult
+:feature-enc-api   -> EncryptionApi, HashApi
+:feature-auth-api  -> AuthApi, AuthToken
+:feature-stor-api  -> StorageApi
+:feature-ana-api   -> AnalyticsApi
+:feature-syn-api   -> SyncApi, SyncResult
 ```
 
-`:sdk:api` es un umbrella que re-exporta todos via `api()`, asi que los patrones
-monoliticos (B-F, Koin) siguen dependiendo de `:sdk:api` sin cambios.
-Los feature-impl modules dependen de sus per-feature contracts especificos (no del umbrella `di-contracts`).
+`:observability-api` es un modulo separado con `SdkLogger` + `AndroidSdkLogger` (zero deps).
+`:feature-core-api` contiene solo `SdkConfig` (zero deps).
+`:sdk:api` es un umbrella que re-exporta todas las feature-apis + observability-api, asi que
+los patrones monoliticos (B-F, Koin) siguen dependiendo de `:sdk:api` sin cambios.
+Los feature-impl contienen sus propias `Default*Service` internamente (sin dependencia de impl-common).
+`impl-common` solo se usa en los patrones monoliticos.
 
 ## API del consumidor
 
@@ -92,7 +83,7 @@ Los feature-impl modules dependen de sus per-feature contracts especificos (no d
 AutoSdk.init(SdkConfig(debug = true))
 
 // Pedir un servicio -- auto-inicializa toda la cadena de deps
-val sync = AutoSdk.get<SyncService>()  // auto: Core -> Enc -> Auth -> Storage -> Sync
+val sync = AutoSdk.get<SyncApi>()  // auto: Core -> Enc -> Auth -> Storage -> Sync
 
 // Apagar
 AutoSdk.shutdown()
@@ -107,10 +98,10 @@ Sin `Feature` enum. Sin `getOrInitModule()`. El consumidor solo ve `init()` + `g
 MultiModuleSdk.init(SdkConfig(debug = true))
 
 // get<T>() auto-construye la cadena de deps via provision interfaces
-val auth: AuthService = MultiModuleSdk.get()    // builds: Core -> Enc -> Auth
-val sync: SyncService = MultiModuleSdk.get()    // builds: Stor + Syn (rest cached)
+val auth: AuthApi = MultiModuleSdk.get()    // builds: Core -> Enc -> Auth
+val sync: SyncApi = MultiModuleSdk.get()    // builds: Stor + Syn (rest cached)
 
-// La app SOLO depende de :sdk:sdk-wiring. Zero imports de feature-impl.
+// La app SOLO depende de :sdk:sdk-wiring (o wiring-e/wiring-e2). Zero imports de feature-impl.
 MultiModuleSdk.shutdown()
 ```
 
@@ -122,7 +113,7 @@ Cada `feature-xxx-impl` compila independientemente -- solo necesita su `feature-
 ```kotlin
 // Mismo API que AutoSdk, pero con Dagger components en modulos separados
 MultiModuleSdkE2.init(SdkConfig(debug = true))
-val sync: SyncService = MultiModuleSdkE2.get()  // auto-builds entire chain
+val sync: SyncApi = MultiModuleSdkE2.get()  // auto-builds entire chain
 MultiModuleSdkE2.shutdown()
 ```
 
@@ -136,7 +127,7 @@ RegistrySdk.init(SdkConfig(debug = true), setOf(Feature.ENCRYPTION))
 RegistrySdk.getOrInitModule(Feature.SYNC)
 
 // Resolver servicio
-val sync = RegistrySdk.get<SyncService>()
+val sync = RegistrySdk.get<SyncApi>()
 
 // Apagar
 RegistrySdk.shutdown()

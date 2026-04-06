@@ -197,7 +197,7 @@ adicional de aislamiento mediante **provision interfaces** y contratos per-featu
 
 Cada feature-impl depende de contratos específicos (`feature-enc-contracts`,
 `feature-auth-contracts`, etc.) en vez de importar los `@Component` de otras features.
-Esto significa que `feature-auth-impl` obtiene `EncryptionService` y `HashService`
+Esto significa que `feature-auth-impl` obtiene `EncryptionApi` y `HashApi`
 a través de `EncProvisions` (interfaz Kotlin plana), sin ver `EncComponent` ni
 `DaggerEncComponent`.
 

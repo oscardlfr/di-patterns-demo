@@ -63,13 +63,13 @@ Cada SDK expone una **API pública similar**. E2 es la más simple:
 ```kotlin
 // E2 (más simple — sin Feature enum)
 AutoSdk.init(config)
-AutoSdk.get<SyncService>()   // auto-inits toda la cadena
+AutoSdk.get<SyncApi>()   // auto-inits toda la cadena
 AutoSdk.shutdown()
 
 // B/C/D/E/F (con Feature enum)
 Sdk.init(config, features)
 Sdk.getOrInitModule(feature)
-Sdk.get<EncryptionService>()
+Sdk.get<EncryptionApi>()
 Sdk.shutdown()
 ```
 
@@ -80,48 +80,37 @@ El consumidor no ve DaggerComponents, koinApplication, CoreApis, ni FeatureEntri
 ## Arquitectura del proyecto
 
 ```
+observability-api/        → SdkLogger + AndroidSdkLogger (zero deps)
+
+feature-core-api/         → SdkConfig
+feature-enc-api/          → EncryptionApi, HashApi
+feature-auth-api/         → AuthApi, AuthToken
+feature-stor-api/         → StorageApi
+feature-ana-api/          → AnalyticsApi
+feature-syn-api/          → SyncApi, SyncResult
+
+feature-core-impl/        → CoreComponent : CoreProvisions
+feature-enc-impl/         → EncComponent + DefaultEncryptionService (internal)
+feature-auth-impl/        → AuthComponent + DefaultAuthService (internal)
+feature-stor-impl/        → StorComponent + DefaultSecureStorageService (internal)
+feature-ana-impl/         → AnaComponent + DefaultAnalyticsService (internal)
+feature-syn-impl/         → SynComponent + DefaultSyncService (internal)
+
 sdk/
-  # Core + Feature API modules
-  core-api/           → SdkConfig, SdkLogger, CoreApis
-  feature-enc-api/    → EncryptionService, HashService
-  feature-auth-api/   → AuthService, AuthToken
-  feature-stor-api/   → SecureStorageService
-  feature-ana-api/    → AnalyticsService
-  feature-syn-api/    → SyncService, SyncResult
-  api/                → Umbrella: re-exports core-api + all feature-apis
-
-  # Per-feature contracts (provision interfaces + scopes)
-  feature-core-contracts/  → CoreProvisions
-  feature-enc-contracts/   → EncProvisions + EncScope
-  feature-auth-contracts/  → AuthProvisions + AuthScope
-  feature-stor-contracts/  → StorProvisions + StorScope
-  feature-ana-contracts/   → AnaProvisions + AnaScope
-  feature-syn-contracts/   → SynProvisions + SynScope
-  di-contracts/            → Umbrella: re-exports all contracts + RegistryInfra
-
-  # Feature implementations (Dagger Components)
-  feature-core-impl/   → CoreComponent : CoreProvisions
-  feature-enc-impl/    → EncComponent : EncProvisions
-  feature-auth-impl/   → AuthComponent : AuthProvisions
-  feature-stor-impl/   → StorComponent : StorProvisions
-  feature-ana-impl/    → AnaComponent : AnaProvisions
-  feature-syn-impl/    → SynComponent : SynProvisions
-
-  # Wiring variants (multi-module)
-  sdk-wiring/          → Pattern D: direct lazy ensure*()
-  wiring-e/            → Pattern E: ProvisionRegistry + topo-sort
-  wiring-e2/           → Pattern E2: AutoProvisionRegistry + DFS lazy
-
-  # Monolithic patterns (existing)
-  impl-common/     → Shared implementations
-  impl-koin/       → KoinSdk
-  impl-dagger-b/   → DaggerBSdk (Per-Feature + CoreApis)
-  impl-dagger-c/   → DaggerCSdk (ServiceLoader)
-  impl-dagger-d/   → DaggerSdk (Component Dependencies)
-  impl-dagger-e/   → RegistrySdk (Component Registry)
-  impl-dagger-e2/  → AutoSdk (Auto-Init Registry)
-  di-core/         → CoreComponent (educational, for F)
-  impl-dagger-f/   → ModularSdk (D in multi-module, educational)
+  api/                    → Umbrella: CoreApis + re-exports all feature-apis + observability-api
+  di-contracts/           → Provisions + Scopes + RegistryInfra
+  sdk-wiring/             → Pattern D: direct lazy ensure*()
+  wiring-e/               → Pattern E: ProvisionRegistry + topo-sort
+  wiring-e2/              → Pattern E2: AutoProvisionRegistry + DFS lazy
+  impl-common/            → Shared implementations (solo patrones monolíticos)
+  impl-koin/              → KoinSdk
+  impl-dagger-b/          → DaggerBSdk (Per-Feature + CoreApis)
+  impl-dagger-c/          → DaggerCSdk (ServiceLoader)
+  impl-dagger-d/          → DaggerSdk (Component Dependencies)
+  impl-dagger-e/          → RegistrySdk (Component Registry)
+  impl-dagger-e2/         → AutoSdk (Auto-Init Registry)
+  di-core/                → CoreComponent (educational, for F)
+  impl-dagger-f/          → ModularSdk (D in multi-module, educational)
 
 sample-dagger-a/    → Educativo: @Component monolítico (approach A)
 sample-dagger-b/    → Consumidor de DaggerBSdk
@@ -132,7 +121,7 @@ sample-dagger-e2/   → Consumidor de AutoSdk
 sample-dagger-f/    → Consumidor de ModularSdk
 sample-hybrid/      → Consumidor de KoinSdk + puente Dagger 2
 
-sample-multimodule/ → Consumer of MultiModuleSdk (provision interfaces)
+sample-multimodule/ → Consumidor de MultiModuleSdk (provision interfaces)
 
 benchmark/          → 65 Jetpack Microbenchmarks (50 monolíticos + 15 multi-módulo)
 ```
@@ -309,7 +298,7 @@ on-demand (vs E que hace eager build). Pero 8 µs sigue siendo imperceptible (<0
 
 ### Primera resolución de un singleton
 
-Tiempo de la primera llamada a `encryption()` / `registry.get()` / `koin.get<EncryptionService>()`.
+Tiempo de la primera llamada a `encryption()` / `registry.get()` / `koin.get<EncryptionApi>()`.
 
 | Approach | Mediana (ns) | |
 |----------|-------------|---|
@@ -471,7 +460,7 @@ Solo necesita `CoreApis` (logger, config). No depende de ninguna otra feature.
 | Dagger C | ✅ | ServiceLoader descubre + `init(core)` |
 | Dagger D | ✅ | `DaggerAnaComponent.builder().core(core).build()` |
 | Dagger E | ✅ | `registry.register(analyticsEntry)` — Component build + eager service binding |
-| Dagger E2 | ✅ | `get<AnalyticsService>()` — auto-build on demand (DFS) |
+| Dagger E2 | ✅ | `get<AnalyticsApi>()` — auto-build on demand (DFS) |
 | Dagger F | ✅ | `getOrInitModule()` — idéntico a D |
 | Koin | ✅ | `koin.loadModules(listOf(analyticsModule))` |
 | Hybrid | ✅ | Koin `loadModules` (features lazy bypasean el bridge Dagger) |

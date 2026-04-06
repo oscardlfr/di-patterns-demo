@@ -165,13 +165,13 @@ KSP lee las anotaciones y genera clases Java con las factories:
 @Singleton
 @Component(modules = [EncModule::class])
 interface EncComponent {
-    fun encryption(): EncryptionService
+    fun encryption(): EncryptionApi
 }
 
 @Module
 class EncModule {
     @Provides @Singleton
-    fun encryption(logger: SdkLogger): EncryptionService = DefaultEncryptionService(logger)
+    fun encryption(logger: SdkLogger): EncryptionApi = DefaultEncryptionApi(logger)
 }
 ```
 
@@ -182,7 +182,7 @@ public final class DaggerEncComponent implements EncComponent {
     private volatile Object encryptionService; // double-check locking cache
 
     @Override
-    public EncryptionService encryption() {
+    public EncryptionApi encryption() {
         Object local = encryptionService;
         if (local == null) {
             synchronized (this) {
@@ -193,7 +193,7 @@ public final class DaggerEncComponent implements EncComponent {
                 }
             }
         }
-        return (EncryptionService) local;
+        return (EncryptionApi) local;
     }
 }
 ```
@@ -214,7 +214,7 @@ Koin no genera ningún fichero. La configuración es Kotlin puro ejecutado en ru
 ```kotlin
 // TÚ ESCRIBES (y esto es TODO — no hay paso de generación):
 val encryptionModule = module {
-    single<EncryptionService> { DefaultEncryptionService(get()) }
+    single<EncryptionApi> { DefaultEncryptionApi(get()) }
 }
 ```
 
@@ -260,8 +260,8 @@ MySdk.init(SdkConfig(debug = true), setOf(Feature.ENCRYPTION, Feature.AUTH))
 MySdk.getOrInitModule(Feature.SYNC)
 
 // Usar servicios
-val encryption = MySdk.get<EncryptionService>()
-val sync = MySdk.get<SyncService>()
+val encryption = MySdk.get<EncryptionApi>()
+val sync = MySdk.get<SyncApi>()
 
 // Apagar
 MySdk.shutdown()
@@ -286,8 +286,8 @@ El approach hybrid requiere que el consumidor cree un **bridge Component**:
 ```kotlin
 @Component(modules = [SdkBridgeModule::class])
 interface SdkBridgeComponent {
-    fun encryption(): EncryptionService
-    fun hash(): HashService
+    fun encryption(): EncryptionApi
+    fun hash(): HashApi
 }
 ```
 

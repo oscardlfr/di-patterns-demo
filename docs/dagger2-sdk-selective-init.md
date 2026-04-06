@@ -32,9 +32,9 @@ Los tres approaches navegan esta tensión de forma diferente.
 │                   SdkComponent (@Singleton)              │
 │                                                          │
 │  CoreModule ─── AuthModule ─── PaymentsModule            │
-│  (Logger)       (AuthService)  (PaymentService)          │
+│  (Logger)       (AuthApi)  (PaymentService)          │
 │  (Config)       puede inyectar Logger,                   │
-│  (Network)      Config, AuthService                      │
+│  (Network)      Config, AuthApi                      │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -51,16 +51,16 @@ que sabe cómo crear todo. Cualquier módulo puede inyectar servicios de cualqui
     AnalyticsModule::class, SyncModule::class,
 ])
 interface SdkComponent {
-    fun encryptionService(): EncryptionService
-    fun authService(): AuthService
-    fun syncService(): SyncService
+    fun encryptionService(): EncryptionApi
+    fun authService(): AuthApi
+    fun syncService(): SyncApi
     // ...
 }
 ```
 
 ### Por qué elegir A
 
-- **Dependencias cruzadas automáticas.** SyncModule puede inyectar AuthService — mismo grafo.
+- **Dependencias cruzadas automáticas.** SyncModule puede inyectar AuthApi — mismo grafo.
 - **Simple.** Un Component, un builder, una llamada init.
 - **Validación completa en compilación.** Si falta un `@Provides`, el build falla.
 
@@ -104,16 +104,16 @@ interface CoreApis {
 @Singleton
 @Component(modules = [EncryptionFeatureModule::class])
 interface EncryptionComponent {
-    fun encryptionService(): EncryptionService
+    fun encryptionService(): EncryptionApi
     @Component.Builder interface Builder {
         @BindsInstance fun core(core: CoreApis): Builder
         fun build(): EncryptionComponent
     }
 }
 
-// Si Auth necesita EncryptionService → CoreApis extendido
+// Si Auth necesita EncryptionApi → CoreApis extendido
 interface AuthCoreApis : CoreApis {
-    val encryptionService: EncryptionService  // ← añadido para cross-dep
+    val encryptionService: EncryptionApi  // ← añadido para cross-dep
 }
 ```
 
@@ -177,13 +177,13 @@ se pasa la interfaz del Component padre y el `@Module` extrae los servicios:
 ```kotlin
 // ESTÁNDAR — servicios sueltos como @BindsInstance
 @Component.Builder interface Builder {
-    @BindsInstance fun enc(enc: EncryptionService): Builder
-    @BindsInstance fun hash(h: HashService): Builder
+    @BindsInstance fun enc(enc: EncryptionApi): Builder
+    @BindsInstance fun hash(h: HashApi): Builder
     fun build(): CStorComp
 }
 @Module class CStorMod {
-    @Provides fun storage(enc: EncryptionService, h: HashService, l: SdkLogger) =
-        DefaultSecureStorageService(enc, h, l)
+    @Provides fun storage(enc: EncryptionApi, h: HashApi, l: SdkLogger) =
+        DefaultStorageApi(enc, h, l)
 }
 
 // VARIANTE — Component interface como @BindsInstance
@@ -192,10 +192,10 @@ se pasa la interfaz del Component padre y el `@Module` extrae los servicios:
     fun build(): CStorComp
 }
 @Module class CStorMod {
-    @Provides fun encryption(encComp: CEncComp): EncryptionService = encComp.encryption()
-    @Provides fun hash(encComp: CEncComp): HashService = encComp.hash()
-    @Provides fun storage(enc: EncryptionService, h: HashService, l: SdkLogger) =
-        DefaultSecureStorageService(enc, h, l)
+    @Provides fun encryption(encComp: CEncComp): EncryptionApi = encComp.encryption()
+    @Provides fun hash(encComp: CEncComp): HashApi = encComp.hash()
+    @Provides fun storage(enc: EncryptionApi, h: HashApi, l: SdkLogger) =
+        DefaultStorageApi(enc, h, l)
 }
 ```
 
@@ -233,14 +233,14 @@ Cada feature tiene su `DaggerComponent`, pero los Components hijo declaran
     modules = [InternalAuthModule::class],
 )
 internal interface AuthComponent {
-    fun auth(): AuthService
+    fun auth(): AuthApi
 }
 
 @Module
 internal class InternalAuthModule {
     @Provides @AuthScope
-    fun auth(enc: EncryptionService, logger: SdkLogger): AuthService =
-        DefaultAuthService(enc, logger)
+    fun auth(enc: EncryptionApi, logger: SdkLogger): AuthApi =
+        DefaultAuthApi(enc, logger)
     //   Dagger resuelve enc desde EncComponent.encryption() — AUTOMÁTICO
 }
 ```
@@ -319,8 +319,8 @@ internal val encryptionEntry = FeatureEntry(
     },
     services = { comp ->
         mapOf(
-            EncryptionService::class.java to comp.encryption(),  // eager
-            HashService::class.java to comp.hash(),              // eager
+            EncryptionApi::class.java to comp.encryption(),  // eager
+            HashApi::class.java to comp.hash(),              // eager
         )
     },
 )
@@ -397,7 +397,7 @@ registry.registerAll(listOf(syncEntry, encEntry, authEntry, storEntry))
               │  services:     Class → Any               │  ← cached eagerly
               └──────────────────┬──────────────────────┘
                                  │
-                      get<SyncService>()
+                      get<SyncApi>()
                                  │
                       ensureBuilt(SynComponent)
                           │ DFS recursivo
@@ -450,8 +450,8 @@ object AutoSdk {
 
 ```kotlin
 AutoSdk.init(SdkConfig(debug = true))
-val sync = AutoSdk.get<SyncService>()   // auto-inits Core→Enc→Auth→Stor→Sync
-val enc  = AutoSdk.get<EncryptionService>() // ya construido — cache hit
+val sync = AutoSdk.get<SyncApi>()   // auto-inits Core→Enc→Auth→Stor→Sync
+val enc  = AutoSdk.get<EncryptionApi>() // ya construido — cache hit
 AutoSdk.shutdown()
 ```
 

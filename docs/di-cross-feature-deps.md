@@ -21,8 +21,8 @@ Encryption + Auth + Storage ← Sync (necesita todo para sincronizar)
 Analytics (independiente — solo necesita logger)
 ```
 
-En el proyecto real (`sdk/impl-common/`), `DefaultSyncService` recibe
-`AuthService`, `SecureStorageService` y `EncryptionService` por constructor.
+En el proyecto real (`sdk/impl-common/`), `DefaultSyncApi` recibe
+`AuthApi`, `StorageApi` y `EncryptionApi` por constructor.
 
 ---
 
@@ -40,29 +40,29 @@ Todos los servicios están en UN contenedor (o registry). Cualquier servicio pue
 
 object EncryptionRegistration : SdkModuleRegistration {
     override val koinModule = module {
-        single<HashService> { DefaultHashService() }
-        single<EncryptionService> { DefaultEncryptionService(get()) }
+        single<HashApi> { DefaultHashApi() }
+        single<EncryptionApi> { DefaultEncryptionApi(get()) }
     }
 }
 
 object AuthRegistration : SdkModuleRegistration {
     override val koinModule = module {
-        // Cross-feature: Auth obtiene EncryptionService del mismo grafo
-        single<AuthService> { DefaultAuthService(get(), get()) }
+        // Cross-feature: Auth obtiene EncryptionApi del mismo grafo
+        single<AuthApi> { DefaultAuthApi(get(), get()) }
     }
 }
 
 object SyncRegistration : SdkModuleRegistration {
     override val koinModule = module {
         // Cross-feature pesado: necesita Auth + Storage + Encryption
-        single<SyncService> { DefaultSyncService(get(), get(), get(), get()) }
+        single<SyncApi> { DefaultSyncApi(get(), get(), get(), get()) }
     }
 }
 ```
 
 Koin ve el conjunto completo de `single<>` y resuelve la cadena:
-SyncService necesita AuthService → encontrado en AuthRegistration.
-AuthService necesita EncryptionService → encontrado en EncryptionRegistration.
+SyncApi necesita AuthApi → encontrado en AuthRegistration.
+AuthApi necesita EncryptionApi → encontrado en EncryptionRegistration.
 
 ### Dagger D — Component Dependencies (`sdk/impl-dagger-d/`)
 
@@ -73,7 +73,7 @@ AuthService necesita EncryptionService → encontrado en EncryptionRegistration.
     modules = [InternalAuthModule::class],
 )
 internal interface AuthComponent {
-    fun auth(): AuthService
+    fun auth(): AuthApi
 }
 
 // Sync depende de Core + Enc + Auth + Storage
@@ -83,11 +83,11 @@ internal interface AuthComponent {
     modules = [InternalSynModule::class],
 )
 internal interface SynComponent {
-    fun sync(): SyncService
+    fun sync(): SyncApi
 }
 ```
 
-Dagger ve `dependencies=[EncComponent]` y resuelve `EncryptionService` desde
+Dagger ve `dependencies=[EncComponent]` y resuelve `EncryptionApi` desde
 `EncComponent.encryption()` automáticamente. Sin CoreApis, sin wiring manual.
 
 ### Dagger E — Component Registry (`sdk/impl-dagger-e/`)
@@ -106,7 +106,7 @@ internal val syncEntry = FeatureEntry(
             .storage(registry.component(StorComponent::class.java))
             .build()
     },
-    services = { comp -> mapOf(SyncService::class.java to comp.sync()) },
+    services = { comp -> mapOf(SyncApi::class.java to comp.sync()) },
 )
 ```
 
@@ -129,7 +129,7 @@ Cada feature tiene su PROPIO `DaggerComponent`. No se ven entre sí.
 │ AuthComponent│    │StorageCompon.│    │EncryptionCom.│
 │  @Singleton  │    │  @Singleton  │    │  @Singleton  │
 │              │    │              │    │              │
-│ AuthService  │    │SecureStorage │    │EncryptionSvc │
+│ AuthApi  │    │SecureStorage │    │EncryptionSvc │
 │  needs EncSvc│    │  needs EncSvc│    │              │
 │  ← ¿DÓNDE?  │    │  ← ¿DÓNDE?  │    │              │
 └──────┬───────┘    └──────┬───────┘    └──────────────┘
@@ -141,13 +141,13 @@ Cada feature tiene su PROPIO `DaggerComponent`. No se ven entre sí.
           └──────────────┘
 ```
 
-Auth necesita EncryptionService, pero está en otro Component.
+Auth necesita EncryptionApi, pero está en otro Component.
 Solución: extender CoreApis con el servicio necesario:
 
 ```kotlin
 // Interfaz extendida — crece con cada cross-dep
 interface AuthCoreApis : CoreApis {
-    val encryptionService: EncryptionService
+    val encryptionService: EncryptionApi
 }
 
 // El facade SDK conecta manualmente:
@@ -162,9 +162,9 @@ Para Sync (que necesita Auth + Storage + Encryption):
 
 ```kotlin
 interface SyncCoreApis : CoreApis {
-    val authService: AuthService
-    val storageService: SecureStorageService
-    val encryptionService: EncryptionService
+    val authService: AuthApi
+    val storageService: StorageApi
+    val encryptionService: EncryptionApi
     // ← cada campo es una cross-dep manual
 }
 ```
