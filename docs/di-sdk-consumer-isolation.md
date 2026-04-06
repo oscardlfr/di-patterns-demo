@@ -192,7 +192,7 @@ El puente es unidireccional: app ← SDK.
 
 ## Provision Interfaces: Aislamiento a Nivel Gradle
 
-Las variantes multi-módulo (sdk-wiring, wiring-e, wiring-e2) introducen un nivel
+Las variantes multi-módulo (sdk-wiring, wiring-e, wiring-e2, wiring-g) introducen un nivel
 adicional de aislamiento mediante **provision interfaces** y contratos per-feature.
 
 Cada feature-impl depende de contratos específicos (`feature-enc-contracts`,
@@ -206,6 +206,8 @@ El mecanismo es Gradle-level: el módulo `feature-auth-impl` declara dependencia
 (que contiene `@Component` + `@Module` + implementaciones). Solo los módulos de
 wiring (`sdk-wiring`, `wiring-e`, `wiring-e2`) importan los `DaggerXxxComponent`
 builders — son el único punto que conoce las implementaciones concretas de Dagger.
+En `wiring-g`, ni siquiera el wiring importa los builders: cada feature-impl expone
+una factory function (`buildXxxProvisions()`) que oculta el `DaggerXxxComponent` interno.
 
 Este aislamiento garantiza que cambios internos en la implementación de una feature
 (renombrar un `@Module`, añadir un `@Provides`) no rompen otras features — solo

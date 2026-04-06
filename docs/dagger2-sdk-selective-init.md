@@ -590,15 +590,19 @@ pero aún no requieren la escala que demanda un registry.
 
 ### Multi-módulo con Provision Interfaces
 
-Los approaches D, E y E2 tienen variantes multi-módulo reales que separan api/impl
+Los approaches D, E, E2 y G tienen variantes multi-módulo reales que separan api/impl
 por feature usando **provision interfaces** como contratos Gradle:
 
 - **sdk-wiring** — variante multi-módulo de D. Un fichero de wiring con `when` blocks
   que importa todos los `DaggerXxxComponent` builders.
 - **wiring-e** — variante multi-módulo de E. `FeatureEntry` + facade con `Feature` enum.
 - **wiring-e2** — variante multi-módulo de E2. `AutoFeatureEntry` + facade mínimo (1 línea por feature).
+- **wiring-g** — variante multi-módulo con factory functions. Cada feature-impl expone
+  una función pública `buildXxxProvisions(deps): XxxProvisions`. Los `DaggerXxxComponent`
+  quedan `internal` — el wiring module nunca los importa. Mismo patrón lazy `ensure*()`
+  que D, pero llama factory functions en vez de builders Dagger.
 
-Las tres variantes comparten los **mismos** módulos de feature-impl (`feature-enc-impl`,
+Las cuatro variantes comparten los **mismos** módulos de feature-impl (`feature-enc-impl`,
 `feature-auth-impl`, etc.) y los mismos contratos per-feature (`feature-enc-contracts`,
 `feature-auth-contracts`, etc.). La diferencia es exclusivamente el código de wiring.
 
@@ -612,9 +616,15 @@ Component es el anti-patrón que motiva las provision interfaces — en F, cambi
 firma de `EncComponent` rompe todos los módulos que lo importan. Las provision interfaces
 (`EncProvisions`) aíslan ese cambio.
 
-Los 15 benchmarks multi-módulo en `MultiModuleBenchmark.kt` confirman que las tres
-variantes de wiring tienen rendimiento idéntico al monolítico (±2%) — la separación
-en módulos Gradle es invisible en runtime.
+**G vs D:** Ambos usan el mismo patrón lazy `ensure*()`. La diferencia es que en G,
+los `DaggerXxxComponent` quedan `internal` dentro de cada feature-impl y el wiring
+llama factory functions (`buildEncProvisions(core)`) en vez de `DaggerEncComponent.builder()`.
+Esto mejora el encapsulamiento, pero el wiring sigue conociendo el orden de dependencias
+(misma limitación de escalabilidad que D).
+
+Los 20 benchmarks multi-módulo en `MultiModuleBenchmark.kt` confirman que las cuatro
+variantes de wiring tienen rendimiento comparable — la separación en módulos Gradle
+es invisible en runtime.
 
 Para el análisis completo de la arquitectura multi-módulo, ver
 [di-multimodule-api-impl-analysis.md](di-multimodule-api-impl-analysis.md).

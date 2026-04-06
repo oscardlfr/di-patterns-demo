@@ -29,6 +29,7 @@ sdk/
   sdk-wiring/             -> Pattern D: direct lazy ensure*()
   wiring-e/               -> Pattern E: ProvisionRegistry + topo-sort
   wiring-e2/              -> Pattern E2: AutoProvisionRegistry + DFS lazy
+  wiring-g/               -> Pattern G: Factory Functions (Components internal)
   impl-common/            -> Implementaciones compartidas (solo patrones monoliticos)
   impl-koin/              -> KoinSdk (koinApplication aislado, loadModules, auto-discovery)
   impl-dagger-b/          -> DaggerBSdk (Per-Feature Components + CoreApis)
@@ -49,7 +50,7 @@ sample-dagger-f/    -> Consumidor de ModularSdk (F)
 sample-hybrid/      -> KoinSdk + puente Dagger 2
 sample-multimodule/ -> Consumidor de MultiModuleSdk (provision interfaces)
 
-benchmark/          -> 65 Jetpack Microbenchmarks (50 monoliticos + 15 multi-modulo)
+benchmark/          -> 70 Jetpack Microbenchmarks (50 monoliticos + 20 multi-modulo)
 
 docs/               -> 8 documentos tecnicos (espanol)
 ```
@@ -101,12 +102,22 @@ MultiModuleSdk.init(SdkConfig(debug = true))
 val auth: AuthApi = MultiModuleSdk.get()    // builds: Core -> Enc -> Auth
 val sync: SyncApi = MultiModuleSdk.get()    // builds: Stor + Syn (rest cached)
 
-// La app SOLO depende de :sdk:sdk-wiring (o wiring-e/wiring-e2). Zero imports de feature-impl.
+// La app SOLO depende de :sdk:sdk-wiring (o wiring-e/wiring-e2/wiring-g). Zero imports de feature-impl.
 MultiModuleSdk.shutdown()
 ```
 
 Features dependen de **provision interfaces** (contratos), no de `@Component` (impl).
 Cada `feature-xxx-impl` compila independientemente -- solo necesita su `feature-xxx-contracts` + `feature-xxx-api`.
+
+### Multi-Module Pattern G (Factory Functions)
+
+```kotlin
+// Misma API que D, pero DaggerXxxComponent es internal en cada feature-impl.
+// El wiring llama factory functions en vez de importar DaggerXxx builders.
+MultiModuleSdkG.init(SdkConfig(debug = true))
+val sync: SyncApi = MultiModuleSdkG.get()  // lazy ensure*() via factory functions
+MultiModuleSdkG.shutdown()
+```
 
 ### Multi-Module Pattern E2 (Registry + auto-init)
 

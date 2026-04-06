@@ -102,6 +102,7 @@ sdk/
   sdk-wiring/             → Pattern D: direct lazy ensure*()
   wiring-e/               → Pattern E: ProvisionRegistry + topo-sort
   wiring-e2/              → Pattern E2: AutoProvisionRegistry + DFS lazy
+  wiring-g/               → Pattern G: Factory Functions (Components internal)
   impl-common/            → Shared implementations (solo patrones monolíticos)
   impl-koin/              → KoinSdk
   impl-dagger-b/          → DaggerBSdk (Per-Feature + CoreApis)
@@ -123,7 +124,7 @@ sample-hybrid/      → Consumidor de KoinSdk + puente Dagger 2
 
 sample-multimodule/ → Consumidor de MultiModuleSdk (provision interfaces)
 
-benchmark/          → 65 Jetpack Microbenchmarks (50 monolíticos + 15 multi-módulo)
+benchmark/          → 70 Jetpack Microbenchmarks (50 monolíticos + 20 multi-módulo)
 ```
 
 Cada sample app tiene **2 ficheros Kotlin**: `Application.kt` + `MainActivity.kt`.
@@ -274,7 +275,7 @@ Todo el wiring interno está encapsulado en el módulo SDK correspondiente.
 ## Resultados de benchmarks
 
 Dispositivo: Samsung Galaxy S22 Ultra (SM-S908B) — Snapdragon 8 Gen 1, 8 cores, 2.8 GHz, Android 16.
-Framework: Jetpack Benchmark 1.4.0 con warmup automático. 65 tests en total (50 monolíticos + 15 multi-módulo).
+Framework: Jetpack Benchmark 1.4.0 con warmup automático. 70 tests en total (50 monolíticos + 20 multi-módulo).
 
 ### Inicialización en frío (6 features completas)
 
@@ -421,12 +422,13 @@ compile-time safety.
 
 ### Benchmarks multi-módulo (wiring patterns)
 
-15 tests adicionales comparan las tres estrategias de wiring multi-módulo — D, E y E2 —
+20 tests adicionales comparan las cuatro estrategias de wiring multi-módulo — D, E, E2 y G —
 utilizando los mismos Dagger Components (`feature-*-impl/`) con diferentes orquestadores:
 
 - **sdk-wiring/** (Pattern D): `ensure*()` directo con lazy delegates
 - **wiring-e/** (Pattern E): `ProvisionRegistry` con topo-sort explícito
 - **wiring-e2/** (Pattern E2): `AutoProvisionRegistry` con DFS lazy on-demand
+- **wiring-g/** (Pattern G): Factory functions (`buildXxxProvisions()`) con lazy delegates
 
 Los tests cubren:
 
@@ -438,7 +440,23 @@ Los tests cubren:
 | `lazyInit` (cascade) | Inicialización en cascada (Sync → Auth + Storage + Encryption) |
 | `crossFeatureOp` | Operación real que cruza múltiples features |
 
-Los tres wiring patterns comparten los mismos `feature-*-impl` Components. La diferencia
+Resultados multi-módulo:
+
+| Test | D | E | E2 | G |
+|------|---|---|----|----|
+| initCold | 20,4 µs | 73,2 µs | 39,2 µs | 18,2 µs |
+| resolveFirst | 9,2 ns | 15,7 ns | 10,5 ns | 3,2 ns |
+| lazyInit noDeps | 24,4 µs | 36,8 µs | 25,7 µs | 23,7 µs |
+| lazyInit cascade | 28,2 µs | 61,8 µs | 33,8 µs | 73,1 µs |
+| crossFeatureOp | 356,9 µs | 375,9 µs | 316,8 µs | 379,9 µs |
+
+**Observación:** G es el más rápido en initCold y resolveFirst (acceso directo a campos,
+sin registry). En lazyInit cascade, G es el más lento porque las factory functions
+reconstruyen el grafo en cada iteración del benchmark (sin cache compartido entre
+iteraciones). En crossFeatureOp, las diferencias son atribuibles a variabilidad térmica
+— el trabajo real es idéntico en los cuatro patterns.
+
+Los cuatro wiring patterns comparten los mismos `feature-*-impl` Components. La diferencia
 está exclusivamente en cómo el orquestador gestiona el orden de construcción y la resolución
 de dependencias entre features. Esto permite aislar el coste del wiring del coste del DI.
 
@@ -530,7 +548,8 @@ Resumen rápido:
 | Tamaño de binario crítico | Koin o Dagger B/C |
 | Equipo pequeño, mínima ceremonia | Koin |
 | D inviable por módulos Gradle separados | Dagger E, E2 o F |
-| Multi-módulo con per-feature contracts | Dagger D/E/E2 vía sdk-wiring / wiring-e / wiring-e2 |
+| Multi-módulo con Components internos (factory functions) | Dagger G (sin registry, Components `internal`) |
+| Multi-módulo con per-feature contracts | Dagger D/E/E2/G vía sdk-wiring / wiring-e / wiring-e2 / wiring-g |
 
 ---
 
@@ -557,4 +576,4 @@ Resumen rápido:
 - [di-sdk-selective-init-comparison.md](di-sdk-selective-init-comparison.md) — Tablas de comparación por requisito
 - [di-cross-feature-deps.md](di-cross-feature-deps.md) — Dependencias cruzadas con ejemplos concretos
 - [di-hybrid-koin-sdk-dagger-app.md](di-hybrid-koin-sdk-dagger-app.md) — Arquitectura hybrid completa
-- [di-multimodule-api-impl-analysis.md](di-multimodule-api-impl-analysis.md) — Arquitectura multi-módulo con per-feature contracts (provision interfaces, wiring patterns D/E/E2)
+- [di-multimodule-api-impl-analysis.md](di-multimodule-api-impl-analysis.md) — Arquitectura multi-módulo con per-feature contracts (provision interfaces, wiring patterns D/E/E2/G)

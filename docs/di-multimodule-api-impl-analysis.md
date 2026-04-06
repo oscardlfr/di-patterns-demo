@@ -9,7 +9,7 @@ donde las features se organizan en módulos `api`, `impl` e `integration`.
 - `feature-*-api/` — interfaces públicas per-feature (módulos top-level)
 - `sdk/di-contracts/` — Provisions + Scopes + RegistryInfra
 - `feature-*-impl/` — Dagger Components con Default*Service interno (módulos top-level, sin dependencia de impl-common)
-- 3 variantes de wiring: `sdk/sdk-wiring/` (D), `sdk/wiring-e/` (E), `sdk/wiring-e2/` (E2)
+- 4 variantes de wiring: `sdk/sdk-wiring/` (D), `sdk/wiring-e/` (E), `sdk/wiring-e2/` (E2), `sdk/wiring-g/` (G)
 - `sample-multimodule/` — app consumidora que solo depende de `sdk-wiring`
 
 Para implementaciones Dagger, ver [dagger2-sdk-selective-init.md](dagger2-sdk-selective-init.md).
@@ -44,6 +44,7 @@ sdk/
   sdk-wiring/                → Pattern D: direct lazy ensure*()
   wiring-e/                  → Pattern E: ProvisionRegistry + topo-sort
   wiring-e2/                 → Pattern E2: AutoProvisionRegistry + DFS lazy
+  wiring-g/                  → Pattern G: Factory Functions (Components internal)
 
 sample-multimodule/          → App consumidora que solo depende de sdk-wiring
 ```
@@ -522,6 +523,78 @@ El Component es `internal`. El entry es público pero no expone tipos Dagger —
 
 ---
 
+### Dagger G — Factory Functions
+
+**Compatibilidad: ALTA**
+
+Misma base de provision interfaces per-feature que D/E/E2. Cada feature-impl expone una
+**factory function** pública (`buildXxxProvisions(deps): XxxProvisions`) que encapsula la
+construcción del `DaggerXxxComponent`. El Component queda `internal` — el wiring module
+nunca lo importa. El wiring usa el mismo patrón lazy `ensure*()` que D, pero llama
+factory functions en vez de builders Dagger.
+
+```
+feature-*-contracts/
+  // Provision interfaces + scopes per-feature (= D/E/E2)
+sdk/di-contracts/
+  // Umbrella: re-exports all contracts
+
+feature-enc-impl/
+  internal interface EncComponent : EncProvisions { ... }
+
+  // Factory function pública — Component oculto
+  fun buildEncProvisions(core: CoreProvisions): EncProvisions {
+    return DaggerEncComponent.builder().core(core).build()
+  }
+
+feature-auth-impl/
+  internal interface AuthComponent : AuthProvisions { ... }
+
+  fun buildAuthProvisions(core: CoreProvisions, enc: EncProvisions): AuthProvisions {
+    return DaggerAuthComponent.builder().core(core).enc(enc).build()
+  }
+
+sdk/wiring-g/
+  // Lazy ensure*() — llama factory functions, no DaggerXxx builders
+  private var _enc: EncProvisions? = null
+
+  private fun ensureEnc(core: CoreProvisions): EncProvisions {
+    return _enc ?: buildEncProvisions(core).also { _enc = it }
+  }
+
+  private fun ensureAuth(core: CoreProvisions): AuthProvisions {
+    val enc = ensureEnc(core)
+    return _auth ?: buildAuthProvisions(core, enc).also { _auth = it }
+  }
+```
+
+| Requisito | Cumple | Nota |
+|-----------|--------|------|
+| R1 Compilación aislada | ✅ | Cada `:impl` compila solo — Component `internal` |
+| R2 App no importa impl | ✅ | App ve solo facade |
+| R3 Features solo ven apis | ✅ | **Provision interfaces, no Components** |
+| R4 Cross-feature | ✅ | **Automático — factory functions reciben provision interfaces** |
+| R5 Lean binary | ✅ | Solo los `:impl` incluidos |
+| R6 Escalabilidad | ❌ | **`ensure*()` en facade crecen linealmente (igual que D)** |
+| R7 Compile-time safety | ✅ | Dagger valida cada Component + dependencias en compilación |
+| R8 Módulo wiring | ✅ | `wiring-g` llama factory functions en orden |
+
+**Diferenciador vs D:** En D, `sdk-wiring` importa `DaggerXxxComponent` directamente
+(el Component es público o visible). En G, el Component es `internal` y cada feature-impl
+solo expone una factory function. El wiring module tiene menos acoplamiento a tipos Dagger.
+
+**Diferenciador vs E2:** E2 usa un registry con auto-discovery (DFS on-demand) que
+elimina la necesidad de ordenar dependencias manualmente. G no tiene registry — el wiring
+module ordena manualmente, igual que D. A 50+ features, G tiene la misma limitación
+de escalabilidad que D.
+
+**Pro:** Components 100% `internal`. Máximo encapsulamiento de Dagger. Sin registry overhead. Zero clases de infraestructura propias. Resolución directa (campo, no HashMap).
+**Contra:** El facade crece linealmente con cada feature (igual que D). El wiring module conoce el orden de dependencias. Para 50+ features, el facade es verbose. No hay auto-discovery.
+
+**Indicado para:** SDKs medianos (10–30 features) donde el encapsulamiento de Components es prioritario y el equipo prefiere simplicidad (sin registry) a cambio de wiring manual.
+
+---
+
 ### Dagger F — Multi-Module Component Dependencies
 
 **Compatibilidad: ALTA (es D con organización Gradle correcta)**
@@ -677,6 +750,7 @@ y un `@Component` bridge conecta servicios del SDK al grafo Dagger de la app.
 | **D** | 🟢 Alta | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
 | **E** | 🟢 Alta | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ |
 | **E2** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **G** | 🟢 Alta | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
 | **F** | 🟢 Alta | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
 | **Koin** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
 | **Hybrid** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ |
@@ -695,6 +769,7 @@ y un `@Component` bridge conecta servicios del SDK al grafo Dagger de la app.
 | **D** | `when` blocks en facade | `sdk-wiring` | Facade de 500+ líneas |
 | **E** | Feature enum + `when` blocks | `sdk-wiring` + api | Enum de 50+ entries |
 | **E2** | `allEntries()` list | `sdk-wiring` | 1 línea por feature — manejable |
+| **G** | `ensure*()` en facade | `wiring-g` | = D (sin imports de DaggerXxx) |
 | **F** | `when` blocks en facade | `sdk-wiring` | = D |
 | **Koin** | `sdkModules()` list | `sdk-wiring` | 1 línea por feature — manejable |
 | **Hybrid** | = Koin + bridge @Provides | `sdk-wiring` + app bridge | Bridge crece 1 línea/servicio |
@@ -711,7 +786,7 @@ y un `@Component` bridge conecta servicios del SDK al grafo Dagger de la app.
     ┌───────────────────────────────────┐
     │  FUNCIONA HASTA ~30 FEATURES      │
     │                                    │
-    │  D    E    F                       │
+    │  D    E    F    G                  │
     │  (when blocks, enum maintenance)   │
     └───────────────────────────────────┘
 
@@ -732,7 +807,7 @@ y un `@Component` bridge conecta servicios del SDK al grafo Dagger de la app.
 
 ## Visibilidad de Components: El Detalle Gradle
 
-**Implementado en:** `feature-*-impl/`, `sdk/sdk-wiring/` (D), `sdk/wiring-e/` (E), `sdk/wiring-e2/` (E2), `sample-multimodule/`
+**Implementado en:** `feature-*-impl/`, `sdk/sdk-wiring/` (D), `sdk/wiring-e/` (E), `sdk/wiring-e2/` (E2), `sdk/wiring-g/` (G), `sample-multimodule/`
 
 En la arquitectura api/impl, `sdk-wiring` necesita construir `DaggerAuthComponent`.
 ¿El Component de `feature-auth-impl` debe ser público?
@@ -775,7 +850,7 @@ private fun ensureAuth(core: CoreProvisions): AuthProvisions {
 }
 ```
 
-### Alternativa: Factory function (Component interno)
+### Alternativa: Factory function (Component interno) — Pattern G
 
 ```kotlin
 // feature-auth-impl — Component completamente interno
@@ -789,6 +864,11 @@ fun buildAuthProvisions(core: CoreProvisions, enc: EncProvisions): AuthProvision
 
 **Pro:** Component 100% oculto. Solo la factory es pública.
 **Contra:** Boilerplate — una factory por feature.
+
+Este es el patrón que implementa Pattern G (`sdk/wiring-g/`). El wiring llama
+`buildAuthProvisions(core, enc)` en vez de `DaggerAuthComponent.builder()`.
+Ver sección [Dagger G — Factory Functions](#dagger-g--factory-functions) para
+el análisis completo.
 
 ### Alternativa: Entry con build lambda (E2 natural)
 
@@ -821,12 +901,13 @@ val authEntry = AutoFeatureEntry(
 | Escenario | Approach recomendado | Alternativa |
 |-----------|---------------------|-------------|
 | SDK KMP (iOS + Android + Desktop) | **Koin** | Hybrid (si app usa Dagger) |
-| SDK Android-only, < 15 features, independientes | **D** o **F** | B (si zero cross-deps) |
-| SDK Android-only, 15–30 features, con cross-deps | **F** o **E** | E2 (si quieres futuro-proof) |
+| SDK Android-only, < 15 features, independientes | **D**, **F** o **G** | B (si zero cross-deps) |
+| SDK Android-only, 15–30 features, con cross-deps | **F**, **G** o **E** | E2 (si quieres futuro-proof) |
 | SDK Android-only, 30+ features, cross-deps pesadas | **E2** | Koin (si compile-time no es crítico) |
 | SDK Android-only, 50+ features | **E2** o **Koin** | Híbrido (ambos mundos) |
 | App consumidora usa Dagger, SDK debe ser KMP | **Hybrid** | — |
-| Máxima compile-time safety, < 20 features | **D** / **F** | — |
+| Máxima compile-time safety, < 20 features | **D** / **F** / **G** | — |
+| Encapsulamiento máximo de Components (internal) | **G** o **E2** | — |
 | Máxima velocidad de desarrollo | **Koin** | — |
 | Features 100% independientes (zero cross-deps) | **B** | C (si auto-discovery importa) |
 
@@ -906,10 +987,11 @@ Para la arquitectura **api / impl / integration** con visibilidad estricta:
    - **Koin:** si el equipo acepta resolución runtime (mitigable con `checkModules()` en tests).
    - **E2:** si compile-time safety es requisito duro (Dagger valida cada Component).
 
-2. **D y F son sólidos hasta ~30 features.** F es la organización Gradle correcta de D.
-   El `when` block en el facade es el cuello de botella a escala.
+2. **D, F y G son sólidos hasta ~30 features.** F es la organización Gradle correcta de D.
+   G es D con factory functions (Components `internal`). En los tres, el wiring manual
+   en el facade es el cuello de botella a escala.
 
-3. **E mejora sobre D/F** eliminando `when` blocks, pero el Feature enum expuesto
+3. **E mejora sobre D/F/G** eliminando `when` blocks, pero el Feature enum expuesto
    al consumidor y su crecimiento lineal lo limitan.
 
 4. **B y C son para features independientes.** Si las features tienen cross-deps
@@ -920,10 +1002,12 @@ Para la arquitectura **api / impl / integration** con visibilidad estricta:
 
 6. **Hybrid** es la respuesta cuando el SDK es KMP pero la app consumidora es Dagger.
 
-7. **Provision interfaces son el enabler** para D, E, E2 y F en multi-módulo.
+7. **Provision interfaces son el enabler** para D, E, E2, G y F en multi-módulo.
    Sin ellas, los features dependerían de `@Component` classes (implementaciones)
    de otros features — violando la regla de "features solo conocen apis".
    Dagger acepta cualquier interfaz en `dependencies=[...]`, no requiere `@Component`.
+   G lleva esto un paso más allá: los Components son `internal` y solo se exponen
+   factory functions que retornan provision interfaces.
    Ver implementación real en `feature-*-contracts/` (per-feature) + `sdk/di-contracts/` (umbrella) + `feature-*-impl/`.
 
 **No hay approach universalmente mejor.** La elección depende de: tamaño del SDK,

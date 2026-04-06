@@ -6,8 +6,8 @@ Análisis orientado a dos audiencias:
 
 Basado en métricas reales del proyecto `di-patterns-demo` con 5 features
 (Encryption, Auth, Storage, Analytics, Sync) y dependencias cruzadas entre ellas.
-Incluye 8 approaches monolíticos (Dagger A, B, C, D, E, E2, F y Koin) más 3 variantes
-multi-módulo con provision interfaces (sdk-wiring, wiring-e, wiring-e2).
+Incluye 8 approaches monolíticos (Dagger A, B, C, D, E, E2, F y Koin) más 4 variantes
+multi-módulo con provision interfaces (sdk-wiring, wiring-e, wiring-e2, wiring-g).
 
 ---
 
@@ -372,7 +372,7 @@ La API pública es idéntica independientemente del motor DI interno.
 
 ## Multi-módulo: Complejidad del Wiring
 
-Las variantes multi-módulo (sdk-wiring, wiring-e, wiring-e2) usan los **mismos**
+Las variantes multi-módulo (sdk-wiring, wiring-e, wiring-e2, wiring-g) usan los **mismos**
 módulos feature-impl y los mismos contratos per-feature. La única diferencia es
 el código de wiring que conecta los `DaggerXxxComponent` builders con el facade público.
 
@@ -381,11 +381,17 @@ el código de wiring que conecta los `DaggerXxxComponent` builders con el facade
 | D (sdk-wiring) | 1 | ~145 | `when` blocks crecen linealmente |
 | E (wiring-e) | 2 (Entries + Facade) | ~170 | `Feature` enum crece |
 | E2 (wiring-e2) | 2 (Entries + Facade) | ~100 | 1 línea por feature |
+| G (wiring-g) | 1 (Facade) | ~95 | `when` blocks crecen (igual que D) |
+
+G tiene menos líneas que D porque llama factory functions (`buildXxxProvisions(deps)`)
+en vez de importar `DaggerXxxComponent` builders directamente. Los Components quedan
+`internal` en cada feature-impl. El trade-off es el mismo que D: el wiring module
+sigue conociendo el orden de dependencias y crece linealmente con cada feature.
 
 El coste de wiring es puramente código de integración — no afecta a los feature-impl
 ni a los contratos. Añadir una feature nueva en E2 multi-módulo requiere crear el
 feature-impl, su contrato, y añadir **una línea** al fichero de entries.
 
-65 benchmarks totales (50 monolíticos + 15 multi-módulo) confirman que la separación
+70 benchmarks totales (50 monolíticos + 20 multi-módulo) confirman que la separación
 en módulos Gradle no introduce overhead en runtime. Para el análisis detallado, ver
 [di-multimodule-api-impl-analysis.md](di-multimodule-api-impl-analysis.md).

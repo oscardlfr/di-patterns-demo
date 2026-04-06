@@ -29,17 +29,18 @@ Para el approach hybrid, ver [di-hybrid-koin-sdk-dagger-app.md](di-hybrid-koin-s
 
 ### Variantes multi-módulo
 
-D, E y E2 tienen variantes multi-módulo (`sdk-wiring`, `wiring-e`, `wiring-e2`) que
-usan provision interfaces y contratos per-feature. Las tres comparten los mismos
+D, E, E2 y G tienen variantes multi-módulo (`sdk-wiring`, `wiring-e`, `wiring-e2`, `wiring-g`)
+que usan provision interfaces y contratos per-feature. Las cuatro comparten los mismos
 feature-impl y contratos — solo difiere el código de wiring. El rendimiento es
-idéntico al monolítico (15 benchmarks en `MultiModuleBenchmark.kt`).
+comparable entre variantes (20 benchmarks en `MultiModuleBenchmark.kt`).
 
-| Criterio | Multi-D (sdk-wiring) | Multi-E (wiring-e) | Multi-E2 (wiring-e2) |
-|----------|---------------------|--------------------|-----------------------|
-| **Wiring** | 1 fichero, ~145 líneas | 2 ficheros, ~170 líneas | 2 ficheros, ~100 líneas |
-| **Binario lean** | ✅ (per-feature Gradle) | ✅ | ✅ |
-| **Provision interfaces** | ✅ | ✅ | ✅ |
-| **Escala 50+** | ❌ when blocks | ❌ enum crece | ✅ 1 línea por feature |
+| Criterio | Multi-D (sdk-wiring) | Multi-E (wiring-e) | Multi-E2 (wiring-e2) | Multi-G (wiring-g) |
+|----------|---------------------|--------------------|-----------------------|---------------------|
+| **Wiring** | 1 fichero, ~145 líneas | 2 ficheros, ~170 líneas | 2 ficheros, ~100 líneas | 1 fichero, ~95 líneas |
+| **Binario lean** | ✅ (per-feature Gradle) | ✅ | ✅ | ✅ |
+| **Provision interfaces** | ✅ | ✅ | ✅ | ✅ |
+| **Components internal** | ❌ (públicos) | ❌ (internos vía lambda) | ❌ (internos vía lambda) | ✅ (factory functions) |
+| **Escala 50+** | ❌ when blocks | ❌ enum crece | ✅ 1 línea por feature | ❌ ensure*() crece |
 
 Para el análisis completo, ver [di-multimodule-api-impl-analysis.md](di-multimodule-api-impl-analysis.md).
 
@@ -64,4 +65,5 @@ val service = KoinSdk.get<SecurityService>()       // Koin
 val service = MultiModuleSdk.get<SecurityService>()     // Multi-módulo D (sdk-wiring)
 val service = MultiModuleSdkE.get<SecurityService>()    // Multi-módulo E (wiring-e)
 val service = MultiModuleSdkE2.get<SecurityService>()   // Multi-módulo E2 (wiring-e2)
+val service = MultiModuleSdkG.get<SecurityService>()    // Multi-módulo G (wiring-g)
 ```

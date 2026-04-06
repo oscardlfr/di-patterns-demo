@@ -183,19 +183,21 @@ todo el SDK — es un God Object que anula el propósito del aislamiento per-fea
 | **Dagger E** (Component Registry) | ✅ Automático | `dependencies=[...]` + registry topo-sort | Registry overhead (~20 ns/lookup) |
 | **Dagger E2** (Auto-Init Registry) | ✅ Automático | `dependencies=[...]` + DFS on-demand | ~25 ns/lookup, API más simple |
 | **Dagger F** (Multi-Module Deps) | ✅ Automático | = D con CoreComponent en módulo separado | when blocks no escalan |
+| **Dagger G** (Factory Functions) | ✅ Automático | Factory functions reciben provision interfaces | ensure*() no escalan (= D) |
 | **Koin** (1 koinApplication) | ✅ Automático | `get()` desde el mismo grafo | Resolución runtime |
 | **Dagger B** (per-feature) | ⚠️ Manual | CoreApis extendido | God Object a escala |
 | **Dagger C** (ServiceLoader) | ⚠️ Manual | ServiceResolver runtime | God Object + JVM only |
 
 **Conclusión práctica:** Si las features dependen unas de otras, un grafo único
-(Dagger A, D, E, E2, F o Koin) resuelve todo automáticamente. Per-feature (B, C)
+(Dagger A, D, E, E2, F, G o Koin) resuelve todo automáticamente. Per-feature (B, C)
 funciona bien cuando las features son verdaderamente independientes.
 E2 es la evolución de E para escalar a 50+ módulos: auto-init on `get<T>()`, sin Feature enum.
 F = D en runtime con CoreComponent en módulo separado (multi-módulo viable, pero no escala).
+G = D con factory functions (Components `internal`, mejor encapsulamiento, misma limitación de escalabilidad).
 
 ### Multi-módulo: Provision Interfaces
 
-En las variantes multi-módulo (sdk-wiring, wiring-e, wiring-e2), las dependencias
+En las variantes multi-módulo (sdk-wiring, wiring-e, wiring-e2, wiring-g), las dependencias
 cruzadas se resuelven mediante **provision interfaces** — contratos Kotlin planos
 que exponen los servicios de una feature sin acoplar al `@Component` concreto.
 
@@ -217,6 +219,10 @@ que importa `DaggerXxxComponent` y satisface las provision interfaces:
 // En sdk-wiring (o wiring-e, wiring-e2) — el único punto que conoce Dagger impls
 val encComponent = DaggerEncComponent.builder().core(coreProvisions).build()
 // encComponent implementa EncProvisions → visible para feature-auth-impl
+
+// En wiring-g — factory functions, Components internos
+val enc = buildEncProvisions(coreProvisions)  // DaggerEncComponent queda internal
+val auth = buildAuthProvisions(coreProvisions, enc)  // recibe EncProvisions
 ```
 
 El umbrella `di-contracts` re-exporta todos los contratos per-feature más
