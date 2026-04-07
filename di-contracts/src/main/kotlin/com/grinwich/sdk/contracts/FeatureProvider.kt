@@ -51,9 +51,9 @@ class Resolver {
     lateinit var config: SdkConfig; private set
     lateinit var logger: SdkLogger; private set
 
-    fun init(config: SdkConfig, logger: SdkLogger) {
+    fun init(config: SdkConfig, logger: SdkLogger? = null) {
         this.config = config
-        this.logger = logger
+        if (logger != null) this.logger = logger
     }
 
     fun register(provider: FeatureProvider<*>) {

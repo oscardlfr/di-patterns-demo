@@ -12,26 +12,32 @@ import com.grinwich.sdk.contracts.AutoProvisionRegistry
  * - NO getOrInitModule()
  * - get<T>() auto-discovers and builds the component chain on demand
  *
+ * Logger persists across init/shutdown cycles — set once at first init
+ * or via setLogger(), never lost on reinit.
+ *
  * Consumer API: init(config) -> get<T>() -> shutdown()
  * Simplest possible consumer surface — identical to monolithic AutoSdk.
  */
 object MultiModuleSdkE2 {
 
     private var _initialized = false
+    private var _logger: SdkLogger = AndroidSdkLogger()
     private val registry = AutoProvisionRegistry()
 
     val isInitialized: Boolean get() = _initialized
+
+    /** Override the default logger. Persists across init/shutdown cycles. */
+    fun setLogger(logger: SdkLogger) {
+        _logger = logger
+    }
 
     /**
      * Initialize the SDK. Only catalogs entries (cheap HashMap puts).
      * Actual component building happens lazily on first get<T>().
      */
-    fun init(
-        config: SdkConfig,
-        logger: SdkLogger = AndroidSdkLogger(),
-    ) {
+    fun init(config: SdkConfig) {
         check(!_initialized) { "MultiModuleSdkE2 already initialized." }
-        registry.installAll(allAutoEntries(config, logger))
+        registry.installAll(allAutoEntries(config, _logger))
         _initialized = true
     }
 

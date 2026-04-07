@@ -33,6 +33,9 @@ import com.grinwich.sdk.feature.syn.DaggerSynComponent
  * Key: feature impls depend on PROVISION INTERFACES (contracts),
  * not on other features' @Component classes (implementations).
  * Only this wiring module imports DaggerXxxComponent.
+ *
+ * Logger persists across init/shutdown cycles — set once at first init
+ * or via setLogger(), never lost on reinit.
  */
 object MultiModuleSdk {
 
@@ -50,12 +53,16 @@ object MultiModuleSdk {
 
     val isInitialized: Boolean get() = _initialized
 
+    /** Override the default logger. Persists across init/shutdown cycles. */
+    fun setLogger(logger: SdkLogger) {
+        _logger = logger
+    }
+
     /**
      * Initialize core. Features built on demand via get<T>().
      */
-    fun init(config: SdkConfig, logger: SdkLogger = AndroidSdkLogger()) {
+    fun init(config: SdkConfig) {
         check(!_initialized) { "MultiModuleSdk already initialized. Call shutdown() first." }
-        _logger = logger
         _core = DaggerCoreComponent.builder()
             .config(config)
             .build()

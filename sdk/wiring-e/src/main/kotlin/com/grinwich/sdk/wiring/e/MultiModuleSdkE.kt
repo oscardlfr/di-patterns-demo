@@ -13,6 +13,9 @@ import com.grinwich.sdk.contracts.*
  * - Feature impls in separate Gradle modules, only knowing provision interfaces
  * - This wiring module is the ONLY place importing DaggerXxxComponent
  *
+ * Logger persists across init/shutdown cycles — set once at first init
+ * or via setLogger(), never lost on reinit.
+ *
  * Consumer API: init(config, features) -> getOrInitModule() -> get<T>() -> shutdown()
  */
 object MultiModuleSdkE {
@@ -47,6 +50,11 @@ object MultiModuleSdkE {
 
     val isInitialized: Boolean get() = _initialized
 
+    /** Override the default logger. Persists across init/shutdown cycles. */
+    fun setLogger(logger: SdkLogger) {
+        _logger = logger
+    }
+
     /**
      * Initialize with selected features. Core is always built.
      * Dependencies are resolved automatically via topological sort.
@@ -54,13 +62,11 @@ object MultiModuleSdkE {
     fun init(
         config: SdkConfig,
         features: Set<Feature> = emptySet(),
-        logger: SdkLogger = AndroidSdkLogger(),
     ) {
         check(!_initialized) { "MultiModuleSdkE already initialized." }
-        _logger = logger
 
         // Always register core
-        registry.register(coreEntry(config, logger))
+        registry.register(coreEntry(config, _logger))
 
         // Expand transitive deps + topo-sort
         val allFeatures = features.flatMap { setOf(it) + it.allDependencies() }.toSet()

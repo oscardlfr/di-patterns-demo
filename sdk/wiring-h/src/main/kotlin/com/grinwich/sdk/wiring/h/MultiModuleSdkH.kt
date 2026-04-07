@@ -14,26 +14,26 @@ import java.util.ServiceLoader
  * ServiceLoader discovers them at init — zero explicit registration.
  * Dependencies are implicit — resolver.provision() triggers DFS.
  *
- * Adding feature 51:
- * 1. Create feature-xxx-impl module
- * 2. Write @Component + @Module + DefaultXxxService + factory
- * 3. Write XxxProvider : FeatureProvider (~8 lines)
- * 4. Register in META-INF/services (1 line)
- * 5. Add runtimeOnly dep in this module's build.gradle.kts
- * Zero other files touched.
+ * Logger persists across init/shutdown cycles — set once at first init
+ * or via setLogger(), never lost on reinit.
  */
 object MultiModuleSdkH {
 
     private val resolver = Resolver()
+    private var _logger: SdkLogger = AndroidSdkLogger()
     private var _initialized = false
 
     val isInitialized: Boolean get() = _initialized
 
-    fun init(config: SdkConfig, logger: SdkLogger = AndroidSdkLogger()) {
-        check(!_initialized) { "MultiModuleSdkH already initialized. Call shutdown() first." }
-        resolver.init(config, logger)
+    /** Override the default logger. Persists across init/shutdown cycles. */
+    fun setLogger(logger: SdkLogger) {
+        _logger = logger
+    }
 
-        // ServiceLoader discovers all FeatureProviders on classpath
+    fun init(config: SdkConfig) {
+        check(!_initialized) { "MultiModuleSdkH already initialized. Call shutdown() first." }
+        resolver.init(config, _logger)
+
         ServiceLoader.load(FeatureProvider::class.java).forEach { provider ->
             resolver.register(provider)
         }
@@ -50,7 +50,7 @@ object MultiModuleSdkH {
 
     fun shutdown() {
         if (!_initialized) return
-        resolver.clear()
+        resolver.clear()    // clears provisions + services, NOT logger
         _initialized = false
     }
 }

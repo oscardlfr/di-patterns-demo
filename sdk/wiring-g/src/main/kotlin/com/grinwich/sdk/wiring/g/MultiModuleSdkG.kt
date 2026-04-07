@@ -21,6 +21,9 @@ import com.grinwich.sdk.feature.syn.buildSynProvisions
  *
  * Trade-off: the wiring module must know the dependency order between
  * features (same as D). For 50+ features, this becomes verbose.
+ *
+ * Logger persists across init/shutdown cycles — set once at first init
+ * or via setLogger(), never lost on reinit.
  */
 object MultiModuleSdkG {
 
@@ -36,9 +39,13 @@ object MultiModuleSdkG {
 
     val isInitialized: Boolean get() = _initialized
 
-    fun init(config: SdkConfig, logger: SdkLogger = AndroidSdkLogger()) {
-        check(!_initialized) { "MultiModuleSdkG already initialized. Call shutdown() first." }
+    /** Override the default logger. Persists across init/shutdown cycles. */
+    fun setLogger(logger: SdkLogger) {
         _logger = logger
+    }
+
+    fun init(config: SdkConfig) {
+        check(!_initialized) { "MultiModuleSdkG already initialized. Call shutdown() first." }
         _core = buildCoreProvisions(config)
         _initialized = true
     }
