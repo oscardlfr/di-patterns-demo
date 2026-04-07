@@ -92,7 +92,7 @@ object MultiModuleSdk {
 
             else -> error("Service ${clazz.simpleName} not available.")
         }
-        return clazz.cast(result)
+        return checkNotNull(clazz.cast(result)) { "Cast failed for ${clazz.simpleName}" }
     }
 
     inline fun <reified T : Any> get(): T = get(T::class.java)

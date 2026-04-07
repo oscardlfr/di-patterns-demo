@@ -62,7 +62,7 @@ class MultiModuleBenchmark {
         MultiModuleSdk.get<StorageApi>()
         MultiModuleSdk.get<AnalyticsApi>()
         MultiModuleSdk.get<SyncApi>()
-        runWithTimingDisabled { MultiModuleSdk.shutdown() }
+        runWithMeasurementDisabled { MultiModuleSdk.shutdown() }
     }
 
     @Test
@@ -74,7 +74,7 @@ class MultiModuleBenchmark {
         MultiModuleSdkE.get<StorageApi>()
         MultiModuleSdkE.get<AnalyticsApi>()
         MultiModuleSdkE.get<SyncApi>()
-        runWithTimingDisabled { MultiModuleSdkE.shutdown() }
+        runWithMeasurementDisabled { MultiModuleSdkE.shutdown() }
     }
 
     @Test
@@ -86,7 +86,7 @@ class MultiModuleBenchmark {
         MultiModuleSdkE2.get<HashApi>()        // already cached
         MultiModuleSdkE2.get<AuthApi>()        // already cached
         MultiModuleSdkE2.get<StorageApi>()
-        runWithTimingDisabled { MultiModuleSdkE2.shutdown() }
+        runWithMeasurementDisabled { MultiModuleSdkE2.shutdown() }
     }
 
     // ════════════════════════════════════════════════════════
@@ -129,64 +129,64 @@ class MultiModuleBenchmark {
 
     @Test
     fun lazyInit_noDeps_multiModuleD_analytics() = benchmarkRule.measureRepeated {
-        runWithTimingDisabled {
+        runWithMeasurementDisabled {
             MultiModuleSdk.init(config)
             MultiModuleSdk.get<EncryptionApi>()  // build base graph
         }
         MultiModuleSdk.get<AnalyticsApi>()  // lazy add standalone
-        runWithTimingDisabled { MultiModuleSdk.shutdown() }
+        runWithMeasurementDisabled { MultiModuleSdk.shutdown() }
     }
 
     @Test
     fun lazyInit_noDeps_multiModuleE_analytics() = benchmarkRule.measureRepeated {
-        runWithTimingDisabled {
+        runWithMeasurementDisabled {
             MultiModuleSdkE.init(config, setOf(MultiModuleSdkE.Feature.ENCRYPTION))
         }
         MultiModuleSdkE.getOrInitModule(MultiModuleSdkE.Feature.ANALYTICS)
         MultiModuleSdkE.get<AnalyticsApi>()
-        runWithTimingDisabled { MultiModuleSdkE.shutdown() }
+        runWithMeasurementDisabled { MultiModuleSdkE.shutdown() }
     }
 
     @Test
     fun lazyInit_noDeps_multiModuleE2_analytics() = benchmarkRule.measureRepeated {
-        runWithTimingDisabled {
+        runWithMeasurementDisabled {
             MultiModuleSdkE2.init(config)
             MultiModuleSdkE2.get<EncryptionApi>()  // build Core + Enc
         }
         MultiModuleSdkE2.get<AnalyticsApi>()  // auto-builds Ana (Core cached)
-        runWithTimingDisabled { MultiModuleSdkE2.shutdown() }
+        runWithMeasurementDisabled { MultiModuleSdkE2.shutdown() }
     }
 
     // --- Case 2: Sync (HEAVY deps — Auth + Storage + Encryption cascade) ---
 
     @Test
     fun lazyInit_cascade_multiModuleD_sync() = benchmarkRule.measureRepeated {
-        runWithTimingDisabled {
+        runWithMeasurementDisabled {
             MultiModuleSdk.init(config)
             MultiModuleSdk.get<EncryptionApi>()  // build Enc
         }
         MultiModuleSdk.get<SyncApi>()  // cascades: Auth + Stor + Syn
-        runWithTimingDisabled { MultiModuleSdk.shutdown() }
+        runWithMeasurementDisabled { MultiModuleSdk.shutdown() }
     }
 
     @Test
     fun lazyInit_cascade_multiModuleE_sync() = benchmarkRule.measureRepeated {
-        runWithTimingDisabled {
+        runWithMeasurementDisabled {
             MultiModuleSdkE.init(config, setOf(MultiModuleSdkE.Feature.ENCRYPTION))
         }
         MultiModuleSdkE.getOrInitModule(MultiModuleSdkE.Feature.SYNC)
         MultiModuleSdkE.get<SyncApi>()
-        runWithTimingDisabled { MultiModuleSdkE.shutdown() }
+        runWithMeasurementDisabled { MultiModuleSdkE.shutdown() }
     }
 
     @Test
     fun lazyInit_cascade_multiModuleE2_sync() = benchmarkRule.measureRepeated {
-        runWithTimingDisabled {
+        runWithMeasurementDisabled {
             MultiModuleSdkE2.init(config)
             MultiModuleSdkE2.get<EncryptionApi>()  // build Core + Enc
         }
         MultiModuleSdkE2.get<SyncApi>()  // auto-cascades Auth + Stor + Syn
-        runWithTimingDisabled { MultiModuleSdkE2.shutdown() }
+        runWithMeasurementDisabled { MultiModuleSdkE2.shutdown() }
     }
 
     // ════════════════════════════════════════════════════════
@@ -240,7 +240,7 @@ class MultiModuleBenchmark {
         MultiModuleSdkG.get<StorageApi>()
         MultiModuleSdkG.get<AnalyticsApi>()
         MultiModuleSdkG.get<SyncApi>()
-        runWithTimingDisabled { MultiModuleSdkG.shutdown() }
+        runWithMeasurementDisabled { MultiModuleSdkG.shutdown() }
     }
 
     @Test
@@ -254,22 +254,22 @@ class MultiModuleBenchmark {
 
     @Test
     fun lazyInit_noDeps_multiModuleG_analytics() = benchmarkRule.measureRepeated {
-        runWithTimingDisabled {
+        runWithMeasurementDisabled {
             MultiModuleSdkG.init(config)
             MultiModuleSdkG.get<EncryptionApi>()
         }
         MultiModuleSdkG.get<AnalyticsApi>()
-        runWithTimingDisabled { MultiModuleSdkG.shutdown() }
+        runWithMeasurementDisabled { MultiModuleSdkG.shutdown() }
     }
 
     @Test
     fun lazyInit_cascade_multiModuleG_sync() = benchmarkRule.measureRepeated {
-        runWithTimingDisabled {
+        runWithMeasurementDisabled {
             MultiModuleSdkG.init(config)
             MultiModuleSdkG.get<EncryptionApi>()
         }
         MultiModuleSdkG.get<SyncApi>()
-        runWithTimingDisabled { MultiModuleSdkG.shutdown() }
+        runWithMeasurementDisabled { MultiModuleSdkG.shutdown() }
     }
 
     @Test
@@ -297,7 +297,7 @@ class MultiModuleBenchmark {
         MultiModuleSdkH.get<StorageApi>()
         MultiModuleSdkH.get<AnalyticsApi>()
         MultiModuleSdkH.get<SyncApi>()
-        runWithTimingDisabled { MultiModuleSdkH.shutdown() }
+        runWithMeasurementDisabled { MultiModuleSdkH.shutdown() }
     }
 
     @Test
@@ -311,22 +311,22 @@ class MultiModuleBenchmark {
 
     @Test
     fun lazyInit_noDeps_multiModuleH_analytics() = benchmarkRule.measureRepeated {
-        runWithTimingDisabled {
+        runWithMeasurementDisabled {
             MultiModuleSdkH.init(config)
             MultiModuleSdkH.get<EncryptionApi>()
         }
         MultiModuleSdkH.get<AnalyticsApi>()
-        runWithTimingDisabled { MultiModuleSdkH.shutdown() }
+        runWithMeasurementDisabled { MultiModuleSdkH.shutdown() }
     }
 
     @Test
     fun lazyInit_cascade_multiModuleH_sync() = benchmarkRule.measureRepeated {
-        runWithTimingDisabled {
+        runWithMeasurementDisabled {
             MultiModuleSdkH.init(config)
             MultiModuleSdkH.get<EncryptionApi>()
         }
         MultiModuleSdkH.get<SyncApi>()
-        runWithTimingDisabled { MultiModuleSdkH.shutdown() }
+        runWithMeasurementDisabled { MultiModuleSdkH.shutdown() }
     }
 
     @Test
@@ -569,35 +569,35 @@ class MultiModuleBenchmark {
     fun stress_selectiveInit_multiModuleD() = benchmarkRule.measureRepeated {
         MultiModuleSdk.init(config)
         MultiModuleSdk.get<AnalyticsApi>()  // only Analytics + Core, nothing else
-        runWithTimingDisabled { MultiModuleSdk.shutdown() }
+        runWithMeasurementDisabled { MultiModuleSdk.shutdown() }
     }
 
     @Test
     fun stress_selectiveInit_multiModuleE() = benchmarkRule.measureRepeated {
         MultiModuleSdkE.init(config, setOf(MultiModuleSdkE.Feature.ANALYTICS))
         MultiModuleSdkE.get<AnalyticsApi>()  // only Analytics + Core, nothing else
-        runWithTimingDisabled { MultiModuleSdkE.shutdown() }
+        runWithMeasurementDisabled { MultiModuleSdkE.shutdown() }
     }
 
     @Test
     fun stress_selectiveInit_multiModuleE2() = benchmarkRule.measureRepeated {
         MultiModuleSdkE2.init(config)
         MultiModuleSdkE2.get<AnalyticsApi>()  // only Analytics + Core, nothing else
-        runWithTimingDisabled { MultiModuleSdkE2.shutdown() }
+        runWithMeasurementDisabled { MultiModuleSdkE2.shutdown() }
     }
 
     @Test
     fun stress_selectiveInit_multiModuleG() = benchmarkRule.measureRepeated {
         MultiModuleSdkG.init(config)
         MultiModuleSdkG.get<AnalyticsApi>()  // only Analytics + Core, nothing else
-        runWithTimingDisabled { MultiModuleSdkG.shutdown() }
+        runWithMeasurementDisabled { MultiModuleSdkG.shutdown() }
     }
 
     @Test
     fun stress_selectiveInit_multiModuleH() = benchmarkRule.measureRepeated {
         MultiModuleSdkH.init(config)
         MultiModuleSdkH.get<AnalyticsApi>()  // only Analytics + Core, nothing else
-        runWithTimingDisabled { MultiModuleSdkH.shutdown() }
+        runWithMeasurementDisabled { MultiModuleSdkH.shutdown() }
     }
 
     // ════════════════════════════════════════════════════════
@@ -689,7 +689,7 @@ class MultiModuleBenchmark {
         MultiModuleSdk.get<AnalyticsApi>()      // builds Ana (Core cached)
         MultiModuleSdk.get<SyncApi>()           // builds Syn (Auth+Stor+Enc cached)
         MultiModuleSdk.get<HashApi>()           // already cached
-        runWithTimingDisabled { MultiModuleSdk.shutdown() }
+        runWithMeasurementDisabled { MultiModuleSdk.shutdown() }
     }
 
     @Test
@@ -701,7 +701,7 @@ class MultiModuleBenchmark {
         MultiModuleSdkE.get<AnalyticsApi>()      // builds Ana (Core cached)
         MultiModuleSdkE.get<SyncApi>()           // builds Syn (Auth+Stor+Enc cached)
         MultiModuleSdkE.get<HashApi>()           // already cached
-        runWithTimingDisabled { MultiModuleSdkE.shutdown() }
+        runWithMeasurementDisabled { MultiModuleSdkE.shutdown() }
     }
 
     @Test
@@ -713,7 +713,7 @@ class MultiModuleBenchmark {
         MultiModuleSdkE2.get<AnalyticsApi>()      // builds Ana (Core cached)
         MultiModuleSdkE2.get<SyncApi>()           // builds Syn (Auth+Stor+Enc cached)
         MultiModuleSdkE2.get<HashApi>()           // already cached
-        runWithTimingDisabled { MultiModuleSdkE2.shutdown() }
+        runWithMeasurementDisabled { MultiModuleSdkE2.shutdown() }
     }
 
     @Test
@@ -725,7 +725,7 @@ class MultiModuleBenchmark {
         MultiModuleSdkG.get<AnalyticsApi>()      // builds Ana (Core cached)
         MultiModuleSdkG.get<SyncApi>()           // builds Syn (Auth+Stor+Enc cached)
         MultiModuleSdkG.get<HashApi>()           // already cached
-        runWithTimingDisabled { MultiModuleSdkG.shutdown() }
+        runWithMeasurementDisabled { MultiModuleSdkG.shutdown() }
     }
 
     @Test
@@ -737,6 +737,6 @@ class MultiModuleBenchmark {
         MultiModuleSdkH.get<AnalyticsApi>()      // builds Ana (Core cached)
         MultiModuleSdkH.get<SyncApi>()           // builds Syn (Auth+Stor+Enc cached)
         MultiModuleSdkH.get<HashApi>()           // already cached
-        runWithTimingDisabled { MultiModuleSdkH.shutdown() }
+        runWithMeasurementDisabled { MultiModuleSdkH.shutdown() }
     }
 }

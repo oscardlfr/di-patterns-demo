@@ -57,7 +57,7 @@ class DiBenchmark {
         DaggerBSdk.get<StorageApi>()
         DaggerBSdk.get<AnalyticsApi>()
         DaggerBSdk.get<SyncApi>()
-        runWithTimingDisabled { DaggerBSdk.shutdown() }
+        runWithMeasurementDisabled { DaggerBSdk.shutdown() }
     }
 
     @Test
@@ -71,22 +71,22 @@ class DiBenchmark {
 
     @Test
     fun lazyInit_noDeps_daggerB_analytics() = benchmarkRule.measureRepeated {
-        runWithTimingDisabled {
+        runWithMeasurementDisabled {
             DaggerBSdk.init(config, setOf(DaggerBSdk.Feature.ENCRYPTION))
         }
         DaggerBSdk.getOrInitModule(DaggerBSdk.Feature.ANALYTICS)
         DaggerBSdk.get<AnalyticsApi>()
-        runWithTimingDisabled { DaggerBSdk.shutdown() }
+        runWithMeasurementDisabled { DaggerBSdk.shutdown() }
     }
 
     @Test
     fun lazyInit_cascade_daggerB_sync() = benchmarkRule.measureRepeated {
-        runWithTimingDisabled {
+        runWithMeasurementDisabled {
             DaggerBSdk.init(config, setOf(DaggerBSdk.Feature.ENCRYPTION))
         }
         DaggerBSdk.getOrInitModule(DaggerBSdk.Feature.SYNC)
         DaggerBSdk.get<SyncApi>()
-        runWithTimingDisabled { DaggerBSdk.shutdown() }
+        runWithMeasurementDisabled { DaggerBSdk.shutdown() }
     }
 
     @Test
@@ -113,7 +113,7 @@ class DiBenchmark {
         DaggerCSdk.get<StorageApi>()
         DaggerCSdk.get<AnalyticsApi>()
         DaggerCSdk.get<SyncApi>()
-        runWithTimingDisabled { DaggerCSdk.shutdown() }
+        runWithMeasurementDisabled { DaggerCSdk.shutdown() }
     }
 
     @Test
@@ -127,22 +127,22 @@ class DiBenchmark {
 
     @Test
     fun lazyInit_noDeps_daggerC_analytics() = benchmarkRule.measureRepeated {
-        runWithTimingDisabled {
+        runWithMeasurementDisabled {
             DaggerCSdk.init(config, setOf("encryption"))
         }
         DaggerCSdk.getOrInitModule("analytics")
         DaggerCSdk.get<AnalyticsApi>()
-        runWithTimingDisabled { DaggerCSdk.shutdown() }
+        runWithMeasurementDisabled { DaggerCSdk.shutdown() }
     }
 
     @Test
     fun lazyInit_cascade_daggerC_sync() = benchmarkRule.measureRepeated {
-        runWithTimingDisabled {
+        runWithMeasurementDisabled {
             DaggerCSdk.init(config, setOf("encryption"))
         }
         DaggerCSdk.getOrInitModule("sync")
         DaggerCSdk.get<SyncApi>()
-        runWithTimingDisabled { DaggerCSdk.shutdown() }
+        runWithMeasurementDisabled { DaggerCSdk.shutdown() }
     }
 
     @Test
@@ -169,7 +169,7 @@ class DiBenchmark {
         KoinSdk.get<StorageApi>()
         KoinSdk.get<AnalyticsApi>()
         KoinSdk.get<SyncApi>()
-        runWithTimingDisabled { KoinSdk.shutdown() }
+        runWithMeasurementDisabled { KoinSdk.shutdown() }
     }
 
     @Test
@@ -183,22 +183,22 @@ class DiBenchmark {
 
     @Test
     fun lazyInit_noDeps_koin_analytics() = benchmarkRule.measureRepeated {
-        runWithTimingDisabled {
+        runWithMeasurementDisabled {
             KoinSdk.init(setOf(SdkModule.Encryption.Default), config)
         }
         KoinSdk.getOrInitModule(SdkModule.Analytics.Default)
         KoinSdk.get<AnalyticsApi>()
-        runWithTimingDisabled { KoinSdk.shutdown() }
+        runWithMeasurementDisabled { KoinSdk.shutdown() }
     }
 
     @Test
     fun lazyInit_cascade_koin_sync() = benchmarkRule.measureRepeated {
-        runWithTimingDisabled {
+        runWithMeasurementDisabled {
             KoinSdk.init(setOf(SdkModule.Encryption.Default), config)
         }
         KoinSdk.getOrInitModule(SdkModule.Sync.Default)
         KoinSdk.get<SyncApi>()
-        runWithTimingDisabled { KoinSdk.shutdown() }
+        runWithMeasurementDisabled { KoinSdk.shutdown() }
     }
 
     @Test
@@ -223,7 +223,7 @@ class DiBenchmark {
         val bridge = DaggerBenchBridgeComponent.builder().build()
         bridge.encryption(); bridge.hash(); bridge.auth()
         bridge.storage(); bridge.analytics(); bridge.sync()
-        runWithTimingDisabled { KoinSdk.shutdown() }
+        runWithMeasurementDisabled { KoinSdk.shutdown() }
     }
 
     @Test

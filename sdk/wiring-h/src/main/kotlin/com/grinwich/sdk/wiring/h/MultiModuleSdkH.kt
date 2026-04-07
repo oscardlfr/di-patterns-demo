@@ -4,23 +4,23 @@ import com.grinwich.sdk.api.SdkConfig
 import com.grinwich.sdk.api.SdkLogger
 import com.grinwich.sdk.contracts.FeatureProvider
 import com.grinwich.sdk.contracts.Resolver
-import com.grinwich.sdk.feature.ana.AnaProvider
-import com.grinwich.sdk.feature.auth.AuthProvider
-import com.grinwich.sdk.feature.core.CoreProvider
-import com.grinwich.sdk.feature.enc.EncProvider
 import com.grinwich.sdk.feature.observability.AndroidSdkLogger
-import com.grinwich.sdk.feature.stor.StorProvider
-import com.grinwich.sdk.feature.syn.SynProvider
+import java.util.ServiceLoader
 
 /**
- * Pattern H: Auto-Discovery with FeatureProviders.
+ * Pattern H: Auto-Discovery with ServiceLoader.
  *
- * Each feature-impl declares a FeatureProvider (~8 lines).
+ * Each feature-impl registers a FeatureProvider in META-INF/services.
+ * ServiceLoader discovers them at init — zero explicit registration.
  * Dependencies are implicit — resolver.provision() triggers DFS.
- * No when-blocks, no ensureXxx(), no central editing.
  *
- * For real production: use ServiceLoader to discover providers.
- * Here we list them explicitly for benchmark clarity.
+ * Adding feature 51:
+ * 1. Create feature-xxx-impl module
+ * 2. Write @Component + @Module + DefaultXxxService + factory
+ * 3. Write XxxProvider : FeatureProvider (~8 lines)
+ * 4. Register in META-INF/services (1 line)
+ * 5. Add runtimeOnly dep in this module's build.gradle.kts
+ * Zero other files touched.
  */
 object MultiModuleSdkH {
 
@@ -31,15 +31,12 @@ object MultiModuleSdkH {
 
     fun init(config: SdkConfig, logger: SdkLogger = AndroidSdkLogger()) {
         check(!_initialized) { "MultiModuleSdkH already initialized. Call shutdown() first." }
-        resolver.init(logger)
+        resolver.init(config, logger)
 
-        // Register all providers — in production, ServiceLoader discovers these
-        resolver.register(CoreProvider(config))
-        resolver.register(EncProvider())
-        resolver.register(AuthProvider())
-        resolver.register(StorProvider())
-        resolver.register(AnaProvider())
-        resolver.register(SynProvider())
+        // ServiceLoader discovers all FeatureProviders on classpath
+        ServiceLoader.load(FeatureProvider::class.java).forEach { provider ->
+            resolver.register(provider)
+        }
 
         _initialized = true
     }

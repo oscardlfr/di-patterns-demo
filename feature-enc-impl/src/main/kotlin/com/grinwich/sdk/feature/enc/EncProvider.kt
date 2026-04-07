@@ -2,7 +2,6 @@ package com.grinwich.sdk.feature.enc
 
 import com.grinwich.sdk.api.EncryptionApi
 import com.grinwich.sdk.api.HashApi
-import com.grinwich.sdk.api.SdkLogger
 import com.grinwich.sdk.contracts.CoreProvisions
 import com.grinwich.sdk.contracts.EncProvisions
 import com.grinwich.sdk.contracts.FeatureProvider
@@ -15,6 +14,6 @@ class EncProvider : FeatureProvider<EncProvisions>(EncProvisions::class.java) {
         HashApi::class.java to EncProvisions::hash,
     )
 
-    override fun build(resolver: Resolver, logger: SdkLogger): EncProvisions =
-        buildEncProvisions(resolver.provision(CoreProvisions::class.java), logger)
+    override fun build(resolver: Resolver): EncProvisions =
+        buildEncProvisions(resolver.provision(CoreProvisions::class.java), resolver.logger)
 }

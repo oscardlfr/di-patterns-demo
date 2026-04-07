@@ -73,13 +73,11 @@ class ProvisionRegistry {
 
     /** Retrieve a previously-registered provision by its interface type. */
     fun <P> provision(clazz: Class<P>): P =
-        clazz.cast(provisions[clazz])
-            ?: error("Provision ${clazz.simpleName} not registered.")
+        checkNotNull(clazz.cast(provisions[clazz])) { "Provision ${clazz.simpleName} not registered." }
 
     /** Resolve a service by its interface type. */
     fun <T : Any> get(clazz: Class<T>): T =
-        clazz.cast(services[clazz])
-            ?: error("Service ${clazz.simpleName} not available.")
+        checkNotNull(clazz.cast(services[clazz])) { "Service ${clazz.simpleName} not available." }
 
     fun hasProvision(clazz: Class<*>): Boolean = provisions.containsKey(clazz)
 
@@ -170,21 +168,21 @@ class AutoProvisionRegistry {
      * transitive dependencies) if not yet built.
      */
     fun <T : Any> get(clazz: Class<T>): T {
-        services[clazz]?.let { return clazz.cast(it) }
+        services[clazz]?.let { return checkNotNull(clazz.cast(it)) { "Cast failed for ${clazz.simpleName}" } }
 
         val provisionClass = serviceIndex[clazz]
             ?: error("No entry provides ${clazz.simpleName}.")
 
         ensureBuilt(provisionClass)
 
-        return clazz.cast(services[clazz])
-            ?: error("${clazz.simpleName} not available after building ${provisionClass.simpleName}")
+        return checkNotNull(clazz.cast(services[clazz])) {
+            "${clazz.simpleName} not available after building ${provisionClass.simpleName}"
+        }
     }
 
     /** Retrieve a built provision by its interface type. Used by entry build lambdas. */
     fun <P> provision(clazz: Class<P>): P =
-        clazz.cast(provisions[clazz])
-            ?: error("Provision ${clazz.simpleName} not built. Dependency not declared?")
+        checkNotNull(clazz.cast(provisions[clazz])) { "Provision ${clazz.simpleName} not built. Dependency not declared?" }
 
     fun isBuilt(clazz: Class<*>): Boolean = provisions.containsKey(clazz)
 

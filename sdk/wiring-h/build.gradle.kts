@@ -13,16 +13,22 @@ android {
 }
 
 dependencies {
-    // PUBLIC -- the app gets these transitively
+    // PUBLIC -- app sees interfaces transitively
     api(project(":sdk:api"))
 
-    // PRIVATE -- feature impls (discovered via ServiceLoader)
+    // WIRING infra -- FeatureProvider, Resolver
     implementation(project(":sdk:di-contracts"))
-    implementation(project(":feature-core-impl"))
-    implementation(project(":feature-enc-impl"))
-    implementation(project(":feature-auth-impl"))
-    implementation(project(":feature-stor-impl"))
-    implementation(project(":feature-ana-impl"))
-    implementation(project(":feature-syn-impl"))
-    implementation(project(":feature-observability-impl"))  // AndroidSdkLogger (default)
+
+    // DEFAULT LOGGER -- only for the default parameter in init()
+    implementation(project(":feature-observability-impl"))
+
+    // RUNTIME ONLY -- feature impls discovered via ServiceLoader
+    // App and this module CANNOT compile against these classes.
+    // ServiceLoader finds FeatureProviders in META-INF/services at runtime.
+    runtimeOnly(project(":feature-core-impl"))
+    runtimeOnly(project(":feature-enc-impl"))
+    runtimeOnly(project(":feature-auth-impl"))
+    runtimeOnly(project(":feature-stor-impl"))
+    runtimeOnly(project(":feature-ana-impl"))
+    runtimeOnly(project(":feature-syn-impl"))
 }

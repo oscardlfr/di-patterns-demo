@@ -1,11 +1,7 @@
 package com.grinwich.sdk.feature.ana
 
 import com.grinwich.sdk.api.AnalyticsApi
-import com.grinwich.sdk.api.SdkLogger
-import com.grinwich.sdk.contracts.AnaProvisions
-import com.grinwich.sdk.contracts.CoreProvisions
-import com.grinwich.sdk.contracts.FeatureProvider
-import com.grinwich.sdk.contracts.Resolver
+import com.grinwich.sdk.contracts.*
 
 class AnaProvider : FeatureProvider<AnaProvisions>(AnaProvisions::class.java) {
 
@@ -13,6 +9,6 @@ class AnaProvider : FeatureProvider<AnaProvisions>(AnaProvisions::class.java) {
         AnalyticsApi::class.java to AnaProvisions::analytics,
     )
 
-    override fun build(resolver: Resolver, logger: SdkLogger): AnaProvisions =
-        buildAnaProvisions(resolver.provision(CoreProvisions::class.java), logger)
+    override fun build(resolver: Resolver): AnaProvisions =
+        buildAnaProvisions(resolver.provision(CoreProvisions::class.java), resolver.logger)
 }
