@@ -11,17 +11,15 @@ import com.grinwich.sdk.api.SdkLogger
  * - What services it exposes (services map)
  * - How to build itself (build function, deps resolved via Resolver)
  *
- * Dependencies are IMPLICIT — whatever you call resolver.provision() for
+ * Dependencies are IMPLICIT — whatever you call resolver.get() for
  * inside build() gets built first (DFS). No explicit dependency set.
  *
  * Discovered at runtime via ServiceLoader — requires no-arg constructor.
  */
 abstract class FeatureProvider<P : Any>(val provisionClass: Class<P>) {
 
-    /** Maps service type -> extractor from the built provision. */
     abstract val services: Map<Class<*>, (P) -> Any>
 
-    /** Builds the provision. Use resolver for deps, config, and logger. */
     abstract fun build(resolver: Resolver): P
 
     internal fun buildUntyped(resolver: Resolver): Any = build(resolver)
@@ -38,8 +36,9 @@ abstract class FeatureProvider<P : Any>(val provisionClass: Class<P>) {
 /**
  * Runtime resolver — builds provisions on demand via DFS.
  *
- * Holds config + logger so providers don't need constructor args
- * (required for ServiceLoader no-arg instantiation).
+ * Logger is resolved lazily from the service map (ObservabilityProvider).
+ * No hardcoded default — if no ObservabilityProvider is registered, accessing
+ * logger will fail with a clear error.
  */
 class Resolver {
 
@@ -49,11 +48,12 @@ class Resolver {
     private val resolvedServices = HashMap<Class<*>, Any>()
 
     lateinit var config: SdkConfig; private set
-    lateinit var logger: SdkLogger; private set
 
-    fun init(config: SdkConfig, logger: SdkLogger? = null) {
+    /** Logger resolved lazily from ServiceLoader-discovered ObservabilityProvider. */
+    val logger: SdkLogger get() = get(SdkLogger::class.java)
+
+    fun init(config: SdkConfig) {
         this.config = config
-        if (logger != null) this.logger = logger
     }
 
     fun register(provider: FeatureProvider<*>) {
@@ -63,7 +63,6 @@ class Resolver {
         }
     }
 
-    /** Resolve a service by type. Auto-builds the provision chain on demand. */
     fun <T : Any> get(clazz: Class<T>): T {
         resolvedServices[clazz]?.let {
             return checkNotNull(clazz.cast(it)) { "Cast failed for ${clazz.simpleName}" }
@@ -76,7 +75,6 @@ class Resolver {
         return checkNotNull(clazz.cast(resolved)) { "Cast failed for ${clazz.simpleName}" }
     }
 
-    /** Get a built provision by type. Used by FeatureProvider.build() for dependencies. */
     fun <P : Any> provision(clazz: Class<P>): P {
         ensureBuilt(clazz)
         val built = provisions[clazz]

@@ -2,22 +2,19 @@ package com.grinwich.sdk.feature.observability
 
 import com.grinwich.sdk.api.SdkLogger
 import com.grinwich.sdk.contracts.ObservabilityProvisions
-import dagger.BindsInstance
 import dagger.Component
+import dagger.Module
+import dagger.Provides
 import javax.inject.Singleton
 
-/** Factory: builds ObservabilityProvisions without exposing DaggerObservabilityComponent. */
-fun buildObservabilityProvisions(logger: SdkLogger): ObservabilityProvisions =
-    DaggerObservabilityComponent.builder().logger(logger).build()
-
 @Singleton
-@Component
+@Component(modules = [ObservabilityModule::class])
 interface ObservabilityComponent : ObservabilityProvisions {
-
     override fun logger(): SdkLogger
+}
 
-    @Component.Builder interface Builder {
-        @BindsInstance fun logger(logger: SdkLogger): Builder
-        fun build(): ObservabilityComponent
-    }
+@Module
+internal class ObservabilityModule {
+    @Provides @Singleton
+    fun logger(): SdkLogger = AndroidSdkLogger()
 }

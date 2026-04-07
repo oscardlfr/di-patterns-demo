@@ -19,16 +19,13 @@ dependencies {
     // WIRING infra -- FeatureProvider, Resolver
     implementation(project(":di-contracts"))
 
-    // DEFAULT LOGGER -- only for the default parameter in init()
-    implementation(project(":features:feature-observability-impl"))
-
-    // RUNTIME ONLY -- feature impls discovered via ServiceLoader
-    // App and this module CANNOT compile against these classes.
-    // ServiceLoader finds FeatureProviders in META-INF/services at runtime.
+    // RUNTIME ONLY -- ALL feature impls discovered via ServiceLoader
+    // Zero compile-time coupling to any feature impl
     runtimeOnly(project(":features:feature-core-impl"))
     runtimeOnly(project(":features:feature-enc-impl"))
     runtimeOnly(project(":features:feature-auth-impl"))
     runtimeOnly(project(":features:feature-stor-impl"))
     runtimeOnly(project(":features:feature-ana-impl"))
     runtimeOnly(project(":features:feature-syn-impl"))
+    runtimeOnly(project(":features:feature-observability-impl"))
 }
