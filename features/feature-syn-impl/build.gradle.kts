@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.grinwich.sdk.feature.ana"
+    namespace = "com.grinwich.sdk.feature.syn"
     compileSdk = 36
     defaultConfig { minSdk = 28 }
     compileOptions {
@@ -14,9 +14,10 @@ android {
 }
 
 dependencies {
-    api(project(":sdk:di-contracts"))  // CoreProvisions, AnaProvisions, AnaScope
+    api(project(":di-contracts"))  // All provision interfaces + SynScope
 
-    // DefaultAnalyticsService lives HERE (internal)
+    // DefaultSyncService lives HERE (internal)
+    // Heaviest cross-deps: Core + Enc + Auth + Storage — all via provision interfaces
 
     implementation(libs.dagger)
     ksp(libs.dagger.compiler)

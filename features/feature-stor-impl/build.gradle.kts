@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.grinwich.sdk.feature.observability"
+    namespace = "com.grinwich.sdk.feature.stor"
     compileSdk = 36
     defaultConfig { minSdk = 28 }
     compileOptions {
@@ -14,7 +14,9 @@ android {
 }
 
 dependencies {
-    api(project(":sdk:di-contracts"))  // ObservabilityProvisions
+    api(project(":di-contracts"))  // CoreProvisions, EncProvisions, StorProvisions, StorScope
+
+    // DefaultSecureStorageService lives HERE (internal)
 
     implementation(libs.dagger)
     ksp(libs.dagger.compiler)

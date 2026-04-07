@@ -17,12 +17,12 @@ dependencies {
     api(project(":sdk:api"))                    // EncryptionService, AuthService, etc.
 
     // PRIVATE — the app NEVER sees these
-    implementation(project(":sdk:di-contracts"))        // provision interfaces (used internally)
-    implementation(project(":feature-core-impl"))   // DaggerCoreComponent
-    implementation(project(":feature-enc-impl"))    // DaggerEncComponent
-    implementation(project(":feature-auth-impl"))   // DaggerAuthComponent
-    implementation(project(":feature-stor-impl"))   // DaggerStorComponent
-    implementation(project(":feature-ana-impl"))    // DaggerAnaComponent
-    implementation(project(":feature-syn-impl"))    // DaggerSynComponent
-    implementation(project(":feature-observability-impl")) // AndroidSdkLogger (default logger)
+    implementation(project(":di-contracts"))        // provision interfaces (used internally)
+    implementation(project(":features:feature-core-impl"))   // DaggerCoreComponent
+    implementation(project(":features:feature-enc-impl"))    // DaggerEncComponent
+    implementation(project(":features:feature-auth-impl"))   // DaggerAuthComponent
+    implementation(project(":features:feature-stor-impl"))   // DaggerStorComponent
+    implementation(project(":features:feature-ana-impl"))    // DaggerAnaComponent
+    implementation(project(":features:feature-syn-impl"))    // DaggerSynComponent
+    implementation(project(":features:feature-observability-impl")) // AndroidSdkLogger (default logger)
 }

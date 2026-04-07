@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.grinwich.sdk.feature.stor"
+    namespace = "com.grinwich.sdk.feature.ana"
     compileSdk = 36
     defaultConfig { minSdk = 28 }
     compileOptions {
@@ -14,9 +14,9 @@ android {
 }
 
 dependencies {
-    api(project(":sdk:di-contracts"))  // CoreProvisions, EncProvisions, StorProvisions, StorScope
+    api(project(":di-contracts"))  // CoreProvisions, AnaProvisions, AnaScope
 
-    // DefaultSecureStorageService lives HERE (internal)
+    // DefaultAnalyticsService lives HERE (internal)
 
     implementation(libs.dagger)
     ksp(libs.dagger.compiler)

@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.grinwich.sdk.feature.core"
+    namespace = "com.grinwich.sdk.feature.observability"
     compileSdk = 36
     defaultConfig { minSdk = 28 }
     compileOptions {
@@ -14,7 +14,7 @@ android {
 }
 
 dependencies {
-    api(project(":sdk:di-contracts"))  // CoreProvisions (public — other impls need it)
+    api(project(":di-contracts"))  // ObservabilityProvisions
 
     implementation(libs.dagger)
     ksp(libs.dagger.compiler)

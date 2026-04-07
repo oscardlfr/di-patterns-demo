@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.grinwich.sdk.feature.syn"
+    namespace = "com.grinwich.sdk.feature.enc"
     compileSdk = 36
     defaultConfig { minSdk = 28 }
     compileOptions {
@@ -14,10 +14,10 @@ android {
 }
 
 dependencies {
-    api(project(":sdk:di-contracts"))  // All provision interfaces + SynScope
+    api(project(":di-contracts"))  // CoreProvisions, EncProvisions, EncScope
 
-    // DefaultSyncService lives HERE (internal)
-    // Heaviest cross-deps: Core + Enc + Auth + Storage — all via provision interfaces
+    // DefaultEncryptionService + DefaultHashService live HERE (internal)
+    // Does NOT depend on :feature-core-impl — uses CoreProvisions (contract)
 
     implementation(libs.dagger)
     ksp(libs.dagger.compiler)

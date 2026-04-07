@@ -14,7 +14,7 @@ android {
 }
 
 dependencies {
-    api(project(":sdk:di-contracts"))  // CoreProvisions, EncProvisions, AuthProvisions, AuthScope
+    api(project(":di-contracts"))  // CoreProvisions, EncProvisions, AuthProvisions, AuthScope
 
     // DefaultAuthService lives HERE (internal)
     // Cross-feature dep on EncProvisions (contract), NOT :feature-enc-impl

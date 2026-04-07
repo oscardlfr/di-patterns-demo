@@ -14,5 +14,5 @@ android {
 
 dependencies {
     api(project(":sdk:api"))
-    implementation(project(":feature-observability-impl"))  // AndroidSdkLogger
+    implementation(project(":features:feature-observability-impl"))  // AndroidSdkLogger
 }

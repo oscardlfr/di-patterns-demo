@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.grinwich.sdk.feature.enc"
+    namespace = "com.grinwich.sdk.feature.core"
     compileSdk = 36
     defaultConfig { minSdk = 28 }
     compileOptions {
@@ -14,10 +14,7 @@ android {
 }
 
 dependencies {
-    api(project(":sdk:di-contracts"))  // CoreProvisions, EncProvisions, EncScope
-
-    // DefaultEncryptionService + DefaultHashService live HERE (internal)
-    // Does NOT depend on :feature-core-impl — uses CoreProvisions (contract)
+    api(project(":di-contracts"))  // CoreProvisions (public — other impls need it)
 
     implementation(libs.dagger)
     ksp(libs.dagger.compiler)

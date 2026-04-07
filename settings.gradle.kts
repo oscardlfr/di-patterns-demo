@@ -21,43 +21,39 @@ dependencyResolutionManagement {
 
 rootProject.name = "di-patterns-demo"
 
-// ── Observability ──
-include(":observability-api")           // SdkLogger (interface)
-include(":feature-observability-impl")  // AndroidSdkLogger (impl)
+// ── Features ──
+include(":features:observability-api")
+include(":features:feature-core-api")
+include(":features:feature-enc-api")
+include(":features:feature-auth-api")
+include(":features:feature-stor-api")
+include(":features:feature-ana-api")
+include(":features:feature-syn-api")
+include(":features:feature-core-impl")
+include(":features:feature-enc-impl")
+include(":features:feature-auth-impl")
+include(":features:feature-stor-impl")
+include(":features:feature-ana-impl")
+include(":features:feature-syn-impl")
+include(":features:feature-observability-impl")
 
-// ── Feature API modules (per-feature public interfaces) ──
-include(":feature-core-api")   // SdkConfig
-include(":feature-enc-api")
-include(":feature-auth-api")
-include(":feature-stor-api")
-include(":feature-ana-api")
-include(":feature-syn-api")
+// ── DI Infrastructure ──
+include(":di-contracts")
 
-// ── SDK umbrella + monolithic patterns ──
-include(":sdk:api")                // umbrella: re-exports all feature-apis + observability-api
+// ── SDK ──
+include(":sdk:api")
 include(":sdk:impl-common")
 include(":sdk:impl-koin")
 include(":sdk:impl-dagger-b")
 include(":sdk:impl-dagger-c")
-
-// ── Multi-module (provision interfaces pattern) ──
-include(":sdk:di-contracts")       // provision interfaces + scopes + RegistryInfra
-include(":feature-core-impl")
-include(":feature-enc-impl")
-include(":feature-auth-impl")
-include(":feature-stor-impl")
-include(":feature-ana-impl")
-include(":feature-syn-impl")
-
-// ── Wiring variants (D=when-block, E=registry+toposort, E2=auto-init+DFS, G=factories) ──
-include(":sdk:sdk-wiring")        // Pattern D: direct lazy ensure*()
-include(":sdk:wiring-e")          // Pattern E: ProvisionRegistry + topo-sort
-include(":sdk:wiring-e2")         // Pattern E2: AutoProvisionRegistry + DFS lazy
-include(":sdk:wiring-g")          // Pattern G: factory functions (no DaggerXxx imports)
-include(":sdk:wiring-h")          // Pattern H: auto-discovery FeatureProviders (zero central editing)
+include(":sdk:sdk-wiring")
+include(":sdk:wiring-e")
+include(":sdk:wiring-e2")
+include(":sdk:wiring-g")
+include(":sdk:wiring-h")
 
 // ── Sample apps ──
-include(":sample-dagger-a")       // educational: monolithic @Component (no SDK facade)
+include(":sample-dagger-a")
 include(":sample-dagger-b")
 include(":sample-dagger-c")
 include(":sample-hybrid")
