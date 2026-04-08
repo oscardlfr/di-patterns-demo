@@ -4,8 +4,9 @@ import com.grinwich.sdk.api.AuthApi
 import com.grinwich.sdk.api.AuthToken
 import com.grinwich.sdk.api.EncryptionApi
 import com.grinwich.sdk.api.SdkLogger
+import javax.inject.Inject
 
-internal class DefaultAuthService(
+internal class DefaultAuthService @Inject constructor(
     private val encryption: EncryptionApi,
     private val logger: SdkLogger,
 ) : AuthApi {

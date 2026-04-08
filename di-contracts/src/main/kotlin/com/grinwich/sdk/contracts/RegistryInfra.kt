@@ -66,7 +66,6 @@ class ProvisionRegistry {
         val sorted = topoSort(entries)
         for (entry in sorted) {
             // Type-safe by construction: entry was registered as ProvisionEntry<P>
-            @Suppress("UNCHECKED_CAST")
             register(entry as ProvisionEntry<Any>)
         }
     }
@@ -80,6 +79,9 @@ class ProvisionRegistry {
         checkNotNull(clazz.cast(services[clazz])) { "Service ${clazz.simpleName} not available." }
 
     fun hasProvision(clazz: Class<*>): Boolean = provisions.containsKey(clazz)
+
+    /** Number of provisions currently built. Useful for verifying lazy behavior in tests. */
+    val builtProvisionCount: Int get() = provisions.size
 
     fun clear() {
         provisions.clear()
@@ -146,9 +148,10 @@ class AutoProvisionRegistry {
     private val catalog = HashMap<Class<*>, AutoProvisionEntry<*>>()
     private val serviceIndex = HashMap<Class<*>, Class<*>>()
 
-    // Phase 2: Built state (populated on demand)
-    internal val provisions = HashMap<Class<*>, Any>()
-    internal val services = HashMap<Class<*>, Any>()
+    // Phase 2: Built state (populated on demand, thread-safe for concurrent reads)
+    private val lock = Any()
+    internal val provisions = java.util.concurrent.ConcurrentHashMap<Class<*>, Any>()
+    internal val services = java.util.concurrent.ConcurrentHashMap<Class<*>, Any>()
 
     /** Install an entry into the catalog. Does NOT build it. */
     fun install(entry: AutoProvisionEntry<*>) {
@@ -186,32 +189,55 @@ class AutoProvisionRegistry {
 
     fun isBuilt(clazz: Class<*>): Boolean = provisions.containsKey(clazz)
 
+    /** Number of provisions currently built. Useful for verifying lazy behavior in tests. */
+    val builtProvisionCount: Int get() = provisions.size
+
     fun clear() {
-        catalog.clear()
-        serviceIndex.clear()
-        provisions.clear()
-        services.clear()
+        synchronized(lock) {
+            catalog.clear()
+            serviceIndex.clear()
+            provisions.clear()
+            services.clear()
+        }
     }
 
     /**
-     * Recursively ensure a provision and all its dependencies are built.
-     * DFS replaces Kahn's topo-sort — same correctness, naturally lazy.
+     * Iterative post-order DFS — ensure a provision and all its dependencies are built.
+     * Uses an explicit stack to avoid StackOverflowError on deep chains (500+).
+     *
+     * Each stack entry is a (Class, processed) pair. On first visit, the node pushes
+     * itself back as "processed" and then pushes its deps. When popped as "processed",
+     * all deps are guaranteed to be built.
      */
     private fun ensureBuilt(provisionClass: Class<*>) {
-        if (provisions.containsKey(provisionClass)) return
+        if (provisions.containsKey(provisionClass)) return // fast path without lock
+        synchronized(lock) {
+            if (provisions.containsKey(provisionClass)) return // double-check inside lock
 
-        val entry = catalog[provisionClass]
-            ?: error("Provision ${provisionClass.simpleName} not installed in catalog.")
+            val stack = ArrayDeque<Pair<Class<*>, Boolean>>()
+            stack.addLast(provisionClass to false)
 
-        for (dep in entry.dependencies) {
-            ensureBuilt(dep)
+            while (stack.isNotEmpty()) {
+                val (cls, processed) = stack.removeLast()
+                if (provisions.containsKey(cls)) continue
+
+                if (processed) {
+                    @Suppress("UNCHECKED_CAST")
+                    val entry = catalog[cls] as AutoProvisionEntry<Any>
+                    val provision = entry.build(this)
+                    services.putAll(entry.services(provision))
+                    provisions[cls] = provision // LAST — gate for other threads
+                } else {
+                    val entry = catalog[cls]
+                        ?: error("Provision ${cls.simpleName} not installed in catalog.")
+                    stack.addLast(cls to true)
+                    for (dep in entry.dependencies) {
+                        if (!provisions.containsKey(dep)) {
+                            stack.addLast(dep to false)
+                        }
+                    }
+                }
+            }
         }
-
-        // Type-safe by construction: entry was registered as AutoProvisionEntry<P>
-        @Suppress("UNCHECKED_CAST")
-        val typedEntry = entry as AutoProvisionEntry<Any>
-        val provision = typedEntry.build(this)
-        provisions[entry.provisionClass] = provision
-        services.putAll(typedEntry.services(provision))
     }
 }

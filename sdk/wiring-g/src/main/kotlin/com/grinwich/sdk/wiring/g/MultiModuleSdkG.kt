@@ -25,32 +25,36 @@ import com.grinwich.sdk.feature.syn.buildSynProvisions
  * Logger persists across init/shutdown cycles — set once at first init
  * or via setLogger(), never lost on reinit.
  */
-object MultiModuleSdkG {
+object MultiModuleSdkG : MultiModuleSdkApi {
 
+    private val lock = Any()
     private var _logger: SdkLogger = AndroidSdkLogger()
-    private var _initialized = false
+    @Volatile private var _initialized = false
 
-    private var _core: CoreProvisions? = null
-    private var _enc: EncProvisions? = null
-    private var _auth: AuthProvisions? = null
-    private var _storage: StorProvisions? = null
-    private var _analytics: AnaProvisions? = null
-    private var _sync: SynProvisions? = null
+    @Volatile private var _core: CoreProvisions? = null
+    @Volatile private var _enc: EncProvisions? = null
+    @Volatile private var _auth: AuthProvisions? = null
+    @Volatile private var _storage: StorProvisions? = null
+    @Volatile private var _analytics: AnaProvisions? = null
+    @Volatile private var _sync: SynProvisions? = null
 
-    val isInitialized: Boolean get() = _initialized
+    override val isInitialized: Boolean get() = _initialized
+
+    /** Number of provisions currently built. Useful for verifying lazy behavior in tests. */
+    override val builtProvisionCount: Int get() = listOfNotNull(_core, _enc, _auth, _storage, _analytics, _sync).size
 
     /** Override the default logger. Persists across init/shutdown cycles. */
     fun setLogger(logger: SdkLogger) {
         _logger = logger
     }
 
-    fun init(config: SdkConfig) {
+    override fun init(context: android.content.Context, config: SdkConfig) {
         check(!_initialized) { "MultiModuleSdkG already initialized. Call shutdown() first." }
         _core = buildCoreProvisions(config)
         _initialized = true
     }
 
-    fun <T : Any> get(clazz: Class<T>): T {
+    override fun <T : Any> get(clazz: Class<T>): T {
         check(_initialized) { "MultiModuleSdkG not initialized." }
         val core = _core!!
         val result: Any = when (clazz) {
@@ -71,33 +75,51 @@ object MultiModuleSdkG {
     // ── Lazy builders using factory functions ──
     // Key difference vs D: calls buildXxxProvisions() instead of DaggerXxxComponent.builder()
 
-    private fun ensureEnc(core: CoreProvisions): EncProvisions =
-        _enc ?: buildEncProvisions(core, _logger).also { _enc = it }
+    private fun ensureEnc(core: CoreProvisions): EncProvisions {
+        _enc?.let { return it }
+        synchronized(lock) { return _enc ?: buildEncProvisions(core, _logger).also { _enc = it } }
+    }
 
     private fun ensureAuth(core: CoreProvisions): AuthProvisions {
-        val enc = ensureEnc(core)
-        return _auth ?: buildAuthProvisions(core, _logger, enc).also { _auth = it }
+        _auth?.let { return it }
+        synchronized(lock) {
+            _auth?.let { return it }
+            val enc = ensureEnc(core)
+            return buildAuthProvisions(core, _logger, enc).also { _auth = it }
+        }
     }
 
     private fun ensureStor(core: CoreProvisions): StorProvisions {
-        val enc = ensureEnc(core)
-        return _storage ?: buildStorProvisions(core, _logger, enc).also { _storage = it }
+        _storage?.let { return it }
+        synchronized(lock) {
+            _storage?.let { return it }
+            val enc = ensureEnc(core)
+            return buildStorProvisions(core, _logger, enc).also { _storage = it }
+        }
     }
 
-    private fun ensureAna(core: CoreProvisions): AnaProvisions =
-        _analytics ?: buildAnaProvisions(core, _logger).also { _analytics = it }
+    private fun ensureAna(core: CoreProvisions): AnaProvisions {
+        _analytics?.let { return it }
+        synchronized(lock) { return _analytics ?: buildAnaProvisions(core, _logger).also { _analytics = it } }
+    }
 
     private fun ensureSyn(core: CoreProvisions): SynProvisions {
-        val enc = ensureEnc(core)
-        val auth = ensureAuth(core)
-        val stor = ensureStor(core)
-        return _sync ?: buildSynProvisions(core, _logger, enc, auth, stor).also { _sync = it }
+        _sync?.let { return it }
+        synchronized(lock) {
+            _sync?.let { return it }
+            val enc = ensureEnc(core)
+            val auth = ensureAuth(core)
+            val stor = ensureStor(core)
+            return buildSynProvisions(core, _logger, enc, auth, stor).also { _sync = it }
+        }
     }
 
-    fun shutdown() {
+    override fun shutdown() {
         if (!_initialized) return
-        _core = null; _enc = null; _auth = null
-        _storage = null; _analytics = null; _sync = null
-        _initialized = false
+        synchronized(lock) {
+            _core = null; _enc = null; _auth = null
+            _storage = null; _analytics = null; _sync = null
+            _initialized = false
+        }
     }
 }

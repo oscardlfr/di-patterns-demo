@@ -1,5 +1,7 @@
 package com.grinwich.sdk.api
 
+import android.content.Context
+
 /**
  * Shared infrastructure -- logger, config.
  * In per-feature approaches (B, C) this is the bridge between isolated Components.
@@ -9,6 +11,26 @@ interface CoreApis {
     val config: SdkConfig
     val logger: SdkLogger
 }
+
+/**
+ * Uniform consumer API for all lazy multi-module SDK patterns.
+ *
+ * Every lazy pattern (D, E2, G, H, I, J, K) implements this interface.
+ * Eager patterns (E, Koin) do NOT — they require explicit module selection at init.
+ *
+ * Consumer usage: init(context, config) → get<T>() → shutdown()
+ * Enables parameterized testing with zero test duplication.
+ */
+interface MultiModuleSdkApi {
+    val isInitialized: Boolean
+    val builtProvisionCount: Int
+    fun init(context: Context, config: SdkConfig)
+    fun <T : Any> get(clazz: Class<T>): T
+    fun shutdown()
+}
+
+/** Reified convenience — can't be in the interface (inline). */
+inline fun <reified T : Any> MultiModuleSdkApi.get(): T = get(T::class.java)
 
 // All other types re-exported via api() dependencies in build.gradle.kts:
 // - SdkConfig                        → from :sdk:feature-core-api

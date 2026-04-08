@@ -14,11 +14,15 @@ android {
 }
 
 dependencies {
-    api(project(":di-contracts"))  // CoreProvisions, AnaProvisions, AnaScope
-
-    // DefaultAnalyticsService lives HERE (internal)
+    implementation(project(":di-contracts"))  // CoreProvisions, AnaProvisions, Resolver
+    implementation(project(":features:feature-ana-api"))  // AnalyticsApi
+    implementation(project(":features:feature-core-api"))  // SdkConfig
+    implementation(project(":features:observability-api"))  // SdkLogger
 
     implementation(libs.dagger)
     ksp(libs.dagger.compiler)
     implementation(libs.javax.inject)
+
+    implementation(libs.kotlin.inject.runtime)
+    ksp(libs.kotlin.inject.compiler)
 }

@@ -5,10 +5,10 @@ import com.grinwich.sdk.api.SdkLogger
 import com.grinwich.sdk.contracts.AnaProvisions
 import com.grinwich.sdk.contracts.AnaScope
 import com.grinwich.sdk.contracts.CoreProvisions
+import dagger.Binds
 import dagger.BindsInstance
 import dagger.Component
 import dagger.Module
-import dagger.Provides
 
 /** Factory: builds AnaProvisions without exposing DaggerAnaComponent. */
 fun buildAnaProvisions(core: CoreProvisions, logger: SdkLogger): AnaProvisions =
@@ -35,7 +35,7 @@ interface AnaComponent : AnaProvisions {
 }
 
 @Module
-internal class AnaModule {
-    @Provides @AnaScope
-    fun analytics(logger: SdkLogger): AnalyticsApi = DefaultAnalyticsService(logger)
+internal abstract class AnaModule {
+    @Binds @AnaScope
+    abstract fun analytics(impl: DefaultAnalyticsService): AnalyticsApi
 }

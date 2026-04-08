@@ -7,10 +7,10 @@ import com.grinwich.sdk.contracts.AuthProvisions
 import com.grinwich.sdk.contracts.AuthScope
 import com.grinwich.sdk.contracts.CoreProvisions
 import com.grinwich.sdk.contracts.EncProvisions
+import dagger.Binds
 import dagger.BindsInstance
 import dagger.Component
 import dagger.Module
-import dagger.Provides
 
 /** Factory: builds AuthProvisions without exposing DaggerAuthComponent. */
 fun buildAuthProvisions(core: CoreProvisions, logger: SdkLogger, enc: EncProvisions): AuthProvisions =
@@ -44,8 +44,7 @@ interface AuthComponent : AuthProvisions {
 }
 
 @Module
-internal class AuthModule {
-    @Provides @AuthScope
-    fun auth(enc: EncryptionApi, logger: SdkLogger): AuthApi =
-        DefaultAuthService(enc, logger)
+internal abstract class AuthModule {
+    @Binds @AuthScope
+    abstract fun auth(impl: DefaultAuthService): AuthApi
 }

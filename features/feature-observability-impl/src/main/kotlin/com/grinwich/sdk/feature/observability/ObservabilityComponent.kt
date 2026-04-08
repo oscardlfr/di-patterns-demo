@@ -2,9 +2,9 @@ package com.grinwich.sdk.feature.observability
 
 import com.grinwich.sdk.api.SdkLogger
 import com.grinwich.sdk.contracts.ObservabilityProvisions
+import dagger.Binds
 import dagger.Component
 import dagger.Module
-import dagger.Provides
 import javax.inject.Singleton
 
 @Singleton
@@ -14,7 +14,7 @@ interface ObservabilityComponent : ObservabilityProvisions {
 }
 
 @Module
-internal class ObservabilityModule {
-    @Provides @Singleton
-    fun logger(): SdkLogger = AndroidSdkLogger()
+internal abstract class ObservabilityModule {
+    @Binds @Singleton
+    abstract fun logger(impl: AndroidSdkLogger): SdkLogger
 }

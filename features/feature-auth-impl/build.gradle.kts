@@ -14,12 +14,16 @@ android {
 }
 
 dependencies {
-    api(project(":di-contracts"))  // CoreProvisions, EncProvisions, AuthProvisions, AuthScope
-
-    // DefaultAuthService lives HERE (internal)
-    // Cross-feature dep on EncProvisions (contract), NOT :feature-enc-impl
+    implementation(project(":di-contracts"))  // CoreProvisions, EncProvisions, AuthProvisions, Resolver
+    implementation(project(":features:feature-auth-api"))  // AuthApi, AuthToken
+    implementation(project(":features:feature-enc-api"))  // EncryptionApi (cross-feature dep)
+    implementation(project(":features:feature-core-api"))  // SdkConfig
+    implementation(project(":features:observability-api"))  // SdkLogger
 
     implementation(libs.dagger)
     ksp(libs.dagger.compiler)
     implementation(libs.javax.inject)
+
+    implementation(libs.kotlin.inject.runtime)
+    ksp(libs.kotlin.inject.compiler)
 }

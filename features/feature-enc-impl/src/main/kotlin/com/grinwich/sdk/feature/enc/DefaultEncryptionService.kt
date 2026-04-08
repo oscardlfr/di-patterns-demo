@@ -3,8 +3,11 @@ package com.grinwich.sdk.feature.enc
 import com.grinwich.sdk.api.EncryptionApi
 import com.grinwich.sdk.api.HashApi
 import com.grinwich.sdk.api.SdkLogger
+import javax.inject.Inject
 
-internal class DefaultEncryptionService(private val logger: SdkLogger) : EncryptionApi {
+internal class DefaultEncryptionService @Inject constructor(
+    private val logger: SdkLogger,
+) : EncryptionApi {
 
     override fun encrypt(plaintext: String): String {
         logger.d("Encryption", "Encrypting ${plaintext.length} chars")
@@ -20,7 +23,7 @@ internal class DefaultEncryptionService(private val logger: SdkLogger) : Encrypt
     }
 }
 
-internal class DefaultHashService : HashApi {
+internal class DefaultHashService @Inject constructor() : HashApi {
 
     override fun sha256(input: ByteArray): ByteArray {
         val digest = java.security.MessageDigest.getInstance("SHA-256")

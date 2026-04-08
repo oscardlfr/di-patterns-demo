@@ -6,10 +6,10 @@ import com.grinwich.sdk.api.SdkLogger
 import com.grinwich.sdk.contracts.CoreProvisions
 import com.grinwich.sdk.contracts.EncProvisions
 import com.grinwich.sdk.contracts.EncScope
+import dagger.Binds
 import dagger.BindsInstance
 import dagger.Component
 import dagger.Module
-import dagger.Provides
 
 /** Factory: builds EncProvisions without exposing DaggerEncComponent. */
 fun buildEncProvisions(core: CoreProvisions, logger: SdkLogger): EncProvisions =
@@ -42,10 +42,10 @@ interface EncComponent : EncProvisions {
 }
 
 @Module
-internal class EncModule {
-    @Provides @EncScope
-    fun encryption(logger: SdkLogger): EncryptionApi = DefaultEncryptionService(logger)
+internal abstract class EncModule {
+    @Binds @EncScope
+    abstract fun encryption(impl: DefaultEncryptionService): EncryptionApi
 
-    @Provides @EncScope
-    fun hash(): HashApi = DefaultHashService()
+    @Binds @EncScope
+    abstract fun hash(impl: DefaultHashService): HashApi
 }

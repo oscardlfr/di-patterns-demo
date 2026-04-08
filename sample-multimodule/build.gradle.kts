@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -32,4 +33,9 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.material3)
+
+    // Dagger 2 — demonstrates how a consumer app integrates the SDK with its own DI
+    implementation(libs.dagger)
+    ksp(libs.dagger.compiler)
+    implementation(libs.javax.inject)
 }

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <service
+            android:name="com.grinwich.sdk.wiring.k.ComponentDiscoveryService"
+            android:exported="false">
+            <meta-data
+                android:name="com.grinwich.sdk.providers:com.grinwich.sdk.feature.enc.EncProvider"
+                android:value="com.grinwich.sdk.contracts.FeatureProvider" />
+        </service>
+    </application>
+</manifest>

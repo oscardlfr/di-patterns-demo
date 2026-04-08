@@ -2,10 +2,10 @@ package com.grinwich.sdk.feature.syn
 
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.contracts.*
+import dagger.Binds
 import dagger.BindsInstance
 import dagger.Component
 import dagger.Module
-import dagger.Provides
 
 /** Factory: builds SynProvisions without exposing DaggerSynComponent. */
 fun buildSynProvisions(
@@ -53,12 +53,7 @@ interface SynComponent : SynProvisions {
 }
 
 @Module
-internal class SynModule {
-    @Provides @SynScope
-    fun sync(
-        auth: AuthApi,
-        storage: StorageApi,
-        enc: EncryptionApi,
-        logger: SdkLogger,
-    ): SyncApi = DefaultSyncService(auth, storage, enc, logger)
+internal abstract class SynModule {
+    @Binds @SynScope
+    abstract fun sync(impl: DefaultSyncService): SyncApi
 }

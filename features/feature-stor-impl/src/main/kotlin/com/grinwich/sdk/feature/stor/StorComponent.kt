@@ -8,10 +8,10 @@ import com.grinwich.sdk.contracts.CoreProvisions
 import com.grinwich.sdk.contracts.EncProvisions
 import com.grinwich.sdk.contracts.StorProvisions
 import com.grinwich.sdk.contracts.StorScope
+import dagger.Binds
 import dagger.BindsInstance
 import dagger.Component
 import dagger.Module
-import dagger.Provides
 
 /** Factory: builds StorProvisions without exposing DaggerStorComponent. */
 fun buildStorProvisions(core: CoreProvisions, logger: SdkLogger, enc: EncProvisions): StorProvisions =
@@ -39,8 +39,7 @@ interface StorComponent : StorProvisions {
 }
 
 @Module
-internal class StorModule {
-    @Provides @StorScope
-    fun storage(enc: EncryptionApi, hash: HashApi, logger: SdkLogger): StorageApi =
-        DefaultSecureStorageService(enc, hash, logger)
+internal abstract class StorModule {
+    @Binds @StorScope
+    abstract fun storage(impl: DefaultSecureStorageService): StorageApi
 }

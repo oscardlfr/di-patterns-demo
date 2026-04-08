@@ -14,12 +14,15 @@ android {
 }
 
 dependencies {
-    api(project(":di-contracts"))  // CoreProvisions, EncProvisions, EncScope
-
-    // DefaultEncryptionService + DefaultHashService live HERE (internal)
-    // Does NOT depend on :feature-core-impl — uses CoreProvisions (contract)
+    implementation(project(":di-contracts"))  // CoreProvisions, EncProvisions, Resolver
+    implementation(project(":features:feature-enc-api"))  // EncryptionApi, HashApi
+    implementation(project(":features:feature-core-api"))  // SdkConfig
+    implementation(project(":features:observability-api"))  // SdkLogger
 
     implementation(libs.dagger)
     ksp(libs.dagger.compiler)
     implementation(libs.javax.inject)
+
+    implementation(libs.kotlin.inject.runtime)
+    ksp(libs.kotlin.inject.compiler)
 }

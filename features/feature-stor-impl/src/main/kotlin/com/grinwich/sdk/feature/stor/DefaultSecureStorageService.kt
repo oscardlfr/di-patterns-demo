@@ -4,8 +4,9 @@ import com.grinwich.sdk.api.EncryptionApi
 import com.grinwich.sdk.api.HashApi
 import com.grinwich.sdk.api.SdkLogger
 import com.grinwich.sdk.api.StorageApi
+import javax.inject.Inject
 
-internal class DefaultSecureStorageService(
+internal class DefaultSecureStorageService @Inject constructor(
     private val encryption: EncryptionApi,
     private val hash: HashApi,
     private val logger: SdkLogger,

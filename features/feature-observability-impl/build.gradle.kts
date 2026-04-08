@@ -14,7 +14,8 @@ android {
 }
 
 dependencies {
-    api(project(":di-contracts"))  // ObservabilityProvisions
+    implementation(project(":di-contracts"))  // ObservabilityProvisions, Resolver
+    implementation(project(":features:observability-api"))  // SdkLogger
 
     implementation(libs.dagger)
     ksp(libs.dagger.compiler)

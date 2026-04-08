@@ -42,7 +42,7 @@ include(":di-contracts")
 
 // ── SDK ──
 include(":sdk:api")
-include(":sdk:impl-common")
+include(":sdk:impl-common-d-c")
 include(":sdk:impl-koin")
 include(":sdk:impl-dagger-b")
 include(":sdk:impl-dagger-c")
@@ -51,6 +51,9 @@ include(":sdk:wiring-e")
 include(":sdk:wiring-e2")
 include(":sdk:wiring-g")
 include(":sdk:wiring-h")
+include(":sdk:wiring-i")
+include(":sdk:wiring-j")
+include(":sdk:wiring-k")
 
 // ── Sample apps ──
 include(":sample-dagger-a")

@@ -14,7 +14,8 @@ android {
 }
 
 dependencies {
-    api(project(":di-contracts"))  // CoreProvisions (public — other impls need it)
+    implementation(project(":di-contracts"))  // CoreProvisions, Resolver
+    implementation(project(":features:feature-core-api"))  // SdkConfig
 
     implementation(libs.dagger)
     ksp(libs.dagger.compiler)

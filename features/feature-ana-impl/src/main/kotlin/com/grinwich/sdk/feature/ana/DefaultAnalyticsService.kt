@@ -2,8 +2,9 @@ package com.grinwich.sdk.feature.ana
 
 import com.grinwich.sdk.api.AnalyticsApi
 import com.grinwich.sdk.api.SdkLogger
+import javax.inject.Inject
 
-internal class DefaultAnalyticsService(
+internal class DefaultAnalyticsService @Inject constructor(
     private val logger: SdkLogger,
 ) : AnalyticsApi {
 

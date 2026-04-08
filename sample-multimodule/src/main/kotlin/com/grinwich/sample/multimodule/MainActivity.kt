@@ -1,67 +1,105 @@
 package com.grinwich.sample.multimodule
 
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.grinwich.sample.multimodule.data.UserRepository
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.wiring.h.MultiModuleSdkH
 
 /**
- * Demonstrates Pattern H SDK consumption.
+ * Demonstrates two SDK consumption patterns in one Activity:
  *
- * This app ONLY imports from :sdk:api and :sdk:wiring-h.
- * Zero knowledge of Dagger, Components, provision interfaces,
- * FeatureProviders, or any feature-impl module.
+ * 1. **Via Dagger** (recommended for apps with existing Dagger setup):
+ *    AppComponent → SdkBridgeModule → UserRepository → constructor injection
+ *
+ * 2. **Direct** (simplest possible — no app-side DI):
+ *    MultiModuleSdkH.get<EncryptionApi>()
+ *
+ * Both work. The Dagger approach is cleaner for large apps.
  */
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Auto-builds Encryption + Auth on demand (DFS cascading)
-        val auth: AuthApi = MultiModuleSdkH.get()
-        val token = auth.login("demo-user", "s3cr3t")
-        Log.d("MultiModule", "Auth token: ${token.accessToken}")
+        val app = application as MultiModuleApp
+        val repo = app.appComponent.userRepository()
 
-        // Auto-builds Storage on demand (Encryption already cached)
-        val storage: StorageApi = MultiModuleSdkH.get()
-        storage.put("sync-queue", "pending-data")
-
-        // Auto-builds Sync on demand (Auth + Storage + Enc already cached)
-        val sync: SyncApi = MultiModuleSdkH.get()
-        val result = sync.sync()
-        Log.d("MultiModule", "Sync: ${result.uploaded} up, ${result.downloaded} down")
-
-        // Analytics — standalone, only needs Core (already cached)
-        val analytics: AnalyticsApi = MultiModuleSdkH.get()
-        analytics.trackEvent("app_launched")
+        // Direct SDK access (no Dagger) — for simple use cases
+        val encryption: EncryptionApi = MultiModuleSdkH.get()
 
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    Column(modifier = Modifier.padding(24.dp)) {
-                        Text("Pattern H — Auto-Discovery SDK", style = MaterialTheme.typography.headlineMedium)
-                        Spacer(Modifier.height(16.dp))
-                        Text("Auth: ${token.accessToken.take(20)}...")
-                        Text("Storage: ${storage.get("sync-queue")}")
-                        Text("Sync: ${result.uploaded} up, ${result.downloaded} down")
-                        Text("Analytics events: ${analytics.getTrackedEvents()}")
-                        Spacer(Modifier.height(24.dp))
-                        Text(
-                            "This app depends ONLY on :sdk:wiring-h.\n" +
-                            "Zero imports from feature-impl modules.\n" +
-                            "Zero knowledge of Dagger, Components, or FeatureProviders.",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
+                    SdkDemoScreen(repo, encryption)
                 }
             }
         }
+    }
+}
+
+@Composable
+fun SdkDemoScreen(repo: UserRepository, encryption: EncryptionApi) {
+    var loginStatus by remember { mutableStateOf("Not logged in") }
+    var encryptedText by remember { mutableStateOf("") }
+    var events by remember { mutableStateOf(emptyList<String>()) }
+
+    repo.trackScreen("SdkDemoScreen")
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            "Pattern H — SDK + Dagger2 Integration",
+            style = MaterialTheme.typography.headlineSmall,
+        )
+
+        HorizontalDivider()
+
+        // ── Dagger-injected repository ──
+        Text("Via Dagger (UserRepository)", style = MaterialTheme.typography.titleMedium)
+
+        Button(onClick = {
+            val token = repo.login("demo_user", "password123")
+            loginStatus = "Logged in: ${token.accessToken.take(25)}..."
+        }) { Text("Login via Repository") }
+
+        Text(loginStatus)
+        Text("Last user: ${repo.lastUser() ?: "none"}")
+        Text("Is authenticated: ${repo.isLoggedIn()}")
+
+        HorizontalDivider()
+
+        // ── Direct SDK access ──
+        Text("Direct SDK (no Dagger)", style = MaterialTheme.typography.titleMedium)
+
+        Button(onClick = {
+            encryptedText = encryption.encrypt("Hello SDK!")
+        }) { Text("Encrypt 'Hello SDK!'") }
+
+        if (encryptedText.isNotEmpty()) {
+            Text("Encrypted: $encryptedText")
+            Text("Decrypted: ${encryption.decrypt(encryptedText)}")
+        }
+
+        HorizontalDivider()
+
+        // ── Architecture info ──
+        Text(
+            "This app depends ONLY on :sdk:wiring-h.\n" +
+                "Dagger bridge resolves SDK services via MultiModuleSdkH.get<T>().\n" +
+                "UserRepository uses @Inject constructor — zero SDK knowledge.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

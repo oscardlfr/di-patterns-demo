@@ -40,12 +40,20 @@ abstract class FeatureProvider<P : Any>(val provisionClass: Class<P>) {
  * No hardcoded default — if no ObservabilityProvider is registered, accessing
  * logger will fail with a clear error.
  */
+/**
+ * Runtime resolver — builds provisions on demand via DFS.
+ *
+ * Thread-safe: ensureBuilt() is synchronized so concurrent get() calls
+ * from multiple threads cannot cause double construction or partial state.
+ * After first build, subsequent get() hits the cache without contention.
+ */
 class Resolver {
 
+    private val lock = Any()
     private val providers = HashMap<Class<*>, FeatureProvider<*>>()
     private val serviceIndex = HashMap<Class<*>, Class<*>>()
-    private val provisions = HashMap<Class<*>, Any>()
-    private val resolvedServices = HashMap<Class<*>, Any>()
+    private val provisions = java.util.concurrent.ConcurrentHashMap<Class<*>, Any>()
+    private val resolvedServices = java.util.concurrent.ConcurrentHashMap<Class<*>, Any>()
 
     lateinit var config: SdkConfig; private set
 
@@ -64,6 +72,7 @@ class Resolver {
     }
 
     fun <T : Any> get(clazz: Class<T>): T {
+        // Fast path: cache hit without lock (read-only after build)
         resolvedServices[clazz]?.let {
             return checkNotNull(clazz.cast(it)) { "Cast failed for ${clazz.simpleName}" }
         }
@@ -82,21 +91,38 @@ class Resolver {
         return checkNotNull(clazz.cast(built)) { "Cast failed for ${clazz.simpleName}" }
     }
 
+    /**
+     * Thread-safe DFS: synchronized on [lock] so only one thread builds at a time.
+     * The check-then-build inside the lock prevents double construction.
+     * Recursive calls from build() re-enter the same thread's lock (reentrant).
+     */
     private fun ensureBuilt(provisionClass: Class<*>) {
-        if (provisions.containsKey(provisionClass)) return
-        val provider = providers[provisionClass]
-            ?: error("No provider registered for ${provisionClass.simpleName}")
-        val provision = provider.buildUntyped(this)
-        provisions[provisionClass] = provision
-        for (serviceClass in provider.services.keys) {
-            resolvedServices[serviceClass] = provider.extractService(provision, serviceClass)
+        if (provisions.containsKey(provisionClass)) return // fast path without lock
+        synchronized(lock) {
+            if (provisions.containsKey(provisionClass)) return // double-check inside lock
+            val provider = providers[provisionClass]
+                ?: error("No provider registered for ${provisionClass.simpleName}")
+            val provision = provider.buildUntyped(this)
+            // Write services BEFORE marking provision as built.
+            // Other threads use provisions.containsKey() as the gate (fast path outside lock).
+            // If we wrote provisions first, a thread could see containsKey()=true
+            // but resolvedServices[service] still null.
+            for (serviceClass in provider.services.keys) {
+                resolvedServices[serviceClass] = provider.extractService(provision, serviceClass)
+            }
+            provisions[provisionClass] = provision // LAST — gate for other threads
         }
     }
 
+    /** Number of provisions currently built. Useful for verifying lazy behavior in tests. */
+    val builtProvisionCount: Int get() = provisions.size
+
     fun clear() {
-        providers.clear()
-        serviceIndex.clear()
-        provisions.clear()
-        resolvedServices.clear()
+        synchronized(lock) {
+            providers.clear()
+            serviceIndex.clear()
+            provisions.clear()
+            resolvedServices.clear()
+        }
     }
 }

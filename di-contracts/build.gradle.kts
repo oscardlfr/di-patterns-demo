@@ -13,14 +13,16 @@ android {
 }
 
 dependencies {
-    // Provision interfaces reference these types
-    api(project(":features:feature-core-api"))      // SdkConfig
-    api(project(":features:observability-api"))      // SdkLogger
-    api(project(":features:feature-enc-api"))        // EncryptionService, HashService
-    api(project(":features:feature-auth-api"))       // AuthService
-    api(project(":features:feature-stor-api"))       // SecureStorageService
-    api(project(":features:feature-ana-api"))        // AnalyticsService
-    api(project(":features:feature-syn-api"))        // SyncService
+    // Provision interfaces reference these types internally.
+    // implementation() — di-contracts does NOT transitively expose feature-api types.
+    // Each feature-impl declares its own explicit dependencies on the apis it uses.
+    implementation(project(":features:feature-core-api"))      // SdkConfig
+    implementation(project(":features:observability-api"))      // SdkLogger
+    implementation(project(":features:feature-enc-api"))        // EncryptionApi, HashApi
+    implementation(project(":features:feature-auth-api"))       // AuthApi
+    implementation(project(":features:feature-stor-api"))       // StorageApi
+    implementation(project(":features:feature-ana-api"))        // AnalyticsApi
+    implementation(project(":features:feature-syn-api"))        // SyncApi
     // javax.inject for @Scope annotations
     implementation(libs.javax.inject)
 }

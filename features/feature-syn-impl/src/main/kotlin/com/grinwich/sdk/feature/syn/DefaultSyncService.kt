@@ -1,8 +1,9 @@
 package com.grinwich.sdk.feature.syn
 
 import com.grinwich.sdk.api.*
+import javax.inject.Inject
 
-internal class DefaultSyncService(
+internal class DefaultSyncService @Inject constructor(
     private val auth: AuthApi,
     private val storage: StorageApi,
     private val encryption: EncryptionApi,
