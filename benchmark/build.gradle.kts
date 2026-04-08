@@ -39,6 +39,12 @@ dependencies {
     implementation(project(":sdk:wiring-e2"))
     implementation(project(":sdk:wiring-g"))
     implementation(project(":sdk:wiring-h"))
+    implementation(project(":sdk:wiring-i"))
+    implementation(project(":sdk:wiring-j"))
+    implementation(project(":sdk:wiring-k"))
+
+    // DI infrastructure — needed for ScaleBenchmark (Resolver, AutoProvisionRegistry)
+    implementation(project(":di-contracts"))
 
     // Hybrid bridge — app-specific @Component (per-app, not per-SDK)
     implementation(project(":sdk:api"))

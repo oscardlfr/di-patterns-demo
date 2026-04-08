@@ -46,17 +46,19 @@ def classify_benchmark(name):
     """Extract (operation, pattern) from benchmark name."""
     name = name.replace("EMULATOR_", "")
 
-    # Multi-module patterns
-    for suffix in ["_multiModuleD", "_multiModuleE2", "_multiModuleE", "_multiModuleG", "_multiModuleH"]:
-        if suffix in name:
-            op = name.replace(suffix, "").replace("_sync", "").replace("_analytics", "")
-            pattern = suffix.replace("_", "").replace("multiModule", "MM-")
-            # Preserve sub-info
-            if "_analytics" in name:
-                op += "_noDeps"
-            elif "_sync" in name and "crossFeature" not in name.lower():
-                op += "_cascade"
-            return op, pattern
+    # Multi-module patterns (suffix order: _E2 before _E to avoid partial match)
+    for suffix, label in [("_E2", "MM-E2"), ("_D", "MM-D"), ("_G", "MM-G"),
+                          ("_H", "MM-H"), ("_I", "MM-I"), ("_J", "MM-J"),
+                          ("_K", "MM-K")]:
+        if name.endswith(suffix):
+            op = name[: -len(suffix)]
+            return op, label
+
+    # Scale benchmarks (ScaleBenchmark class — no per-pattern suffix)
+    for prefix in ["resolver_", "registry_"]:
+        if name.startswith(prefix):
+            engine = "Resolver (H/I/J)" if prefix == "resolver_" else "Registry (E2)"
+            return name, engine
 
     # Monolithic patterns
     pattern_map = {
@@ -110,6 +112,22 @@ def main():
         "Lazy Init - No Deps (Analytics)": ["lazyInit_noDeps", "lazyInit_noDeps_noDeps"],
         "Lazy Init - Cascade (Sync)": ["lazyInit_cascade", "lazyInit_cascade_cascade"],
         "Cross-Feature Op (Sync)": ["crossFeatureOp", "crossFeatureOp_sync", "baseline__crossFeatureOp"],
+        "Stress: Init/Shutdown Cycle": ["stress_initShutdown"],
+        "Stress: Concurrent Resolution": ["stress_concurrent"],
+        "Stress: Resolve All (cached)": ["stress_resolveAll"],
+        "Stress: Selective Init": ["stress_selective"],
+        "Stress: Re-Init": ["stress_reInit"],
+        "Stress: Incremental Build": ["stress_incremental"],
+        "E2E App Startup": ["e2eStartup"],
+    }
+
+    # Scale benchmarks get their own section (different patterns: engine, not SDK variant)
+    scale_groups = {
+        "Scale: Linear Graph": ["linear"],
+        "Scale: Tree Graph": ["tree"],
+        "Scale: Diamond Graph": ["diamond"],
+        "Scale: Full Graph (tree)": ["fullGraph_tree"],
+        "Scale: Selective (tree)": ["selective_tree"],
     }
 
     # Collect all patterns seen
@@ -117,10 +135,11 @@ def main():
     for patterns in ops.values():
         all_patterns.update(patterns.keys())
 
-    # Order patterns: monolithic first, then multi-module
+    # Order patterns: monolithic first, then multi-module, then scale engines
     mono_order = ["Dagger-A", "Dagger-B", "Dagger-C", "Dagger-D", "Dagger-E", "Dagger-E2", "Dagger-F", "Koin", "Hybrid"]
-    mm_order = ["MM-D", "MM-E", "MM-E2", "MM-G", "MM-H"]
-    pattern_order = [p for p in mono_order + mm_order if p in all_patterns]
+    mm_order = ["MM-D", "MM-E", "MM-E2", "MM-G", "MM-H", "MM-I", "MM-J", "MM-K"]
+    scale_order = ["Resolver (H/I/J)", "Registry (E2)"]
+    pattern_order = [p for p in mono_order + mm_order + scale_order if p in all_patterns]
 
     print("=" * 100)
     print("BENCHMARK RESULTS SUMMARY")
@@ -168,6 +187,33 @@ def main():
             ratio_str = f"{ratio:.1f}x" if ratio > 1.05 else "  =="
             print(f"  {pattern:<{col_w}} {format_time(time):>12}  {ratio_str:>10}{marker}")
 
+    # Scale benchmarks section (Resolver vs Registry at different sizes)
+    scale_ops = {op: patterns for op, patterns in ops.items()
+                 if any(op.startswith(p) for p in ["resolver_", "registry_"])}
+    if scale_ops:
+        print(f"\n{'=' * 100}")
+        print("SCALE BENCHMARKS (synthetic features)")
+        print("=" * 100)
+
+        for group_name, keywords in scale_groups.items():
+            matching = {op: patterns for op, patterns in scale_ops.items()
+                        if any(k in op for k in keywords)}
+            if not matching:
+                continue
+
+            print(f"\n{'-' * 100}")
+            print(f"  {group_name}")
+            print(f"{'-' * 100}")
+
+            col_w = 40
+            header = f"  {'Test':<{col_w}} {'Engine':<20} {'Median':>12}"
+            print(header)
+            print(f"  {'-' * (col_w + 36)}")
+
+            for op in sorted(matching.keys()):
+                for engine, time in sorted(matching[op].items()):
+                    print(f"  {op:<{col_w}} {engine:<20} {format_time(time):>12}")
+
     # Print unmatched operations
     matched_ops = set()
     for op_keys in op_groups.values():
@@ -175,6 +221,7 @@ def main():
             for key in op_keys:
                 if key in op:
                     matched_ops.add(op)
+    matched_ops.update(scale_ops.keys())
 
     unmatched = {op: patterns for op, patterns in ops.items() if op not in matched_ops}
     if unmatched:
@@ -230,6 +277,32 @@ def main():
         ratio = mm_h_init / mm_g_init
         print(f"  H is {ratio:.1f}x G ({format_time(mm_h_init)} vs {format_time(mm_g_init)})")
         print(f"  H advantage: zero central editing (each feature self-registers)")
+
+    # I vs H (Pure Resolver — zero DI framework)
+    mm_i_init = mm_init.get("MM-I")
+    if mm_i_init and mm_h_init:
+        print(f"\nI vs H (multi-module):")
+        ratio = mm_i_init / mm_h_init
+        if ratio < 1.05 and ratio > 0.95:
+            print(f"  Identical performance ({format_time(mm_i_init)} vs {format_time(mm_h_init)})")
+        elif ratio < 1:
+            print(f"  I is {1/ratio:.1f}x FASTER than H ({format_time(mm_i_init)} vs {format_time(mm_h_init)})")
+        else:
+            print(f"  I is {ratio:.1f}x H ({format_time(mm_i_init)} vs {format_time(mm_h_init)})")
+        print(f"  I advantage: zero DI framework dependency (no Dagger, no KSP)")
+
+    # J vs H (kotlin-inject)
+    mm_j_init = mm_init.get("MM-J")
+    if mm_j_init and mm_h_init:
+        print(f"\nJ vs H (multi-module):")
+        ratio = mm_j_init / mm_h_init
+        if ratio < 1.05 and ratio > 0.95:
+            print(f"  Identical performance ({format_time(mm_j_init)} vs {format_time(mm_h_init)})")
+        elif ratio < 1:
+            print(f"  J is {1/ratio:.1f}x FASTER than H ({format_time(mm_j_init)} vs {format_time(mm_h_init)})")
+        else:
+            print(f"  J is {ratio:.1f}x H ({format_time(mm_j_init)} vs {format_time(mm_h_init)})")
+        print(f"  J advantage: modern KSP tooling, less boilerplate than Dagger")
 
     print()
 

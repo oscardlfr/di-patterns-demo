@@ -4,26 +4,19 @@ import androidx.benchmark.junit4.BenchmarkRule
 import androidx.benchmark.junit4.measureRepeated
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.grinwich.sdk.api.*
-import com.grinwich.sdk.wiring.MultiModuleSdk
-import com.grinwich.sdk.wiring.e.MultiModuleSdkE
-import com.grinwich.sdk.wiring.e2.MultiModuleSdkE2
-import com.grinwich.sdk.wiring.g.MultiModuleSdkG
-import com.grinwich.sdk.wiring.h.MultiModuleSdkH
 import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Microbenchmarks comparing multi-module wiring patterns.
+ * Microbenchmarks comparing 6 lazy multi-module wiring patterns.
  *
- * All five use the SAME feature-impl modules (same Dagger components),
- * only the wiring strategy differs:
- * - D (MultiModuleSdk): direct when-block with lazy ensure*() methods
- * - E (MultiModuleSdkE): ProvisionRegistry with topological sort, eager build
- * - E2 (MultiModuleSdkE2): AutoProvisionRegistry with DFS build-on-demand
- * - G (MultiModuleSdkG): Factory functions (DaggerXxxComponent internal)
- * - H (MultiModuleSdkH): Auto-Discovery FeatureProviders with DFS resolver
+ * All patterns implement [MultiModuleSdkApi] — same consumer surface:
+ * init(config) → get<T>() → shutdown()
+ *
+ * Patterns: D (when-block), E2 (AutoRegistry DFS), G (factory),
+ *           H (Dagger+ServiceLoader), I (Pure Resolver), J (kotlin-inject)
  *
  * Run: ./gradlew :benchmark:connectedReleaseAndroidTest
  */
@@ -35,708 +28,288 @@ class MultiModuleBenchmark {
 
     private val config = SdkConfig(debug = false)
 
-    /**
-     * Defensive cleanup — if a test fails mid-execution (e.g., ENOSPC on trace write),
-     * the SDK object remains initialized. Without this, the NEXT test calling init()
-     * would fail with "already initialized" — a cascade failure, not a real bug.
-     */
     @After
     fun tearDown() {
-        MultiModuleSdk.shutdown()
-        MultiModuleSdkE.shutdown()
-        MultiModuleSdkE2.shutdown()
-        MultiModuleSdkG.shutdown()
-        MultiModuleSdkH.shutdown()
+        ALL_LAZY_SDKS.forEach { (_, sdk) -> sdk.shutdown() }
     }
 
     // ════════════════════════════════════════════════════════
-    // 1. INIT COLD — create full graph from scratch (6 features)
+    // 1. INIT COLD — full graph from scratch
     // ════════════════════════════════════════════════════════
 
-    @Test
-    fun initCold_multiModuleD() = benchmarkRule.measureRepeated {
-        MultiModuleSdk.init(config)
-        MultiModuleSdk.get<EncryptionApi>()
-        MultiModuleSdk.get<HashApi>()
-        MultiModuleSdk.get<AuthApi>()
-        MultiModuleSdk.get<StorageApi>()
-        MultiModuleSdk.get<AnalyticsApi>()
-        MultiModuleSdk.get<SyncApi>()
-        runWithMeasurementDisabled { MultiModuleSdk.shutdown() }
-    }
+    @Test fun initCold_D() = initCold(ALL_LAZY_SDKS[0].second)
+    @Test fun initCold_E2() = initCold(ALL_LAZY_SDKS[1].second)
+    @Test fun initCold_G() = initCold(ALL_LAZY_SDKS[2].second)
+    @Test fun initCold_H() = initCold(ALL_LAZY_SDKS[3].second)
+    @Test fun initCold_I() = initCold(ALL_LAZY_SDKS[4].second)
+    @Test fun initCold_J() = initCold(ALL_LAZY_SDKS[5].second)
+    @Test fun initCold_K() = initCold(ALL_LAZY_SDKS[6].second)
 
-    @Test
-    fun initCold_multiModuleE() = benchmarkRule.measureRepeated {
-        MultiModuleSdkE.init(config, MultiModuleSdkE.Feature.entries.toSet())
-        MultiModuleSdkE.get<EncryptionApi>()
-        MultiModuleSdkE.get<HashApi>()
-        MultiModuleSdkE.get<AuthApi>()
-        MultiModuleSdkE.get<StorageApi>()
-        MultiModuleSdkE.get<AnalyticsApi>()
-        MultiModuleSdkE.get<SyncApi>()
-        runWithMeasurementDisabled { MultiModuleSdkE.shutdown() }
-    }
-
-    @Test
-    fun initCold_multiModuleE2() = benchmarkRule.measureRepeated {
-        MultiModuleSdkE2.init(config)
-        MultiModuleSdkE2.get<SyncApi>()       // auto-cascades: Core -> Enc -> Auth -> Stor -> Syn
-        MultiModuleSdkE2.get<AnalyticsApi>()   // standalone, builds Ana
-        MultiModuleSdkE2.get<EncryptionApi>()  // already cached
-        MultiModuleSdkE2.get<HashApi>()        // already cached
-        MultiModuleSdkE2.get<AuthApi>()        // already cached
-        MultiModuleSdkE2.get<StorageApi>()
-        runWithMeasurementDisabled { MultiModuleSdkE2.shutdown() }
+    private fun initCold(sdk: MultiModuleSdkApi) = benchmarkRule.measureRepeated {
+        sdk.init(testContext, config)
+        sdk.get(EncryptionApi::class.java)
+        sdk.get(HashApi::class.java)
+        sdk.get(AuthApi::class.java)
+        sdk.get(StorageApi::class.java)
+        sdk.get(AnalyticsApi::class.java)
+        sdk.get(SyncApi::class.java)
+        runWithMeasurementDisabled { sdk.shutdown() }
     }
 
     // ════════════════════════════════════════════════════════
-    // 2. RESOLVE FIRST — first resolution from a built graph
+    // 2. RESOLVE FIRST — cached resolution from built graph
     // ════════════════════════════════════════════════════════
 
-    @Test
-    fun resolveFirst_multiModuleD() {
-        MultiModuleSdk.init(config)
+    @Test fun resolveFirst_D() = resolveFirst(ALL_LAZY_SDKS[0].second)
+    @Test fun resolveFirst_E2() = resolveFirst(ALL_LAZY_SDKS[1].second)
+    @Test fun resolveFirst_G() = resolveFirst(ALL_LAZY_SDKS[2].second)
+    @Test fun resolveFirst_H() = resolveFirst(ALL_LAZY_SDKS[3].second)
+    @Test fun resolveFirst_I() = resolveFirst(ALL_LAZY_SDKS[4].second)
+    @Test fun resolveFirst_J() = resolveFirst(ALL_LAZY_SDKS[5].second)
+    @Test fun resolveFirst_K() = resolveFirst(ALL_LAZY_SDKS[6].second)
+
+    private fun resolveFirst(sdk: MultiModuleSdkApi) {
+        sdk.init(testContext, config)
+        // Warm: first get triggers build
+        sdk.get(EncryptionApi::class.java)
         benchmarkRule.measureRepeated {
-            MultiModuleSdk.get<EncryptionApi>()
+            sdk.get(EncryptionApi::class.java)
         }
-        MultiModuleSdk.shutdown()
-    }
-
-    @Test
-    fun resolveFirst_multiModuleE() {
-        MultiModuleSdkE.init(config, setOf(MultiModuleSdkE.Feature.ENCRYPTION))
-        benchmarkRule.measureRepeated {
-            MultiModuleSdkE.get<EncryptionApi>()
-        }
-        MultiModuleSdkE.shutdown()
-    }
-
-    @Test
-    fun resolveFirst_multiModuleE2() {
-        MultiModuleSdkE2.init(config)
-        // First get triggers build (Core + Enc), subsequent iterations hit cache
-        benchmarkRule.measureRepeated {
-            MultiModuleSdkE2.get<EncryptionApi>()
-        }
-        MultiModuleSdkE2.shutdown()
+        sdk.shutdown()
     }
 
     // ════════════════════════════════════════════════════════
-    // 3. LAZY INIT — add a feature to a running graph
+    // 3. LAZY INIT — standalone feature (Analytics, zero cross-deps)
     // ════════════════════════════════════════════════════════
 
-    // --- Case 1: Analytics (ZERO cross-feature deps) ---
+    @Test fun lazyInit_noDeps_D() = lazyInitNoDeps(ALL_LAZY_SDKS[0].second)
+    @Test fun lazyInit_noDeps_E2() = lazyInitNoDeps(ALL_LAZY_SDKS[1].second)
+    @Test fun lazyInit_noDeps_G() = lazyInitNoDeps(ALL_LAZY_SDKS[2].second)
+    @Test fun lazyInit_noDeps_H() = lazyInitNoDeps(ALL_LAZY_SDKS[3].second)
+    @Test fun lazyInit_noDeps_I() = lazyInitNoDeps(ALL_LAZY_SDKS[4].second)
+    @Test fun lazyInit_noDeps_J() = lazyInitNoDeps(ALL_LAZY_SDKS[5].second)
+    @Test fun lazyInit_noDeps_K() = lazyInitNoDeps(ALL_LAZY_SDKS[6].second)
 
-    @Test
-    fun lazyInit_noDeps_multiModuleD_analytics() = benchmarkRule.measureRepeated {
+    private fun lazyInitNoDeps(sdk: MultiModuleSdkApi) = benchmarkRule.measureRepeated {
         runWithMeasurementDisabled {
-            MultiModuleSdk.init(config)
-            MultiModuleSdk.get<EncryptionApi>()  // build base graph
+            sdk.init(testContext, config)
+            sdk.get(EncryptionApi::class.java)  // warm base graph
         }
-        MultiModuleSdk.get<AnalyticsApi>()  // lazy add standalone
-        runWithMeasurementDisabled { MultiModuleSdk.shutdown() }
-    }
-
-    @Test
-    fun lazyInit_noDeps_multiModuleE_analytics() = benchmarkRule.measureRepeated {
-        runWithMeasurementDisabled {
-            MultiModuleSdkE.init(config, setOf(MultiModuleSdkE.Feature.ENCRYPTION))
-        }
-        MultiModuleSdkE.getOrInitModule(MultiModuleSdkE.Feature.ANALYTICS)
-        MultiModuleSdkE.get<AnalyticsApi>()
-        runWithMeasurementDisabled { MultiModuleSdkE.shutdown() }
-    }
-
-    @Test
-    fun lazyInit_noDeps_multiModuleE2_analytics() = benchmarkRule.measureRepeated {
-        runWithMeasurementDisabled {
-            MultiModuleSdkE2.init(config)
-            MultiModuleSdkE2.get<EncryptionApi>()  // build Core + Enc
-        }
-        MultiModuleSdkE2.get<AnalyticsApi>()  // auto-builds Ana (Core cached)
-        runWithMeasurementDisabled { MultiModuleSdkE2.shutdown() }
-    }
-
-    // --- Case 2: Sync (HEAVY deps — Auth + Storage + Encryption cascade) ---
-
-    @Test
-    fun lazyInit_cascade_multiModuleD_sync() = benchmarkRule.measureRepeated {
-        runWithMeasurementDisabled {
-            MultiModuleSdk.init(config)
-            MultiModuleSdk.get<EncryptionApi>()  // build Enc
-        }
-        MultiModuleSdk.get<SyncApi>()  // cascades: Auth + Stor + Syn
-        runWithMeasurementDisabled { MultiModuleSdk.shutdown() }
-    }
-
-    @Test
-    fun lazyInit_cascade_multiModuleE_sync() = benchmarkRule.measureRepeated {
-        runWithMeasurementDisabled {
-            MultiModuleSdkE.init(config, setOf(MultiModuleSdkE.Feature.ENCRYPTION))
-        }
-        MultiModuleSdkE.getOrInitModule(MultiModuleSdkE.Feature.SYNC)
-        MultiModuleSdkE.get<SyncApi>()
-        runWithMeasurementDisabled { MultiModuleSdkE.shutdown() }
-    }
-
-    @Test
-    fun lazyInit_cascade_multiModuleE2_sync() = benchmarkRule.measureRepeated {
-        runWithMeasurementDisabled {
-            MultiModuleSdkE2.init(config)
-            MultiModuleSdkE2.get<EncryptionApi>()  // build Core + Enc
-        }
-        MultiModuleSdkE2.get<SyncApi>()  // auto-cascades Auth + Stor + Syn
-        runWithMeasurementDisabled { MultiModuleSdkE2.shutdown() }
+        sdk.get(AnalyticsApi::class.java)  // measure adding standalone feature
+        runWithMeasurementDisabled { sdk.shutdown() }
     }
 
     // ════════════════════════════════════════════════════════
-    // 4. CROSS-FEATURE OP — real work crossing Auth+Storage+Encryption
-    //    (full graph built, singletons cached)
+    // 4. LAZY INIT — cascade (Sync → Auth + Stor + Enc)
     // ════════════════════════════════════════════════════════
 
-    @Test
-    fun crossFeatureOp_multiModuleD_sync() {
-        MultiModuleSdk.init(config)
-        MultiModuleSdk.get<AuthApi>().login("bench", "pass")
-        val sync = MultiModuleSdk.get<SyncApi>()
+    @Test fun lazyInit_cascade_D() = lazyInitCascade(ALL_LAZY_SDKS[0].second)
+    @Test fun lazyInit_cascade_E2() = lazyInitCascade(ALL_LAZY_SDKS[1].second)
+    @Test fun lazyInit_cascade_G() = lazyInitCascade(ALL_LAZY_SDKS[2].second)
+    @Test fun lazyInit_cascade_H() = lazyInitCascade(ALL_LAZY_SDKS[3].second)
+    @Test fun lazyInit_cascade_I() = lazyInitCascade(ALL_LAZY_SDKS[4].second)
+    @Test fun lazyInit_cascade_J() = lazyInitCascade(ALL_LAZY_SDKS[5].second)
+    @Test fun lazyInit_cascade_K() = lazyInitCascade(ALL_LAZY_SDKS[6].second)
+
+    private fun lazyInitCascade(sdk: MultiModuleSdkApi) = benchmarkRule.measureRepeated {
+        runWithMeasurementDisabled {
+            sdk.init(testContext, config)
+            sdk.get(EncryptionApi::class.java)  // warm Enc
+        }
+        sdk.get(SyncApi::class.java)  // cascades: Auth + Stor + Syn
+        runWithMeasurementDisabled { sdk.shutdown() }
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 5. CROSS-FEATURE OP — real work crossing Auth+Storage+Encryption
+    // ════════════════════════════════════════════════════════
+
+    @Test fun crossFeatureOp_D() = crossFeatureOp(ALL_LAZY_SDKS[0].second)
+    @Test fun crossFeatureOp_E2() = crossFeatureOp(ALL_LAZY_SDKS[1].second)
+    @Test fun crossFeatureOp_G() = crossFeatureOp(ALL_LAZY_SDKS[2].second)
+    @Test fun crossFeatureOp_H() = crossFeatureOp(ALL_LAZY_SDKS[3].second)
+    @Test fun crossFeatureOp_I() = crossFeatureOp(ALL_LAZY_SDKS[4].second)
+    @Test fun crossFeatureOp_J() = crossFeatureOp(ALL_LAZY_SDKS[5].second)
+    @Test fun crossFeatureOp_K() = crossFeatureOp(ALL_LAZY_SDKS[6].second)
+
+    private fun crossFeatureOp(sdk: MultiModuleSdkApi) {
+        sdk.init(testContext, config)
+        sdk.get(AuthApi::class.java).login("bench", "pass")
+        val sync = sdk.get(SyncApi::class.java)
         benchmarkRule.measureRepeated {
             sync.sync()
         }
-        MultiModuleSdk.shutdown()
-    }
-
-    @Test
-    fun crossFeatureOp_multiModuleE_sync() {
-        MultiModuleSdkE.init(config, MultiModuleSdkE.Feature.entries.toSet())
-        MultiModuleSdkE.get<AuthApi>().login("bench", "pass")
-        val sync = MultiModuleSdkE.get<SyncApi>()
-        benchmarkRule.measureRepeated {
-            sync.sync()
-        }
-        MultiModuleSdkE.shutdown()
-    }
-
-    @Test
-    fun crossFeatureOp_multiModuleE2_sync() {
-        MultiModuleSdkE2.init(config)
-        MultiModuleSdkE2.get<AuthApi>().login("bench", "pass")
-        val sync = MultiModuleSdkE2.get<SyncApi>()
-        benchmarkRule.measureRepeated {
-            sync.sync()
-        }
-        MultiModuleSdkE2.shutdown()
+        sdk.shutdown()
     }
 
     // ════════════════════════════════════════════════════════
-    // 5. PATTERN G — Factory Functions (no DaggerXxx imports)
+    // 6. STRESS — Init/Shutdown cycle
     // ════════════════════════════════════════════════════════
 
-    @Test
-    fun initCold_multiModuleG() = benchmarkRule.measureRepeated {
-        MultiModuleSdkG.init(config)
-        MultiModuleSdkG.get<EncryptionApi>()
-        MultiModuleSdkG.get<HashApi>()
-        MultiModuleSdkG.get<AuthApi>()
-        MultiModuleSdkG.get<StorageApi>()
-        MultiModuleSdkG.get<AnalyticsApi>()
-        MultiModuleSdkG.get<SyncApi>()
-        runWithMeasurementDisabled { MultiModuleSdkG.shutdown() }
-    }
+    @Test fun stress_initShutdown_D() = stressInitShutdown(ALL_LAZY_SDKS[0].second)
+    @Test fun stress_initShutdown_E2() = stressInitShutdown(ALL_LAZY_SDKS[1].second)
+    @Test fun stress_initShutdown_G() = stressInitShutdown(ALL_LAZY_SDKS[2].second)
+    @Test fun stress_initShutdown_H() = stressInitShutdown(ALL_LAZY_SDKS[3].second)
+    @Test fun stress_initShutdown_I() = stressInitShutdown(ALL_LAZY_SDKS[4].second)
+    @Test fun stress_initShutdown_J() = stressInitShutdown(ALL_LAZY_SDKS[5].second)
+    @Test fun stress_initShutdown_K() = stressInitShutdown(ALL_LAZY_SDKS[6].second)
 
-    @Test
-    fun resolveFirst_multiModuleG() {
-        MultiModuleSdkG.init(config)
-        benchmarkRule.measureRepeated {
-            MultiModuleSdkG.get<EncryptionApi>()
-        }
-        MultiModuleSdkG.shutdown()
-    }
-
-    @Test
-    fun lazyInit_noDeps_multiModuleG_analytics() = benchmarkRule.measureRepeated {
-        runWithMeasurementDisabled {
-            MultiModuleSdkG.init(config)
-            MultiModuleSdkG.get<EncryptionApi>()
-        }
-        MultiModuleSdkG.get<AnalyticsApi>()
-        runWithMeasurementDisabled { MultiModuleSdkG.shutdown() }
-    }
-
-    @Test
-    fun lazyInit_cascade_multiModuleG_sync() = benchmarkRule.measureRepeated {
-        runWithMeasurementDisabled {
-            MultiModuleSdkG.init(config)
-            MultiModuleSdkG.get<EncryptionApi>()
-        }
-        MultiModuleSdkG.get<SyncApi>()
-        runWithMeasurementDisabled { MultiModuleSdkG.shutdown() }
-    }
-
-    @Test
-    fun crossFeatureOp_multiModuleG_sync() {
-        MultiModuleSdkG.init(config)
-        MultiModuleSdkG.get<AuthApi>().login("bench", "pass")
-        val sync = MultiModuleSdkG.get<SyncApi>()
-        benchmarkRule.measureRepeated {
-            sync.sync()
-        }
-        MultiModuleSdkG.shutdown()
+    private fun stressInitShutdown(sdk: MultiModuleSdkApi) = benchmarkRule.measureRepeated {
+        sdk.init(testContext, config)
+        sdk.get(EncryptionApi::class.java)
+        sdk.shutdown()
     }
 
     // ════════════════════════════════════════════════════════
-    // 6. PATTERN H — Auto-Discovery FeatureProviders
-    //    (zero central editing, DFS via resolver.provision())
+    // 7. STRESS — Concurrent resolve (4 threads)
     // ════════════════════════════════════════════════════════
 
-    @Test
-    fun initCold_multiModuleH() = benchmarkRule.measureRepeated {
-        MultiModuleSdkH.init(config)
-        MultiModuleSdkH.get<EncryptionApi>()
-        MultiModuleSdkH.get<HashApi>()
-        MultiModuleSdkH.get<AuthApi>()
-        MultiModuleSdkH.get<StorageApi>()
-        MultiModuleSdkH.get<AnalyticsApi>()
-        MultiModuleSdkH.get<SyncApi>()
-        runWithMeasurementDisabled { MultiModuleSdkH.shutdown() }
-    }
+    @Test fun stress_concurrent_D() = stressConcurrent(ALL_LAZY_SDKS[0].second)
+    @Test fun stress_concurrent_E2() = stressConcurrent(ALL_LAZY_SDKS[1].second)
+    @Test fun stress_concurrent_G() = stressConcurrent(ALL_LAZY_SDKS[2].second)
+    @Test fun stress_concurrent_H() = stressConcurrent(ALL_LAZY_SDKS[3].second)
+    @Test fun stress_concurrent_I() = stressConcurrent(ALL_LAZY_SDKS[4].second)
+    @Test fun stress_concurrent_J() = stressConcurrent(ALL_LAZY_SDKS[5].second)
+    @Test fun stress_concurrent_K() = stressConcurrent(ALL_LAZY_SDKS[6].second)
 
-    @Test
-    fun resolveFirst_multiModuleH() {
-        MultiModuleSdkH.init(config)
-        benchmarkRule.measureRepeated {
-            MultiModuleSdkH.get<EncryptionApi>()
-        }
-        MultiModuleSdkH.shutdown()
-    }
-
-    @Test
-    fun lazyInit_noDeps_multiModuleH_analytics() = benchmarkRule.measureRepeated {
-        runWithMeasurementDisabled {
-            MultiModuleSdkH.init(config)
-            MultiModuleSdkH.get<EncryptionApi>()
-        }
-        MultiModuleSdkH.get<AnalyticsApi>()
-        runWithMeasurementDisabled { MultiModuleSdkH.shutdown() }
-    }
-
-    @Test
-    fun lazyInit_cascade_multiModuleH_sync() = benchmarkRule.measureRepeated {
-        runWithMeasurementDisabled {
-            MultiModuleSdkH.init(config)
-            MultiModuleSdkH.get<EncryptionApi>()
-        }
-        MultiModuleSdkH.get<SyncApi>()
-        runWithMeasurementDisabled { MultiModuleSdkH.shutdown() }
-    }
-
-    @Test
-    fun crossFeatureOp_multiModuleH_sync() {
-        MultiModuleSdkH.init(config)
-        MultiModuleSdkH.get<AuthApi>().login("bench", "pass")
-        val sync = MultiModuleSdkH.get<SyncApi>()
-        benchmarkRule.measureRepeated {
-            sync.sync()
-        }
-        MultiModuleSdkH.shutdown()
-    }
-
-    // ════════════════════════════════════════════════════════
-    // 7. STRESS — Init/Shutdown cycle
-    //    Measures overhead of repeated init→get one service→shutdown
-    // ════════════════════════════════════════════════════════
-
-    @Test
-    fun stress_initShutdownCycle_multiModuleD() = benchmarkRule.measureRepeated {
-        MultiModuleSdk.init(config)
-        MultiModuleSdk.get<EncryptionApi>()
-        MultiModuleSdk.shutdown()
-    }
-
-    @Test
-    fun stress_initShutdownCycle_multiModuleE() = benchmarkRule.measureRepeated {
-        MultiModuleSdkE.init(config, setOf(MultiModuleSdkE.Feature.ENCRYPTION))
-        MultiModuleSdkE.get<EncryptionApi>()
-        MultiModuleSdkE.shutdown()
-    }
-
-    @Test
-    fun stress_initShutdownCycle_multiModuleE2() = benchmarkRule.measureRepeated {
-        MultiModuleSdkE2.init(config)
-        MultiModuleSdkE2.get<EncryptionApi>()
-        MultiModuleSdkE2.shutdown()
-    }
-
-    @Test
-    fun stress_initShutdownCycle_multiModuleG() = benchmarkRule.measureRepeated {
-        MultiModuleSdkG.init(config)
-        MultiModuleSdkG.get<EncryptionApi>()
-        MultiModuleSdkG.shutdown()
-    }
-
-    @Test
-    fun stress_initShutdownCycle_multiModuleH() = benchmarkRule.measureRepeated {
-        MultiModuleSdkH.init(config)
-        MultiModuleSdkH.get<EncryptionApi>()
-        MultiModuleSdkH.shutdown()
-    }
-
-    // ════════════════════════════════════════════════════════
-    // 8. STRESS — Concurrent resolve
-    //    Multiple threads calling get<T>() simultaneously on a built graph
-    // ════════════════════════════════════════════════════════
-
-    @Test
-    fun stress_concurrentResolve_multiModuleD() {
-        MultiModuleSdk.init(config)
-        MultiModuleSdk.get<SyncApi>()
-        MultiModuleSdk.get<AnalyticsApi>()
+    private fun stressConcurrent(sdk: MultiModuleSdkApi) {
+        sdk.init(testContext, config)
+        sdk.get(SyncApi::class.java)
+        sdk.get(AnalyticsApi::class.java)
         benchmarkRule.measureRepeated {
             val threads = listOf(
-                Thread { MultiModuleSdk.get<EncryptionApi>() },
-                Thread { MultiModuleSdk.get<AuthApi>() },
-                Thread { MultiModuleSdk.get<StorageApi>() },
-                Thread { MultiModuleSdk.get<SyncApi>() },
+                Thread { sdk.get(EncryptionApi::class.java) },
+                Thread { sdk.get(AuthApi::class.java) },
+                Thread { sdk.get(StorageApi::class.java) },
+                Thread { sdk.get(SyncApi::class.java) },
             )
             threads.forEach { it.start() }
             threads.forEach { it.join() }
         }
-        MultiModuleSdk.shutdown()
-    }
-
-    @Test
-    fun stress_concurrentResolve_multiModuleE() {
-        MultiModuleSdkE.init(config, MultiModuleSdkE.Feature.entries.toSet())
-        MultiModuleSdkE.get<SyncApi>()
-        MultiModuleSdkE.get<AnalyticsApi>()
-        benchmarkRule.measureRepeated {
-            val threads = listOf(
-                Thread { MultiModuleSdkE.get<EncryptionApi>() },
-                Thread { MultiModuleSdkE.get<AuthApi>() },
-                Thread { MultiModuleSdkE.get<StorageApi>() },
-                Thread { MultiModuleSdkE.get<SyncApi>() },
-            )
-            threads.forEach { it.start() }
-            threads.forEach { it.join() }
-        }
-        MultiModuleSdkE.shutdown()
-    }
-
-    @Test
-    fun stress_concurrentResolve_multiModuleE2() {
-        MultiModuleSdkE2.init(config)
-        MultiModuleSdkE2.get<SyncApi>()
-        MultiModuleSdkE2.get<AnalyticsApi>()
-        benchmarkRule.measureRepeated {
-            val threads = listOf(
-                Thread { MultiModuleSdkE2.get<EncryptionApi>() },
-                Thread { MultiModuleSdkE2.get<AuthApi>() },
-                Thread { MultiModuleSdkE2.get<StorageApi>() },
-                Thread { MultiModuleSdkE2.get<SyncApi>() },
-            )
-            threads.forEach { it.start() }
-            threads.forEach { it.join() }
-        }
-        MultiModuleSdkE2.shutdown()
-    }
-
-    @Test
-    fun stress_concurrentResolve_multiModuleG() {
-        MultiModuleSdkG.init(config)
-        MultiModuleSdkG.get<SyncApi>()
-        MultiModuleSdkG.get<AnalyticsApi>()
-        benchmarkRule.measureRepeated {
-            val threads = listOf(
-                Thread { MultiModuleSdkG.get<EncryptionApi>() },
-                Thread { MultiModuleSdkG.get<AuthApi>() },
-                Thread { MultiModuleSdkG.get<StorageApi>() },
-                Thread { MultiModuleSdkG.get<SyncApi>() },
-            )
-            threads.forEach { it.start() }
-            threads.forEach { it.join() }
-        }
-        MultiModuleSdkG.shutdown()
-    }
-
-    @Test
-    fun stress_concurrentResolve_multiModuleH() {
-        MultiModuleSdkH.init(config)
-        MultiModuleSdkH.get<SyncApi>()
-        MultiModuleSdkH.get<AnalyticsApi>()
-        benchmarkRule.measureRepeated {
-            val threads = listOf(
-                Thread { MultiModuleSdkH.get<EncryptionApi>() },
-                Thread { MultiModuleSdkH.get<AuthApi>() },
-                Thread { MultiModuleSdkH.get<StorageApi>() },
-                Thread { MultiModuleSdkH.get<SyncApi>() },
-            )
-            threads.forEach { it.start() }
-            threads.forEach { it.join() }
-        }
-        MultiModuleSdkH.shutdown()
+        sdk.shutdown()
     }
 
     // ════════════════════════════════════════════════════════
-    // 9. STRESS — Resolve all sequential
-    //    Resolve all 6 services one by one from a built graph
+    // 8. STRESS — Resolve all sequential (cached)
     // ════════════════════════════════════════════════════════
 
-    @Test
-    fun stress_resolveAllSequential_multiModuleD() {
-        MultiModuleSdk.init(config)
-        MultiModuleSdk.get<SyncApi>()
-        MultiModuleSdk.get<AnalyticsApi>()
+    @Test fun stress_resolveAll_D() = stressResolveAll(ALL_LAZY_SDKS[0].second)
+    @Test fun stress_resolveAll_E2() = stressResolveAll(ALL_LAZY_SDKS[1].second)
+    @Test fun stress_resolveAll_G() = stressResolveAll(ALL_LAZY_SDKS[2].second)
+    @Test fun stress_resolveAll_H() = stressResolveAll(ALL_LAZY_SDKS[3].second)
+    @Test fun stress_resolveAll_I() = stressResolveAll(ALL_LAZY_SDKS[4].second)
+    @Test fun stress_resolveAll_J() = stressResolveAll(ALL_LAZY_SDKS[5].second)
+    @Test fun stress_resolveAll_K() = stressResolveAll(ALL_LAZY_SDKS[6].second)
+
+    private fun stressResolveAll(sdk: MultiModuleSdkApi) {
+        sdk.init(testContext, config)
+        sdk.get(SyncApi::class.java)
+        sdk.get(AnalyticsApi::class.java)
         benchmarkRule.measureRepeated {
-            MultiModuleSdk.get<EncryptionApi>()
-            MultiModuleSdk.get<HashApi>()
-            MultiModuleSdk.get<AuthApi>()
-            MultiModuleSdk.get<StorageApi>()
-            MultiModuleSdk.get<AnalyticsApi>()
-            MultiModuleSdk.get<SyncApi>()
+            sdk.get(EncryptionApi::class.java)
+            sdk.get(HashApi::class.java)
+            sdk.get(AuthApi::class.java)
+            sdk.get(StorageApi::class.java)
+            sdk.get(AnalyticsApi::class.java)
+            sdk.get(SyncApi::class.java)
         }
-        MultiModuleSdk.shutdown()
-    }
-
-    @Test
-    fun stress_resolveAllSequential_multiModuleE() {
-        MultiModuleSdkE.init(config, MultiModuleSdkE.Feature.entries.toSet())
-        MultiModuleSdkE.get<SyncApi>()
-        MultiModuleSdkE.get<AnalyticsApi>()
-        benchmarkRule.measureRepeated {
-            MultiModuleSdkE.get<EncryptionApi>()
-            MultiModuleSdkE.get<HashApi>()
-            MultiModuleSdkE.get<AuthApi>()
-            MultiModuleSdkE.get<StorageApi>()
-            MultiModuleSdkE.get<AnalyticsApi>()
-            MultiModuleSdkE.get<SyncApi>()
-        }
-        MultiModuleSdkE.shutdown()
-    }
-
-    @Test
-    fun stress_resolveAllSequential_multiModuleE2() {
-        MultiModuleSdkE2.init(config)
-        MultiModuleSdkE2.get<SyncApi>()
-        MultiModuleSdkE2.get<AnalyticsApi>()
-        benchmarkRule.measureRepeated {
-            MultiModuleSdkE2.get<EncryptionApi>()
-            MultiModuleSdkE2.get<HashApi>()
-            MultiModuleSdkE2.get<AuthApi>()
-            MultiModuleSdkE2.get<StorageApi>()
-            MultiModuleSdkE2.get<AnalyticsApi>()
-            MultiModuleSdkE2.get<SyncApi>()
-        }
-        MultiModuleSdkE2.shutdown()
-    }
-
-    @Test
-    fun stress_resolveAllSequential_multiModuleG() {
-        MultiModuleSdkG.init(config)
-        MultiModuleSdkG.get<SyncApi>()
-        MultiModuleSdkG.get<AnalyticsApi>()
-        benchmarkRule.measureRepeated {
-            MultiModuleSdkG.get<EncryptionApi>()
-            MultiModuleSdkG.get<HashApi>()
-            MultiModuleSdkG.get<AuthApi>()
-            MultiModuleSdkG.get<StorageApi>()
-            MultiModuleSdkG.get<AnalyticsApi>()
-            MultiModuleSdkG.get<SyncApi>()
-        }
-        MultiModuleSdkG.shutdown()
-    }
-
-    @Test
-    fun stress_resolveAllSequential_multiModuleH() {
-        MultiModuleSdkH.init(config)
-        MultiModuleSdkH.get<SyncApi>()
-        MultiModuleSdkH.get<AnalyticsApi>()
-        benchmarkRule.measureRepeated {
-            MultiModuleSdkH.get<EncryptionApi>()
-            MultiModuleSdkH.get<HashApi>()
-            MultiModuleSdkH.get<AuthApi>()
-            MultiModuleSdkH.get<StorageApi>()
-            MultiModuleSdkH.get<AnalyticsApi>()
-            MultiModuleSdkH.get<SyncApi>()
-        }
-        MultiModuleSdkH.shutdown()
+        sdk.shutdown()
     }
 
     // ════════════════════════════════════════════════════════
-    // 10. STRESS — Selective init (1 of 6)
-    //     Only request 1 feature. Measures that other features are NOT built
+    // 9. STRESS — Selective init (only Analytics)
     // ════════════════════════════════════════════════════════
 
-    @Test
-    fun stress_selectiveInit_multiModuleD() = benchmarkRule.measureRepeated {
-        MultiModuleSdk.init(config)
-        MultiModuleSdk.get<AnalyticsApi>()  // only Analytics + Core, nothing else
-        runWithMeasurementDisabled { MultiModuleSdk.shutdown() }
-    }
+    @Test fun stress_selective_D() = stressSelective(ALL_LAZY_SDKS[0].second)
+    @Test fun stress_selective_E2() = stressSelective(ALL_LAZY_SDKS[1].second)
+    @Test fun stress_selective_G() = stressSelective(ALL_LAZY_SDKS[2].second)
+    @Test fun stress_selective_H() = stressSelective(ALL_LAZY_SDKS[3].second)
+    @Test fun stress_selective_I() = stressSelective(ALL_LAZY_SDKS[4].second)
+    @Test fun stress_selective_J() = stressSelective(ALL_LAZY_SDKS[5].second)
+    @Test fun stress_selective_K() = stressSelective(ALL_LAZY_SDKS[6].second)
 
-    @Test
-    fun stress_selectiveInit_multiModuleE() = benchmarkRule.measureRepeated {
-        MultiModuleSdkE.init(config, setOf(MultiModuleSdkE.Feature.ANALYTICS))
-        MultiModuleSdkE.get<AnalyticsApi>()  // only Analytics + Core, nothing else
-        runWithMeasurementDisabled { MultiModuleSdkE.shutdown() }
-    }
-
-    @Test
-    fun stress_selectiveInit_multiModuleE2() = benchmarkRule.measureRepeated {
-        MultiModuleSdkE2.init(config)
-        MultiModuleSdkE2.get<AnalyticsApi>()  // only Analytics + Core, nothing else
-        runWithMeasurementDisabled { MultiModuleSdkE2.shutdown() }
-    }
-
-    @Test
-    fun stress_selectiveInit_multiModuleG() = benchmarkRule.measureRepeated {
-        MultiModuleSdkG.init(config)
-        MultiModuleSdkG.get<AnalyticsApi>()  // only Analytics + Core, nothing else
-        runWithMeasurementDisabled { MultiModuleSdkG.shutdown() }
-    }
-
-    @Test
-    fun stress_selectiveInit_multiModuleH() = benchmarkRule.measureRepeated {
-        MultiModuleSdkH.init(config)
-        MultiModuleSdkH.get<AnalyticsApi>()  // only Analytics + Core, nothing else
-        runWithMeasurementDisabled { MultiModuleSdkH.shutdown() }
+    private fun stressSelective(sdk: MultiModuleSdkApi) = benchmarkRule.measureRepeated {
+        sdk.init(testContext, config)
+        sdk.get(AnalyticsApi::class.java)  // only Analytics + deps
+        runWithMeasurementDisabled { sdk.shutdown() }
     }
 
     // ════════════════════════════════════════════════════════
-    // 11. STRESS — Re-init after shutdown
-    //     Full cycle: init→get all→shutdown→init→get all. Second cycle must be clean
+    // 10. STRESS — Re-init after shutdown (two full cycles)
     // ════════════════════════════════════════════════════════
 
-    @Test
-    fun stress_reInitAfterShutdown_multiModuleD() = benchmarkRule.measureRepeated {
-        // First cycle
-        MultiModuleSdk.init(config)
-        MultiModuleSdk.get<SyncApi>()
-        MultiModuleSdk.get<AnalyticsApi>()
-        MultiModuleSdk.shutdown()
-        // Second cycle — must be clean
-        MultiModuleSdk.init(config)
-        MultiModuleSdk.get<SyncApi>()
-        MultiModuleSdk.get<AnalyticsApi>()
-        MultiModuleSdk.shutdown()
-    }
+    @Test fun stress_reInit_D() = stressReInit(ALL_LAZY_SDKS[0].second)
+    @Test fun stress_reInit_E2() = stressReInit(ALL_LAZY_SDKS[1].second)
+    @Test fun stress_reInit_G() = stressReInit(ALL_LAZY_SDKS[2].second)
+    @Test fun stress_reInit_H() = stressReInit(ALL_LAZY_SDKS[3].second)
+    @Test fun stress_reInit_I() = stressReInit(ALL_LAZY_SDKS[4].second)
+    @Test fun stress_reInit_J() = stressReInit(ALL_LAZY_SDKS[5].second)
+    @Test fun stress_reInit_K() = stressReInit(ALL_LAZY_SDKS[6].second)
 
-    @Test
-    fun stress_reInitAfterShutdown_multiModuleE() = benchmarkRule.measureRepeated {
-        // First cycle
-        MultiModuleSdkE.init(config, MultiModuleSdkE.Feature.entries.toSet())
-        MultiModuleSdkE.get<SyncApi>()
-        MultiModuleSdkE.get<AnalyticsApi>()
-        MultiModuleSdkE.shutdown()
-        // Second cycle — must be clean
-        MultiModuleSdkE.init(config, MultiModuleSdkE.Feature.entries.toSet())
-        MultiModuleSdkE.get<SyncApi>()
-        MultiModuleSdkE.get<AnalyticsApi>()
-        MultiModuleSdkE.shutdown()
-    }
-
-    @Test
-    fun stress_reInitAfterShutdown_multiModuleE2() = benchmarkRule.measureRepeated {
-        // First cycle
-        MultiModuleSdkE2.init(config)
-        MultiModuleSdkE2.get<SyncApi>()
-        MultiModuleSdkE2.get<AnalyticsApi>()
-        MultiModuleSdkE2.shutdown()
-        // Second cycle — must be clean
-        MultiModuleSdkE2.init(config)
-        MultiModuleSdkE2.get<SyncApi>()
-        MultiModuleSdkE2.get<AnalyticsApi>()
-        MultiModuleSdkE2.shutdown()
-    }
-
-    @Test
-    fun stress_reInitAfterShutdown_multiModuleG() = benchmarkRule.measureRepeated {
-        // First cycle
-        MultiModuleSdkG.init(config)
-        MultiModuleSdkG.get<SyncApi>()
-        MultiModuleSdkG.get<AnalyticsApi>()
-        MultiModuleSdkG.shutdown()
-        // Second cycle — must be clean
-        MultiModuleSdkG.init(config)
-        MultiModuleSdkG.get<SyncApi>()
-        MultiModuleSdkG.get<AnalyticsApi>()
-        MultiModuleSdkG.shutdown()
-    }
-
-    @Test
-    fun stress_reInitAfterShutdown_multiModuleH() = benchmarkRule.measureRepeated {
-        // First cycle
-        MultiModuleSdkH.init(config)
-        MultiModuleSdkH.get<SyncApi>()
-        MultiModuleSdkH.get<AnalyticsApi>()
-        MultiModuleSdkH.shutdown()
-        // Second cycle — must be clean
-        MultiModuleSdkH.init(config)
-        MultiModuleSdkH.get<SyncApi>()
-        MultiModuleSdkH.get<AnalyticsApi>()
-        MultiModuleSdkH.shutdown()
+    private fun stressReInit(sdk: MultiModuleSdkApi) = benchmarkRule.measureRepeated {
+        sdk.init(testContext, config)
+        sdk.get(SyncApi::class.java)
+        sdk.get(AnalyticsApi::class.java)
+        sdk.shutdown()
+        sdk.init(testContext, config)
+        sdk.get(SyncApi::class.java)
+        sdk.get(AnalyticsApi::class.java)
+        sdk.shutdown()
     }
 
     // ════════════════════════════════════════════════════════
-    // 12. STRESS — Incremental build (add features one by one)
-    //     Start with 1 feature, add more incrementally. Measures lazy cascade cost
+    // 11. STRESS — Incremental build (add features one by one)
     // ════════════════════════════════════════════════════════
 
-    @Test
-    fun stress_incrementalBuild_multiModuleD() = benchmarkRule.measureRepeated {
-        MultiModuleSdk.init(config)
-        MultiModuleSdk.get<EncryptionApi>()    // builds Core + Enc
-        MultiModuleSdk.get<AuthApi>()           // builds Auth (Enc cached)
-        MultiModuleSdk.get<StorageApi>()        // builds Stor (Enc cached)
-        MultiModuleSdk.get<AnalyticsApi>()      // builds Ana (Core cached)
-        MultiModuleSdk.get<SyncApi>()           // builds Syn (Auth+Stor+Enc cached)
-        MultiModuleSdk.get<HashApi>()           // already cached
-        runWithMeasurementDisabled { MultiModuleSdk.shutdown() }
+    @Test fun stress_incremental_D() = stressIncremental(ALL_LAZY_SDKS[0].second)
+    @Test fun stress_incremental_E2() = stressIncremental(ALL_LAZY_SDKS[1].second)
+    @Test fun stress_incremental_G() = stressIncremental(ALL_LAZY_SDKS[2].second)
+    @Test fun stress_incremental_H() = stressIncremental(ALL_LAZY_SDKS[3].second)
+    @Test fun stress_incremental_I() = stressIncremental(ALL_LAZY_SDKS[4].second)
+    @Test fun stress_incremental_J() = stressIncremental(ALL_LAZY_SDKS[5].second)
+    @Test fun stress_incremental_K() = stressIncremental(ALL_LAZY_SDKS[6].second)
+
+    private fun stressIncremental(sdk: MultiModuleSdkApi) = benchmarkRule.measureRepeated {
+        sdk.init(testContext, config)
+        sdk.get(EncryptionApi::class.java)
+        sdk.get(AuthApi::class.java)
+        sdk.get(StorageApi::class.java)
+        sdk.get(AnalyticsApi::class.java)
+        sdk.get(SyncApi::class.java)
+        sdk.get(HashApi::class.java)
+        runWithMeasurementDisabled { sdk.shutdown() }
     }
 
-    @Test
-    fun stress_incrementalBuild_multiModuleE() = benchmarkRule.measureRepeated {
-        MultiModuleSdkE.init(config, MultiModuleSdkE.Feature.entries.toSet())
-        MultiModuleSdkE.get<EncryptionApi>()    // builds Core + Enc
-        MultiModuleSdkE.get<AuthApi>()           // builds Auth (Enc cached)
-        MultiModuleSdkE.get<StorageApi>()        // builds Stor (Enc cached)
-        MultiModuleSdkE.get<AnalyticsApi>()      // builds Ana (Core cached)
-        MultiModuleSdkE.get<SyncApi>()           // builds Syn (Auth+Stor+Enc cached)
-        MultiModuleSdkE.get<HashApi>()           // already cached
-        runWithMeasurementDisabled { MultiModuleSdkE.shutdown() }
-    }
+    // ════════════════════════════════════════════════════════
+    // 12. E2E APP STARTUP — simulates real app: init + resolve + use
+    //     Measures total cost from SDK init to first meaningful operation.
+    //     This is what the consumer app pays on Application.onCreate().
+    // ════════════════════════════════════════════════════════
 
-    @Test
-    fun stress_incrementalBuild_multiModuleE2() = benchmarkRule.measureRepeated {
-        MultiModuleSdkE2.init(config)
-        MultiModuleSdkE2.get<EncryptionApi>()    // builds Core + Enc
-        MultiModuleSdkE2.get<AuthApi>()           // builds Auth (Enc cached)
-        MultiModuleSdkE2.get<StorageApi>()        // builds Stor (Enc cached)
-        MultiModuleSdkE2.get<AnalyticsApi>()      // builds Ana (Core cached)
-        MultiModuleSdkE2.get<SyncApi>()           // builds Syn (Auth+Stor+Enc cached)
-        MultiModuleSdkE2.get<HashApi>()           // already cached
-        runWithMeasurementDisabled { MultiModuleSdkE2.shutdown() }
-    }
+    @Test fun e2eStartup_D() = e2eAppStartup(ALL_LAZY_SDKS[0].second)
+    @Test fun e2eStartup_E2() = e2eAppStartup(ALL_LAZY_SDKS[1].second)
+    @Test fun e2eStartup_G() = e2eAppStartup(ALL_LAZY_SDKS[2].second)
+    @Test fun e2eStartup_H() = e2eAppStartup(ALL_LAZY_SDKS[3].second)
+    @Test fun e2eStartup_I() = e2eAppStartup(ALL_LAZY_SDKS[4].second)
+    @Test fun e2eStartup_J() = e2eAppStartup(ALL_LAZY_SDKS[5].second)
+    @Test fun e2eStartup_K() = e2eAppStartup(ALL_LAZY_SDKS[6].second)
 
-    @Test
-    fun stress_incrementalBuild_multiModuleG() = benchmarkRule.measureRepeated {
-        MultiModuleSdkG.init(config)
-        MultiModuleSdkG.get<EncryptionApi>()    // builds Core + Enc
-        MultiModuleSdkG.get<AuthApi>()           // builds Auth (Enc cached)
-        MultiModuleSdkG.get<StorageApi>()        // builds Stor (Enc cached)
-        MultiModuleSdkG.get<AnalyticsApi>()      // builds Ana (Core cached)
-        MultiModuleSdkG.get<SyncApi>()           // builds Syn (Auth+Stor+Enc cached)
-        MultiModuleSdkG.get<HashApi>()           // already cached
-        runWithMeasurementDisabled { MultiModuleSdkG.shutdown() }
-    }
+    private fun e2eAppStartup(sdk: MultiModuleSdkApi) = benchmarkRule.measureRepeated {
+        // Phase 1: SDK init (ServiceLoader / registration / Core build)
+        sdk.init(testContext, config)
 
-    @Test
-    fun stress_incrementalBuild_multiModuleH() = benchmarkRule.measureRepeated {
-        MultiModuleSdkH.init(config)
-        MultiModuleSdkH.get<EncryptionApi>()    // builds Core + Enc
-        MultiModuleSdkH.get<AuthApi>()           // builds Auth (Enc cached)
-        MultiModuleSdkH.get<StorageApi>()        // builds Stor (Enc cached)
-        MultiModuleSdkH.get<AnalyticsApi>()      // builds Ana (Core cached)
-        MultiModuleSdkH.get<SyncApi>()           // builds Syn (Auth+Stor+Enc cached)
-        MultiModuleSdkH.get<HashApi>()           // already cached
-        runWithMeasurementDisabled { MultiModuleSdkH.shutdown() }
+        // Phase 2: Resolve all services (Dagger bridge would call these)
+        val enc = sdk.get(EncryptionApi::class.java)
+        val auth = sdk.get(AuthApi::class.java)
+        val stor = sdk.get(StorageApi::class.java)
+        val ana = sdk.get(AnalyticsApi::class.java)
+
+        // Phase 3: First real operations (what happens in Activity.onCreate)
+        auth.login("user", "pass")
+        enc.encrypt("sensitive-data")
+        stor.put("session", "active")
+        ana.trackEvent("app_launched")
+
+        runWithMeasurementDisabled { sdk.shutdown() }
     }
 }
