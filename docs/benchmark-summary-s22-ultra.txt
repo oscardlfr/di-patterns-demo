@@ -1,148 +1,138 @@
-Reading: benchmark/build/outputs/connected_android_test_additional_output/releaseAndroidTest/connected/SM-S908B - 16/com.grinwich.benchmark.test-benchmarkData.json
-
-Total benchmarks: 74
+BENCHMARK RESULTS SUMMARY — Samsung Galaxy S22 Ultra (SM-S908B) — 2026-04-08
+Total benchmarks: 277 (DiBenchmark 19 + MultiModuleBenchmark 84 + ScaleBenchmark 37 + MemoryBehaviorTest 57 + StressTortureTest 80)
+All tests: 277/277 PASSED, 0 FAILED
+ScaleBenchmark: 37/37 PASSED
 
 ====================================================================================================
-BENCHMARK RESULTS SUMMARY
-====================================================================================================
 
-----------------------------------------------------------------------------------------------------
-  Init Cold (full graph)
-----------------------------------------------------------------------------------------------------
-  Pattern              Median     vs Best  
+  Init Cold (full graph) — all values in ns
   ------------------------------------------
-  MM-D                 1.3 us          == << BEST
-  MM-G                 1.6 us        1.2x
-  Dagger-B             2.6 us        2.0x
-  Dagger-C             3.1 us        2.5x
-  MM-H                 5.4 us        4.3x
-  MM-E2                9.5 us        7.6x
-  MM-E                17.3 us       13.7x
-  Hybrid              49.8 us       39.5x
-  Koin                50.6 us       40.1x << WORST
+  MM-D               740 ns          == << BEST
+  MM-G               803 ns        1.1x
+  MM-E2            5,493 ns        7.4x
+  MM-J            60,296 ns       81.5x
+  MM-H            60,714 ns       82.0x
+  MM-I            62,447 ns       84.4x
+  MM-K           141,238 ns      190.9x << WORST
 
-----------------------------------------------------------------------------------------------------
-  Resolve First
-----------------------------------------------------------------------------------------------------
-  Pattern              Median     vs Best  
+  Resolve First — all values in ns
   ------------------------------------------
-  Hybrid               2.0 ns          == << BEST
-  Dagger-B            11.3 ns        5.5x
-  MM-D                14.1 ns        6.9x
-  MM-G                19.0 ns        9.3x
-  MM-E                26.9 ns       13.2x
-  MM-H                31.3 ns       15.3x
-  MM-E2               32.7 ns       16.0x
-  Dagger-C            35.4 ns       17.3x
-  Koin               900.1 ns      440.8x << WORST
+  MM-G              10.3 ns          == << BEST
+  MM-D              10.9 ns        1.1x
+  MM-H              23.6 ns        2.3x
+  MM-K              23.6 ns        2.3x
+  MM-J              23.8 ns        2.3x
+  MM-I              24.0 ns        2.3x
+  MM-E2             27.7 ns        2.7x << WORST
 
-----------------------------------------------------------------------------------------------------
-  Resolve Cached
-----------------------------------------------------------------------------------------------------
-  Pattern              Median     vs Best  
+  Lazy Init - No Deps (Analytics) — all values in ns
   ------------------------------------------
-  Hybrid               2.3 ns          == << BEST
+  MM-D               194 ns          == << BEST
+  MM-G               194 ns          ==
+  MM-J               547 ns        2.8x
+  MM-E2              554 ns        2.9x
+  MM-I               565 ns        2.9x
+  MM-H               849 ns        4.4x
+  MM-K             1,371 ns        7.1x << WORST
 
-----------------------------------------------------------------------------------------------------
-  Lazy Init - No Deps (Analytics)
-----------------------------------------------------------------------------------------------------
-  Pattern              Median     vs Best  
+  Lazy Init - Cascade (Sync) — all values in ns
   ------------------------------------------
-  MM-D               340.9 ns          == << BEST
-  MM-G               366.3 ns        1.1x
-  Dagger-B           401.3 ns        1.2x
-  Dagger-C           464.5 ns        1.4x
-  MM-H               697.6 ns        2.0x
-  MM-E2              855.7 ns        2.5x
-  MM-E                 2.9 us        8.4x
-  Koin                 7.9 us       23.1x << WORST
+  MM-G               473 ns          == << BEST
+  MM-D               475 ns          ==
+  MM-E2            1,671 ns        3.5x
+  MM-I             1,873 ns        4.0x
+  MM-J             2,023 ns        4.3x
+  MM-H             2,746 ns        5.8x
+  MM-K             4,218 ns        8.9x << WORST
 
-----------------------------------------------------------------------------------------------------
-  Lazy Init - Cascade (Sync)
-----------------------------------------------------------------------------------------------------
-  Pattern              Median     vs Best  
+  Cross-Feature Op (Sync) — all values in ns
   ------------------------------------------
-  MM-G                 1.0 us          == << BEST
-  MM-D                 1.0 us          ==
-  Dagger-B             1.9 us        1.8x
-  Dagger-C             2.3 us        2.2x
-  MM-H                 2.3 us        2.2x
-  MM-E2                3.1 us        3.0x
-  MM-E                10.0 us        9.7x
-  Koin                26.9 us       26.0x << WORST
+  MM-E2           80,686 ns          == << BEST
+  MM-H            83,517 ns          ==
+  MM-G            83,699 ns          ==
+  MM-K            83,743 ns          ==
+  MM-I            84,220 ns          ==
+  MM-D            84,351 ns          ==
+  MM-J            84,477 ns          == << WORST
 
-----------------------------------------------------------------------------------------------------
-  Cross-Feature Op (Sync)
-----------------------------------------------------------------------------------------------------
-  Pattern              Median     vs Best  
+  Stress: Init/Shutdown Cycle — all values in ns
   ------------------------------------------
-  Hybrid             100.2 us          == << BEST
-  Dagger-C           100.9 us          ==
-  Dagger-B           101.0 us          ==
-  Koin               123.3 us        1.2x
-  MM-H               155.9 us        1.6x
-  MM-E2              157.1 us        1.6x
-  MM-G               158.0 us        1.6x
-  MM-E               166.1 us        1.7x
-  MM-D               168.5 us        1.7x << WORST
+  MM-G               158 ns          == << BEST
+  MM-D               159 ns          ==
+  MM-E2            2,799 ns       17.7x
+  MM-J            57,010 ns      360.8x
+  MM-I            57,062 ns      361.2x
+  MM-H            57,941 ns      366.7x
+  MM-K           206,406 ns    1,306.4x << WORST
 
-----------------------------------------------------------------------------------------------------
-  Other Tests
-----------------------------------------------------------------------------------------------------
-  stress_concurrentResolve [MM-E]: 472.6 us
-  stress_concurrentResolve [MM-G]: 480.5 us
-  stress_concurrentResolve [MM-D]: 492.8 us
-  stress_concurrentResolve [MM-H]: 500.1 us
-  stress_concurrentResolve [MM-E2]: 510.6 us
-  stress_incrementalBuild [MM-G]: 1.6 us
-  stress_incrementalBuild [MM-D]: 1.8 us
-  stress_incrementalBuild [MM-H]: 5.7 us
-  stress_incrementalBuild [MM-E2]: 9.8 us
-  stress_incrementalBuild [MM-E]: 18.3 us
-  stress_initShutdownCycle [MM-G]: 233.1 ns
-  stress_initShutdownCycle [MM-D]: 240.1 ns
-  stress_initShutdownCycle [MM-H]: 2.7 us
-  stress_initShutdownCycle [MM-E]: 4.2 us
-  stress_initShutdownCycle [MM-E2]: 5.3 us
-  stress_reInitAfterShutdown [MM-D]: 2.4 us
-  stress_reInitAfterShutdown [MM-G]: 2.5 us
-  stress_reInitAfterShutdown [MM-H]: 10.6 us
-  stress_reInitAfterShutdown [MM-E2]: 18.2 us
-  stress_reInitAfterShutdown [MM-E]: 36.2 us
-  stress_resolveAllSequential [MM-D]: 131.9 ns
-  stress_resolveAllSequential [MM-G]: 132.4 ns
-  stress_resolveAllSequential [MM-E]: 169.3 ns
-  stress_resolveAllSequential [MM-E2]: 197.3 ns
-  stress_resolveAllSequential [MM-H]: 198.1 ns
-  stress_selectiveInit [MM-G]: 346.6 ns
-  stress_selectiveInit [MM-D]: 351.7 ns
-  stress_selectiveInit [MM-H]: 2.6 us
-  stress_selectiveInit [MM-E]: 3.9 us
-  stress_selectiveInit [MM-E2]: 5.1 us
+  Stress: Concurrent Resolution — all values in ns
+  ------------------------------------------
+  MM-J           273,318 ns          == << BEST
+  MM-I           320,838 ns        1.2x
+  MM-K           333,213 ns        1.2x
+  MM-H           354,212 ns        1.3x
+  MM-D           365,288 ns        1.3x
+  MM-G           365,447 ns        1.3x
+  MM-E2          401,647 ns        1.5x << WORST
+
+  Stress: Resolve All (cached) — all values in ns
+  ------------------------------------------
+  MM-G              69.9 ns          == << BEST
+  MM-D              70.0 ns          ==
+  MM-E2              143 ns        2.0x
+  MM-H               144 ns        2.1x
+  MM-I               144 ns        2.1x
+  MM-K               144 ns        2.1x
+  MM-J               148 ns        2.1x << WORST
+
+  Stress: Selective Init — all values in ns
+  ------------------------------------------
+  MM-D               185 ns          == << BEST
+  MM-G               188 ns          ==
+  MM-E2            2,311 ns       12.5x
+  MM-I            57,932 ns      313.1x
+  MM-H            59,696 ns      322.7x
+  MM-J            60,671 ns      327.9x
+  MM-K           136,825 ns      739.6x << WORST
+
+  Stress: Re-Init — all values in ns
+  ------------------------------------------
+  MM-G             1,459 ns          == << BEST
+  MM-D             1,744 ns        1.2x
+  MM-E2            9,615 ns        6.6x
+  MM-I           126,119 ns       86.4x
+  MM-H           127,407 ns       87.3x
+  MM-J           127,489 ns       87.4x
+  MM-K           284,651 ns      195.1x << WORST
+
+  Stress: Incremental Build — all values in ns
+  ------------------------------------------
+  MM-D               737 ns          == << BEST
+  MM-G               770 ns        1.0x
+  MM-E2            5,206 ns        7.1x
+  MM-H            60,633 ns       82.3x
+  MM-J            61,678 ns       83.7x
+  MM-I            63,155 ns       85.7x
+  MM-K           142,351 ns      193.1x << WORST
+
+  E2E App Startup — all values in ns
+  ------------------------------------------
+  MM-D           101,500 ns          == << BEST
+  MM-G           102,331 ns        1.0x
+  MM-E2          115,339 ns        1.1x
+  MM-H           222,713 ns        2.2x
+  MM-J           228,707 ns        2.3x
+  MM-I           243,625 ns        2.4x
+  MM-K           375,308 ns        3.7x << WORST
 
 ====================================================================================================
 CONCLUSIONS
-====================================================================================================
 
 Multi-module init cold ranking:
-  MM-D: 1.3 us
-  MM-G: 1.6 us
-  MM-H: 5.4 us
-  MM-E2: 9.5 us
-  MM-E: 17.3 us
+  MM-D: 740 ns | MM-G: 803 ns | MM-E2: 5,493 ns | MM-J: 60,296 ns | MM-H: 60,714 ns | MM-I: 62,447 ns | MM-K: 141,238 ns
 
-Multi-module resolve first ranking:
-  MM-D: 14.1 ns
-  MM-G: 19.0 ns
-  MM-E: 26.9 ns
-  MM-H: 31.3 ns
-  MM-E2: 32.7 ns
-
-G vs D (multi-module):
-  G is 1.2x D (1.6 us vs 1.3 us)
-  G advantage: DaggerXxxComponent stays internal (better encapsulation)
-
-H vs G (multi-module):
-  H is 3.4x G (5.4 us vs 1.6 us)
-  H advantage: zero central editing (each feature self-registers)
-
+G vs D: 1.1x (G advantage: DaggerXxxComponent stays internal)
+H vs G: 75.6x (H advantage: zero central editing, each feature self-registers)
+I vs H: 1.0x (I advantage: zero DI framework — no Dagger, no KSP)
+J vs H: 1.0x (J advantage: modern KSP, less boilerplate, KMP-ready)
+K vs H: 2.3x (K advantage: R8/ProGuard robustness via AndroidManifest metadata)

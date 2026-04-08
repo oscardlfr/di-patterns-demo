@@ -33,6 +33,9 @@ sdk/
   wiring-e2/              -> Pattern E2 multi-modulo: AutoProvisionRegistry + DFS lazy
   wiring-g/               -> Pattern G multi-modulo: Factory Functions (Components internal)
   wiring-h/               -> Pattern H multi-modulo: Auto-Discovery FeatureProviders (DFS resolver)
+  wiring-i/               -> Pattern I multi-modulo: Pure Resolver (zero DI framework)
+  wiring-j/               -> Pattern J multi-modulo: kotlin-inject (KSP, genera Kotlin)
+  wiring-k/               -> Pattern K multi-modulo: AndroidManifest Discovery (Firebase-style)
   impl-common/            -> Implementaciones compartidas (solo patrones monoliticos)
   impl-koin/              -> KoinSdk (koinApplication aislado, loadModules, auto-discovery)
   impl-dagger-b/          -> DaggerBSdk (Per-Feature Components + CoreApis)
@@ -44,9 +47,13 @@ sample-dagger-c/    -> Consumidor de DaggerCSdk
 sample-hybrid/      -> KoinSdk + puente Dagger 2
 sample-multimodule/ -> Consumidor de MultiModuleSdkH (Pattern H, provision interfaces)
 
-benchmark/          -> 74 Jetpack Microbenchmarks (19 monoliticos via facades + 55 multi-modulo via facades)
+benchmark/          -> 277 tests (19 monoliticos + 84 multi-modulo + 37 scale + 57 memory + 80 stress)
 
-docs/               -> 10 documentos tecnicos (espanol)
+docs/               -> Documentacion tecnica (espanol)
+  monolithic/       -> Patrones monoliticos (A, B, C, Koin, Hybrid)
+  multimodule/      -> Patrones multi-modulo (D, E2, G, H, I, J, K)
+  shared/           -> Conceptos compartidos (requisitos, configuracion, cross-deps)
+  technical-report.md -> Reporte analitico con benchmarks S22 Ultra
 ```
 
 ## Feature-API Modules
@@ -76,13 +83,13 @@ Los feature-impl contienen sus propias `Default*Service` internamente (sin depen
 
 ```kotlin
 // Init -- solo core. Features se construyen on demand.
-MultiModuleSdk.init(SdkConfig(debug = true))
+MultiModuleSdk.init(context, SdkConfig(debug = true))
 
 // get<T>() auto-construye la cadena de deps via provision interfaces
 val auth: AuthApi = MultiModuleSdk.get()    // builds: Core -> Enc -> Auth
 val sync: SyncApi = MultiModuleSdk.get()    // builds: Stor + Syn (rest cached)
 
-// La app SOLO depende de :sdk:sdk-wiring (o wiring-e/wiring-e2/wiring-g/wiring-h). Zero imports de feature-impl.
+// La app SOLO depende de :sdk:sdk-wiring (o wiring-e2/wiring-g/wiring-h/wiring-k). Zero imports de feature-impl.
 MultiModuleSdk.shutdown()
 ```
 
@@ -94,26 +101,55 @@ Cada `feature-xxx-impl` compila independientemente -- solo necesita `sdk:di-cont
 ```kotlin
 // Misma API que D, pero DaggerXxxComponent es internal en cada feature-impl.
 // El wiring llama factory functions en vez de importar DaggerXxx builders.
-MultiModuleSdkG.init(SdkConfig(debug = true))
+MultiModuleSdkG.init(context, SdkConfig(debug = true))
 val sync: SyncApi = MultiModuleSdkG.get()  // lazy ensure*() via factory functions
 MultiModuleSdkG.shutdown()
 ```
 
-### Multi-Module Pattern H (Auto-Discovery FeatureProviders)
+### Multi-Module Pattern H (Auto-Discovery + Dagger)
 
 ```kotlin
-// Wiring inmutable — descubre FeatureProviders, resuelve deps via DFS.
-// Zero edicion central al anadir features.
-MultiModuleSdkH.init(SdkConfig(debug = true))
+// Wiring inmutable — descubre FeatureProviders via ServiceLoader, resuelve deps via DFS.
+MultiModuleSdkH.init(context, SdkConfig(debug = true))
 val sync: SyncApi = MultiModuleSdkH.get()  // resolver.provision() auto-builds chain
 MultiModuleSdkH.shutdown()
+```
+
+### Multi-Module Pattern I (Pure Resolver — zero DI framework)
+
+```kotlin
+// Misma arquitectura que H, pero features construidas via constructor injection.
+// Zero Dagger, zero KSP, zero codegen.
+MultiModuleSdkI.init(context, SdkConfig(debug = true))
+val sync: SyncApi = MultiModuleSdkI.get()
+MultiModuleSdkI.shutdown()
+```
+
+### Multi-Module Pattern J (kotlin-inject)
+
+```kotlin
+// Misma arquitectura que H, pero features usan kotlin-inject Components.
+// KSP genera Kotlin (no Java). Menos boilerplate que Dagger.
+MultiModuleSdkJ.init(context, SdkConfig(debug = true))
+val sync: SyncApi = MultiModuleSdkJ.get()
+MultiModuleSdkJ.shutdown()
+```
+
+### Multi-Module Pattern K (AndroidManifest Discovery — Firebase-style)
+
+```kotlin
+// Mismo principio que Firebase SDK: descubre providers via AndroidManifest <meta-data>.
+// PackageManager.getServiceInfo() en vez de ServiceLoader.
+MultiModuleSdkK.init(context, SdkConfig(debug = true))
+val sync: SyncApi = MultiModuleSdkK.get()
+MultiModuleSdkK.shutdown()
 ```
 
 ### Multi-Module Pattern E (Registry + topo-sort)
 
 ```kotlin
 // Feature enum expuesto al consumidor.
-MultiModuleSdkE.init(SdkConfig(debug = true), features = setOf(Feature.SYNC))
+MultiModuleSdkE.init(context, SdkConfig(debug = true), features = setOf(Feature.SYNC))
 val sync: SyncApi = MultiModuleSdkE.get()
 MultiModuleSdkE.shutdown()
 ```
@@ -122,7 +158,7 @@ MultiModuleSdkE.shutdown()
 
 ```kotlin
 // API minima: init() + get<T>(). Sin Feature enum.
-MultiModuleSdkE2.init(SdkConfig(debug = true))
+MultiModuleSdkE2.init(context, SdkConfig(debug = true))
 val sync: SyncApi = MultiModuleSdkE2.get()  // auto-builds entire chain
 MultiModuleSdkE2.shutdown()
 ```
@@ -179,16 +215,20 @@ Resultados en `benchmark/build/outputs/connected_android_test_additional_output/
 
 | Documento | Contenido |
 |-----------|-----------|
-| [Analisis de arquitecturas DI](docs/analisis-arquitecturas-di.md) | Requisitos, cumplimiento, benchmarks S22 Ultra, matriz de decision |
-| [Analisis de complejidad y mantenimiento](docs/analisis-complejidad-mantenimiento.md) | Coste por feature, metricas, equipo interno vs consumidores |
-| [Dagger 2: approaches A-C + multi-modulo D/E/E2/G/H](docs/dagger2-sdk-selective-init.md) | Monolitico (A, B, C), Multi-Module (D, E, E2, G, H) |
-| [Conceptos DI](docs/di-sdk-consumer-isolation.md) | DI vs Service Locator, niveles de aislamiento, singleton survival |
-| [Dependencias cruzadas](docs/di-cross-feature-deps.md) | Como resuelve cada approach las cross-deps con ejemplos |
-| [Hybrid: Koin SDK + Dagger 2 app](docs/di-hybrid-koin-sdk-dagger-app.md) | Bridge pattern, puente unidireccional, features lazy |
-| [Comparacion rapida](docs/di-sdk-selective-init-comparison.md) | Tabla lado-a-lado de frameworks |
-| [Multi-modulo api/impl/integration](docs/di-multimodule-api-impl-analysis.md) | Approaches para separacion Gradle estricta + ejemplo realista con provision interfaces (D/E/E2/G/H) |
-| [Benchmark results S22 Ultra](docs/benchmark-results-s22-ultra.md) | Resultados completos con tablas por operacion y ranking |
-| [Benchmark configuracion](docs/benchmark-configuracion.md) | Guia tecnica para ejecutar e interpretar los 74 benchmarks |
+| **Reporte tecnico** | |
+| [Reporte analitico](docs/technical-report.md) | Benchmarks S22 Ultra, comparativas, guia de decision (I/J incluidos) |
+| **Monoliticos** | |
+| [Patrones monoliticos](docs/monolithic/patterns-overview.md) | A (educativo), B, C, Koin, Hybrid — codigo, pros/contras |
+| [Benchmarks monoliticos](docs/monolithic/benchmark-results.md) | DiBenchmark: 19 tests en S22 Ultra |
+| **Multi-modulo** | |
+| [Patrones multi-modulo](docs/multimodule/patterns-overview.md) | D, E2, G, H, I, J, K — codigo, pros/contras |
+| [Benchmarks multi-modulo](docs/multimodule/benchmark-results.md) | 84 benchmarks + 137 stress/memory tests en S22 Ultra |
+| [Arquitectura api/impl](docs/multimodule/api-impl-architecture.md) | Separacion Gradle, provision interfaces (D/E2/G/H/I/J/K) |
+| **Compartidos** | |
+| [Requisitos](docs/shared/requirements.md) | 10 requisitos, cumplimiento por patron |
+| [Conceptos DI](docs/shared/consumer-isolation.md) | DI vs Service Locator, niveles de aislamiento |
+| [Dependencias cruzadas](docs/shared/cross-feature-deps.md) | Como resuelve cada approach las cross-deps |
+| [Configuracion benchmarks](docs/shared/benchmark-configuration.md) | Guia para ejecutar los 277 tests |
 
 ## Stack
 

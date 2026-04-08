@@ -8,15 +8,15 @@ donde las features se organizan en módulos `api`, `impl` e `integration`.
 - `feature-observability-impl/` — AndroidSdkLogger + ObservabilityComponent
 - `feature-core-api/` — SdkConfig (zero deps)
 - `feature-*-api/` — interfaces públicas per-feature (módulos top-level)
-- `sdk/di-contracts/` — Provisions + Scopes + RegistryInfra + FeatureProvider + Resolver
+- `sdk/di-contracts/` — Provisions + Scopes + RegistryInfra + FeatureProvider + PureFeatureProvider + KIFeatureProvider + Resolver
 - `feature-*-impl/` — Dagger Components + Default*Service + buildXxxProvisions() + XxxProvider (módulos top-level)
-- 5 variantes de wiring: `sdk/sdk-wiring/` (D), `sdk/wiring-e/` (E), `sdk/wiring-e2/` (E2), `sdk/wiring-g/` (G), `sdk/wiring-h/` (H)
+- 8 variantes de wiring: `sdk/sdk-wiring/` (D), `sdk/wiring-e/` (E), `sdk/wiring-e2/` (E2), `sdk/wiring-g/` (G), `sdk/wiring-h/` (H), `sdk/wiring-i/` (I), `sdk/wiring-j/` (J), `sdk/wiring-k/` (K)
 - `sample-multimodule/` — app consumidora que solo depende de `sdk/wiring-h` (Pattern H)
 
-Para implementaciones Dagger, ver [dagger2-sdk-selective-init.md](dagger2-sdk-selective-init.md).
-Para conceptos DI, ver [di-sdk-consumer-isolation.md](di-sdk-consumer-isolation.md).
-Para dependencias cruzadas, ver [di-cross-feature-deps.md](di-cross-feature-deps.md).
-Para el approach hybrid, ver [di-hybrid-koin-sdk-dagger-app.md](di-hybrid-koin-sdk-dagger-app.md).
+Para implementaciones Dagger, ver [patterns-overview.md](../multimodule/patterns-overview.md).
+Para conceptos DI, ver [consumer-isolation.md](../shared/consumer-isolation.md).
+Para dependencias cruzadas, ver [cross-feature-deps.md](../shared/cross-feature-deps.md).
+Para el approach hybrid, ver [patterns-overview.md](../monolithic/patterns-overview.md).
 
 ---
 
@@ -42,12 +42,15 @@ feature-syn-impl/            → SynComponent + DefaultSyncService + buildSynPro
 
 sdk/
   api/                       → Umbrella: CoreApis + re-exports all feature-apis + observability-api
-  di-contracts/              → Provisions + Scopes + RegistryInfra + FeatureProvider + Resolver
+  di-contracts/              → Provisions + Scopes + RegistryInfra + FeatureProvider + PureFeatureProvider + KIFeatureProvider + Resolver
   sdk-wiring/                → Pattern D: direct lazy ensure*()
   wiring-e/                  → Pattern E: ProvisionRegistry + topo-sort
   wiring-e2/                 → Pattern E2: AutoProvisionRegistry + DFS lazy
   wiring-g/                  → Pattern G: Factory Functions (Components internal)
   wiring-h/                  → Pattern H: Auto-Discovery FeatureProviders (DFS resolver)
+  wiring-i/                  → Pattern I: PureFeatureProviders (direct constructor injection, zero DI framework)
+  wiring-j/                  → Pattern J: KIFeatureProviders (kotlin-inject Components, KSP)
+  wiring-k/                  → Pattern K: AndroidManifest metadata discovery (Firebase-style, same FeatureProviders as H)
 
 sample-multimodule/          → App consumidora que solo depende de sdk/wiring-h (Pattern H)
 ```
@@ -254,7 +257,7 @@ sdk/di-contracts/                  ← contrato CoreProvisions (plain Kotlin, de
   }
   @Scope annotation class AuthScope
 
-  // + RegistryInfra, FeatureProvider, Resolver, Scopes per-feature
+  // + RegistryInfra, FeatureProvider, PureFeatureProvider, KIFeatureProvider, Resolver, Scopes per-feature
 
 feature-core-impl/                 ← IMPLEMENTA CoreProvisions + ObservabilityProvisions
   @Singleton
@@ -479,7 +482,7 @@ sdk/wiring-e2/
   → depends on: ALL feature-*-impl
   → fun allEntries() = listOf(coreEntry, encEntry, authEntry, ...)
   → object MySdk {
-        fun init(config: SdkConfig) {
+        fun init(context: Context, config: SdkConfig) {
             allEntries(config).forEach { registry.install(it) }
         }
         inline fun <reified T> get(): T = registry.get(T::class.java)
@@ -487,7 +490,7 @@ sdk/wiring-e2/
 
 sample-multimodule/
   → depends on: wiring-e2 (implementation), feature-*-api
-  → MySdk.init(config)
+  → MySdk.init(context, config)
   → val auth: AuthApi = MySdk.get()  // auto-builds Enc + Core + Auth
 ```
 
@@ -508,7 +511,7 @@ El Component es `internal`. El entry es público pero no expone tipos Dagger —
 **Contra:**
 - `allEntries()` es un punto central (aunque solo crece en 1 línea por feature).
 - DFS resuelve en runtime — si una dependencia no fue installed, falla en runtime.
-- ~3 µs overhead vs D en init cold (negligible: 0.0002 frames).
+- ~5,000 ns overhead vs D en init cold (negligible: 0.0003 frames).
 - 3 clases de infraestructura propias (DiComponent, AutoFeatureEntry, AutoRegistry).
 - Requiere `sdk/di-contracts/` (provision interfaces + infra registry).
 
@@ -601,7 +604,7 @@ Usa factory functions de G internamente (`buildXxxProvisions`). Zero `@Suppress(
 
 ```
 sdk/di-contracts/
-  // Provision interfaces + scopes + FeatureProvider, ProvisionResolver (infra)
+  // Provision interfaces + scopes + FeatureProvider, PureFeatureProvider, KIFeatureProvider, ProvisionResolver (infra)
 
 feature-enc-impl/
   internal interface EncComponent : EncProvisions { ... }
@@ -670,13 +673,221 @@ zero `@Suppress("UNCHECKED_CAST")`. Ambos escalan a 50+ sin editar el facade.
 - DFS resolver — dependencias se construyen on-demand.
 
 **Contra:**
-- ~3,5x más lento en init que G (3,5 µs vs 966 ns) — overhead de HashMap + registro de providers.
+- ~76x más lento en init que G (60,714 ns vs 803 ns) — overhead de ServiceLoader + ConcurrentHashMap + registro de providers.
 - Provider faltante es error runtime (no compile-time a nivel de grafo completo).
 - Requiere `sdk/di-contracts/` (= D/E/E2/G).
 - JVM exclusivo (Dagger).
 
 **Indicado para:** Equipos grandes (10+) y SDKs corporativos donde zero edición central
 importa más que sub-microsegundo de init. El approach Dagger con menor fricción al añadir features.
+
+---
+
+### Pattern I — PureFeatureProviders (Zero DI Framework)
+
+**Compatibilidad: MUY ALTA**
+
+Usa el mismo Resolver y mecanismo DFS que H. La diferencia fundamental: cada feature-impl
+construye sus servicios vía **inyección directa por constructor** — sin Dagger, sin Koin,
+sin ningún framework DI. Cada feature declara un `PureFeatureProvider` que encapsula la
+construcción manual.
+
+```
+sdk/di-contracts/
+  // Provision interfaces + scopes + PureFeatureProvider, ProvisionResolver (infra)
+
+feature-enc-impl/
+  // Sin @Component — construcción directa
+  val encProvider = PureFeatureProvider(
+    provisionClass = EncProvisions::class.java,
+    build = { resolver ->
+      val core = resolver.provision(CoreProvisions::class.java)
+      // Inyección directa por constructor — zero framework
+      DefaultEncryptionService(core.config())
+    },
+  )
+
+sdk/wiring-i/
+  // Idéntico a wiring-h — Resolver + registro de providers
+  val resolver = ProvisionResolver()
+  allProviders().forEach { resolver.register(it) }
+```
+
+| Requisito | Cumple | Nota |
+|-----------|--------|------|
+| R1 Compilación aislada | ✅ | Cada `:impl` compila solo — sin codegen |
+| R2 App no importa impl | ✅ | API mínima: `init()` + `get<T>()` |
+| R3 Features solo ven apis | ✅ | **Provision interfaces, no implementaciones** |
+| R4 Cross-feature | ✅ | **Automático — DFS vía `resolver.provision()`** |
+| R5 Lean binary | ✅ | Solo los `:impl` incluidos |
+| R6 Escalabilidad | ✅ | **Wiring inmutable — zero edición central** |
+| R7 Compile-time safety | ⚠️ | Sin framework que valide — provider faltante es error runtime |
+| R8 Módulo wiring | ✅ | `wiring-i` descubre y registra providers |
+
+**Diferenciador vs H:** H usa Dagger Components internamente (codegen en cada feature-impl).
+I elimina completamente el framework DI — la construcción es `new DefaultXxxService(deps...)`.
+Zero codegen, zero anotaciones, build más rápido. Ideal cuando la complejidad del grafo
+interno de cada feature no justifica un framework DI.
+
+**Pro:**
+- Zero dependencias de framework DI — ni Dagger ni Koin.
+- Build más rápido (sin codegen KSP/kapt).
+- Wiring module inmutable (hereda de H).
+- DFS resolver — dependencias se construyen on-demand.
+- Máxima transparencia: el código de construcción es explícito.
+
+**Contra:**
+- Sin validación compile-time del grafo (igual que H a nivel de resolver).
+- Construcción manual puede ser verbose para features con muchas dependencias internas.
+- No hay scope management automático (singletons manuales).
+
+**Indicado para:** SDKs donde se quiere eliminar toda dependencia de frameworks DI
+sin sacrificar auto-discovery. Features con grafos internos simples (pocos objetos por feature).
+
+---
+
+### Pattern J — KIFeatureProviders (kotlin-inject / KSP)
+
+**Compatibilidad: MUY ALTA**
+
+Usa el mismo Resolver y mecanismo DFS que H e I. Cada feature-impl declara un
+`KIFeatureProvider` que internamente construye un **kotlin-inject Component** generado
+por KSP. kotlin-inject es compile-time safe como Dagger, pero nativo de Kotlin y KMP-ready.
+
+```
+sdk/di-contracts/
+  // Provision interfaces + scopes + KIFeatureProvider, ProvisionResolver (infra)
+
+feature-enc-impl/
+  // kotlin-inject Component — generado por KSP
+  @Component
+  abstract class EncKIComponent(
+    @get:Provides val config: SdkConfig,
+  ) : EncProvisions
+
+  val encProvider = KIFeatureProvider(
+    provisionClass = EncProvisions::class.java,
+    build = { resolver ->
+      val core = resolver.provision(CoreProvisions::class.java)
+      EncKIComponent::class.create(core.config())  // KSP-generated factory
+    },
+  )
+
+sdk/wiring-j/
+  // Idéntico a wiring-h/i — Resolver + registro de providers
+  val resolver = ProvisionResolver()
+  allProviders().forEach { resolver.register(it) }
+```
+
+| Requisito | Cumple | Nota |
+|-----------|--------|------|
+| R1 Compilación aislada | ✅ | Cada `:impl` compila solo — KSP per-module |
+| R2 App no importa impl | ✅ | API mínima: `init()` + `get<T>()` |
+| R3 Features solo ven apis | ✅ | **Provision interfaces, no Components** |
+| R4 Cross-feature | ✅ | **Automático — DFS vía `resolver.provision()`** |
+| R5 Lean binary | ✅ | Solo los `:impl` incluidos |
+| R6 Escalabilidad | ✅ | **Wiring inmutable — zero edición central** |
+| R7 Compile-time safety | ✅ | **kotlin-inject valida cada Component en compilación (KSP)** |
+| R8 Módulo wiring | ✅ | `wiring-j` descubre y registra providers |
+
+**Diferenciador vs H:** H usa Dagger (kapt/KSP2) — JVM only. J usa kotlin-inject (KSP) —
+KMP-ready. Ambos tienen compile-time safety per-Component.
+
+**Diferenciador vs I:** I no tiene framework — construcción manual. J tiene kotlin-inject
+que valida el grafo interno de cada feature en compilación.
+
+**Pro:**
+- Compile-time safety per-Component (como Dagger, pero KMP-ready).
+- KSP nativo — compatible con Kotlin Multiplatform.
+- Wiring module inmutable (hereda de H).
+- DFS resolver — dependencias se construyen on-demand.
+- Kotlin-idiomatic: constructor injection nativo.
+
+**Contra:**
+- kotlin-inject es menos maduro que Dagger (ecosistema más pequeño).
+- Provider faltante a nivel de resolver es error runtime (igual que H e I).
+- Requiere KSP — overhead de build similar a Dagger con KSP2.
+
+**Indicado para:** SDKs KMP que necesitan compile-time safety per-Component y auto-discovery.
+Alternativa directa a Dagger H cuando se requiere soporte multiplataforma.
+
+---
+
+### Pattern K -- AndroidManifest Metadata Discovery (Firebase-style)
+
+**Compatibilidad: MUY ALTA**
+
+Usa el mismo Resolver y mecanismo DFS que H, I y J. La diferencia fundamental: el
+descubrimiento de providers no usa `ServiceLoader` + `META-INF/services/`, sino
+entradas `<meta-data>` en un `<service>` dummy del AndroidManifest.xml. El manifest
+merger de Gradle/AGP agrega las entradas de cada feature-impl automaticamente.
+
+Reutiliza los mismos `FeatureProvider` que Pattern H -- solo cambia el mecanismo
+de discovery. Requiere `Context` en `init(context, config)`.
+
+```
+sdk/di-contracts/
+  // Provision interfaces + scopes + FeatureProvider, Resolver (infra) — mismos que H
+
+feature-enc-impl/
+  // Mismos FeatureProviders que H — sin cambios
+  class EncProvider : FeatureProvider<EncProvisions>(...) { ... }
+
+  // AndroidManifest.xml — 1 entrada meta-data
+  <service android:name="com.grinwich.sdk.wiring.k.ComponentDiscoveryService">
+    <meta-data android:name="com.grinwich.sdk.providers:com.grinwich.sdk.feature.enc.EncProvider"
+               android:value="" />
+  </service>
+
+sdk/wiring-k/
+  // ComponentDiscovery lee meta-data via PackageManager
+  object MultiModuleSdkK : MultiModuleSdkApi {
+      private val resolver = Resolver()
+      override fun init(context: Context, config: SdkConfig) {
+          resolver.init(config)
+          ComponentDiscovery.discover(context).forEach { resolver.register(it) }
+          _initialized = true
+      }
+      override fun <T : Any> get(clazz: Class<T>): T = resolver.get(clazz)
+  }
+```
+
+| Requisito | Cumple | Nota |
+|-----------|--------|------|
+| R1 Compilacion aislada | ✅ | Cada `:impl` compila solo -- Component `internal` |
+| R2 App no importa impl | ✅ | API minima: `init(context, config)` + `get<T>()` |
+| R3 Features solo ven apis | ✅ | **Provision interfaces, no Components** |
+| R4 Cross-feature | ✅ | **Automatico -- DFS via `resolver.provision()`** |
+| R5 Lean binary | ✅ | Solo los `:impl` incluidos |
+| R6 Escalabilidad | ✅ | **Wiring inmutable -- zero edicion central** |
+| R7 Compile-time safety | ⚠️ | Dagger valida cada Component, pero **provider faltante es error runtime** |
+| R8 Modulo wiring | ✅ | `wiring-k` descubre via manifest y registra providers |
+
+**Diferenciador vs H:** H usa `ServiceLoader` para descubrir providers via
+`META-INF/services/`. K usa `PackageManager.getServiceInfo()` para leer
+`<meta-data>` del AndroidManifest.xml mergeado. Los mismos `FeatureProvider`
+funcionan en ambos patrones sin cambios -- solo cambia el mecanismo de discovery.
+
+**Diferenciador vs H/I/J:** K requiere `Context` en `init()`, lo que lo hace
+exclusivamente Android. H/I/J son JVM-only (por ServiceLoader) pero no requieren
+Android Context.
+
+**Pro:**
+- Wiring module inmutable -- zero edicion al anadir features.
+- Reutiliza los mismos FeatureProviders que H (zero codigo nuevo por feature).
+- Firebase-style -- patron familiar en el ecosistema Android.
+- Sin META-INF/services -- alternativa para entornos donde ServiceLoader es problematico.
+- DFS resolver -- dependencias se construyen on-demand.
+
+**Contra:**
+- Requiere Android Context -- `init(context, config)` en vez de `init(config)`.
+- Android exclusivo -- PackageManager no existe fuera de Android.
+- Overhead de init mayor que H (~141,238 ns vs ~60,714 ns).
+- Service dummy en manifest -- boilerplate adicional.
+
+**Indicado para:** SDKs Android-only donde se prefiere manifest metadata sobre
+ServiceLoader para el auto-descubrimiento de features. Util en entornos donde
+ServiceLoader presenta problemas (custom classloaders, ProGuard agresivo).
 
 ---
 
@@ -739,7 +950,7 @@ Esto elimina incluso `sdkModules()` — verdadero Nivel 2 de aislamiento.
 **Contra:**
 - **No compile-time safety.** Si `feature-encryption:impl` no está en classpath, `get<EncryptionApi>()` crashea en runtime.
 - Mitigación: `checkModules()` en tests — pero es test-time, no compile-time.
-- Overhead runtime: ~50 µs init cold, ~900 ns resolve (vs ~2.4 ns Dagger).
+- Overhead runtime: ~47,000 ns init cold, ~647 ns resolve (vs ~7.5 ns Dagger).
 - En una app real, irrelevante (< 0.003 frames).
 
 **Indicado para:** SDKs de cualquier tamaño, especialmente:
@@ -782,6 +993,9 @@ y un `@Component` bridge conecta servicios del SDK al grafo Dagger de la app.
 | **E2** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **G** | 🟢 Alta | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
 | **H** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ |
+| **I** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ |
+| **J** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **K** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ |
 | **Koin** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
 | **Hybrid** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ |
 
@@ -801,6 +1015,9 @@ y un `@Component` bridge conecta servicios del SDK al grafo Dagger de la app.
 | **E2** | `allEntries()` list | `sdk-wiring` | 1 línea por feature — manejable |
 | **G** | `ensure*()` en facade | `wiring-g` | = D (sin imports de DaggerXxx) |
 | **H** | Nada — wiring inmutable | `wiring-h` | Zero edición central |
+| **I** | Nada — wiring inmutable | `wiring-i` | Zero edición central |
+| **J** | Nada — wiring inmutable | `wiring-j` | Zero edición central |
+| **K** | Nada — wiring inmutable | `wiring-k` | Zero edición central |
 | **Koin** | `sdkModules()` list | `sdk-wiring` | 1 línea por feature — manejable |
 | **Hybrid** | = Koin + bridge @Provides | `sdk-wiring` + app bridge | Bridge crece 1 línea/servicio |
 
@@ -810,7 +1027,7 @@ y un `@Component` bridge conecta servicios del SDK al grafo Dagger de la app.
                      ┌──────────────────────────────────┐
                      │  ESCALA SIN PROBLEMAS (50+)      │
                      │                                   │
-                     │  E2    H    Koin    Hybrid        │
+                     │  E2  H  I  J  K  Koin  Hybrid     │
                      └──────────────────────────────────┘
 
     ┌───────────────────────────────────┐
@@ -837,7 +1054,7 @@ y un `@Component` bridge conecta servicios del SDK al grafo Dagger de la app.
 
 ## Visibilidad de Components: El Detalle Gradle
 
-**Implementado en:** `feature-*-impl/`, `sdk/sdk-wiring/` (D), `sdk/wiring-e/` (E), `sdk/wiring-e2/` (E2), `sdk/wiring-g/` (G), `sdk/wiring-h/` (H), `sample-multimodule/`
+**Implementado en:** `feature-*-impl/`, `sdk/sdk-wiring/` (D), `sdk/wiring-e/` (E), `sdk/wiring-e2/` (E2), `sdk/wiring-g/` (G), `sdk/wiring-h/` (H), `sdk/wiring-i/` (I), `sdk/wiring-j/` (J), `sdk/wiring-k/` (K), `sample-multimodule/`
 
 En la arquitectura api/impl, `sdk-wiring` necesita construir `DaggerAuthComponent`.
 ¿El Component de `feature-auth-impl` debe ser público?
@@ -934,11 +1151,14 @@ val authEntry = AutoFeatureEntry(
 | SDK Android-only, < 15 features, independientes | **D** o **G** | B (si zero cross-deps) |
 | SDK Android-only, 15–30 features, con cross-deps | **G** o **E** | E2 (si quieres futuro-proof) |
 | SDK Android-only, 30+ features, cross-deps pesadas | **E2** o **H** | Koin (si compile-time no es crítico) |
-| SDK Android-only, 50+ features | **E2**, **H** o **Koin** | Híbrido (ambos mundos) |
-| App consumidora usa Dagger, SDK debe ser KMP | **Hybrid** | — |
+| SDK Android-only, 50+ features | **E2**, **H**, **K** o **Koin** | Híbrido (ambos mundos) |
+| SDK Android-only, manifest-based discovery | **K** | H (si ServiceLoader es aceptable) |
+| SDK KMP, compile-time safety + auto-discovery | **J** | I (si compile-time no es crítico) |
+| Zero framework DI, grafos internos simples | **I** | J (si se quiere compile-time safety) |
+| App consumidora usa Dagger, SDK debe ser KMP | **Hybrid** | J (kotlin-inject nativo KMP) |
 | Máxima compile-time safety, < 20 features | **D** / **G** | — |
-| Equipos grandes (10+), zero edición central | **H** | E2 (si se acepta allEntries()) |
-| Encapsulamiento máximo de Components (internal) | **G**, **H** o **E2** | — |
+| Equipos grandes (10+), zero edición central | **H**, **I**, **J** o **K** | E2 (si se acepta allEntries()) |
+| Encapsulamiento máximo de Components (internal) | **G**, **H**, **I**, **J**, **K** o **E2** | — |
 | Máxima velocidad de desarrollo | **Koin** | — |
 | Features 100% independientes (zero cross-deps) | **B** | C (si auto-discovery importa) |
 
@@ -958,7 +1178,8 @@ sdk/di-contracts/
   → ObservabilityProvisions (logger() — separado de Core)
   → EncProvisions, AuthProvisions, StorProvisions, AnaProvisions, SynProvisions
   → Scopes: @EncScope, @AuthScope, @StorScope, @AnaScope, @SynScope
-  → RegistryInfra, FeatureProvider, Resolver
+  → RegistryInfra, FeatureProvider, PureFeatureProvider, KIFeatureProvider, Resolver
+  (K reutiliza FeatureProvider — sin contratos adicionales)
 ```
 
 **Limitacion conocida:** todos los feature-impl ven todas las provision interfaces
@@ -1006,10 +1227,13 @@ que esas provision interfaces tengan los metodos requeridos.
 
 Para la arquitectura **api / impl / integration** con visibilidad estricta:
 
-1. **Koin, E2 y H son los approaches que mejor escalan** sin comprometer los requisitos.
+1. **Koin, E2, H, I, J y K son los approaches que mejor escalan** sin comprometer los requisitos.
    - **Koin:** si el equipo acepta resolución runtime (mitigable con `checkModules()` en tests).
    - **E2:** si compile-time safety es requisito duro (Dagger valida cada Component).
-   - **H:** si zero edición central es prioritario y se acepta ~3,5x overhead en init vs G.
+   - **H:** si zero edición central es prioritario y se acepta ~76x overhead en init vs G (imperceptible en produccion: < 0.4 ms).
+   - **I:** si se quiere eliminar toda dependencia de framework DI (zero codegen, zero anotaciones).
+   - **J:** si se necesita compile-time safety + KMP support (kotlin-inject via KSP).
+   - **K:** si se prefiere manifest metadata sobre ServiceLoader (Firebase-style, Android-only).
 
 2. **D y G son sólidos hasta ~30 features.**
    G es D con factory functions (Components `internal`). En ambos, el wiring manual
@@ -1026,7 +1250,7 @@ Para la arquitectura **api / impl / integration** con visibilidad estricta:
 
 6. **Hybrid** es la respuesta cuando el SDK es KMP pero la app consumidora es Dagger.
 
-7. **Provision interfaces son el enabler** para D, E, E2, G y H en multi-módulo.
+7. **Provision interfaces son el enabler** para D, E, E2, G, H, I, J y K en multi-módulo.
    Sin ellas, los features dependerían de `@Component` classes (implementaciones)
    de otros features — violando la regla de "features solo conocen apis".
    Dagger acepta cualquier interfaz en `dependencies=[...]`, no requiere `@Component`.
@@ -1034,6 +1258,11 @@ Para la arquitectura **api / impl / integration** con visibilidad estricta:
    factory functions que retornan provision interfaces.
    H lleva esto un paso más allá que G: el wiring module es inmutable y resuelve
    dependencias vía DFS, eliminando la necesidad de `ensure*()` manuales.
+   K reutiliza los mismos FeatureProviders que H pero con manifest metadata como
+   mecanismo de discovery en vez de ServiceLoader.
+   I y J usan el mismo Resolver y mecanismo DFS que H, pero con provider types distintos:
+   I (`PureFeatureProvider`) elimina completamente el framework DI — inyección directa por constructor.
+   J (`KIFeatureProvider`) usa kotlin-inject Components generados por KSP.
    Ver implementación real en `sdk/di-contracts/` (provision interfaces) + `feature-*-impl/`.
 
 **No hay approach universalmente mejor.** La elección depende de: tamaño del SDK,
