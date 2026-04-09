@@ -915,12 +915,6 @@ class Resolver {
             resolvedServices.clear()
         }
     }
-    fun clear() {
-        providers.clear()
-        serviceIndex.clear()
-        provisions.clear()
-        resolvedServices.clear()
-    }
 }
 ```
 

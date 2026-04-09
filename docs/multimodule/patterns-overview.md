@@ -92,8 +92,9 @@ app
       └── implementation(:features:feature-syn-impl)
 
 feature-auth-impl
- ├── api(:di-contracts)              <-- CoreProvisions, EncProvisions (contratos)
- ├── implementation(:sdk:impl-common)      <-- DefaultAuthService
+ ├── implementation(:di-contracts)          <-- CoreProvisions, EncProvisions (contratos)
+ ├── implementation(:features:feature-auth-api)  <-- AuthApi
+ ├── implementation(:features:feature-enc-api)   <-- EncryptionApi (cross-feature dep)
  X   NO depende de :feature-enc-impl ni :feature-core-impl
 ```
 
@@ -134,12 +135,13 @@ via funciones `ensure*()` con when-blocks.
 
 object MultiModuleSdk : MultiModuleSdkApi {
 
-    private var _core: CoreProvisions? = null
-    private var _enc: EncProvisions? = null
-    private var _auth: AuthProvisions? = null
-    private var _storage: StorProvisions? = null
-    private var _analytics: AnaProvisions? = null
-    private var _sync: SynProvisions? = null
+    private val lock = Any()
+    @Volatile private var _core: CoreProvisions? = null
+    @Volatile private var _enc: EncProvisions? = null
+    @Volatile private var _auth: AuthProvisions? = null
+    @Volatile private var _storage: StorProvisions? = null
+    @Volatile private var _analytics: AnaProvisions? = null
+    @Volatile private var _sync: SynProvisions? = null
 
     override fun init(context: Context, config: SdkConfig) {
         check(!_initialized) { "MultiModuleSdk already initialized." }
@@ -165,25 +167,44 @@ object MultiModuleSdk : MultiModuleSdkApi {
         return checkNotNull(clazz.cast(result)) { "Cast failed" }
     }
 
-    // Lazy builders -- construyen dependencias en cascada
-    private fun ensureEnc(core: CoreProvisions): EncProvisions =
-        _enc ?: DaggerEncComponent.builder().core(core).logger(_logger)
-            .build().also { _enc = it }
+    // Lazy builders -- @Volatile + synchronized(lock) para thread-safety
+    private fun ensureEnc(core: CoreProvisions): EncProvisions {
+        _enc?.let { return it }
+        synchronized(lock) { return _enc ?: DaggerEncComponent.builder().core(core).logger(_logger)
+            .build().also { _enc = it } }
+    }
 
     private fun ensureAuth(core: CoreProvisions): AuthProvisions {
-        val enc = ensureEnc(core)
-        return _auth ?: DaggerAuthComponent.builder()
-            .core(core).logger(_logger).enc(enc)
-            .build().also { _auth = it }
+        _auth?.let { return it }
+        synchronized(lock) {
+            _auth?.let { return it }
+            val enc = ensureEnc(core)
+            return DaggerAuthComponent.builder()
+                .core(core).logger(_logger).enc(enc)
+                .build().also { _auth = it }
+        }
     }
 
     private fun ensureSyn(core: CoreProvisions): SynProvisions {
-        val enc = ensureEnc(core)
-        val auth = ensureAuth(core)
-        val stor = ensureStor(core)
-        return _sync ?: DaggerSynComponent.builder()
-            .core(core).logger(_logger).enc(enc).auth(auth).storage(stor)
-            .build().also { _sync = it }
+        _sync?.let { return it }
+        synchronized(lock) {
+            _sync?.let { return it }
+            val enc = ensureEnc(core)
+            val auth = ensureAuth(core)
+            val stor = ensureStor(core)
+            return DaggerSynComponent.builder()
+                .core(core).logger(_logger).enc(enc).auth(auth).storage(stor)
+                .build().also { _sync = it }
+        }
+    }
+
+    override fun shutdown() {
+        if (!_initialized) return
+        synchronized(lock) {
+            _core = null; _enc = null; _auth = null
+            _storage = null; _analytics = null; _sync = null
+            _initialized = false
+        }
     }
 }
 ```
@@ -328,7 +349,8 @@ class AutoProvisionRegistry {
     private val catalog = HashMap<Class<*>, AutoProvisionEntry<*>>()
     private val serviceIndex = HashMap<Class<*>, Class<*>>()
 
-    // Fase 2: Estado construido (poblado on-demand)
+    // Fase 2: Estado construido (poblado on-demand, thread-safe)
+    private val lock = Any()
     internal val provisions = java.util.concurrent.ConcurrentHashMap<Class<*>, Any>()
     internal val services = java.util.concurrent.ConcurrentHashMap<Class<*>, Any>()
 
@@ -336,19 +358,41 @@ class AutoProvisionRegistry {
         services[clazz]?.let { return clazz.cast(it) }
         val provisionClass = serviceIndex[clazz]
             ?: error("No entry provides ${clazz.simpleName}.")
-        ensureBuilt(provisionClass)  // DFS recursivo
+        ensureBuilt(provisionClass)
         return clazz.cast(services[clazz])
     }
 
+    // Iterative post-order DFS + synchronized + ConcurrentHashMap
     private fun ensureBuilt(provisionClass: Class<*>) {
-        if (provisions.containsKey(provisionClass)) return
-        val entry = catalog[provisionClass]!!
-        for (dep in entry.dependencies) {
-            ensureBuilt(dep)  // recursion: construye deps primero
+        if (provisions.containsKey(provisionClass)) return  // fast path without lock
+        synchronized(lock) {
+            if (provisions.containsKey(provisionClass)) return  // double-check
+            val stack = ArrayDeque<Pair<Class<*>, Boolean>>()
+            stack.addLast(provisionClass to false)
+            while (stack.isNotEmpty()) {
+                val (cls, processed) = stack.removeLast()
+                if (provisions.containsKey(cls)) continue
+                if (processed) {
+                    val entry = catalog[cls] as AutoProvisionEntry<Any>
+                    val provision = entry.build(this)
+                    services.putAll(entry.services(provision))
+                    provisions[cls] = provision  // LAST -- gate for other threads
+                } else {
+                    val entry = catalog[cls]!!
+                    stack.addLast(cls to true)
+                    for (dep in entry.dependencies) {
+                        if (!provisions.containsKey(dep)) stack.addLast(dep to false)
+                    }
+                }
+            }
         }
-        val provision = entry.build(this)
-        provisions[entry.provisionClass] = provision
-        services.putAll(entry.services(provision))
+    }
+
+    fun clear() {
+        synchronized(lock) {
+            catalog.clear(); serviceIndex.clear()
+            provisions.clear(); services.clear()
+        }
     }
 }
 ```
@@ -394,6 +438,14 @@ que D, pero llamando factory functions en vez de builders Dagger.
 
 object MultiModuleSdkG : MultiModuleSdkApi {
 
+    private val lock = Any()
+    @Volatile private var _core: CoreProvisions? = null
+    @Volatile private var _enc: EncProvisions? = null
+    @Volatile private var _auth: AuthProvisions? = null
+    @Volatile private var _storage: StorProvisions? = null
+    @Volatile private var _analytics: AnaProvisions? = null
+    @Volatile private var _sync: SynProvisions? = null
+
     override fun init(context: Context, config: SdkConfig) {
         check(!_initialized) { "MultiModuleSdkG already initialized." }
         _core = buildCoreProvisions(config)
@@ -416,21 +468,40 @@ object MultiModuleSdkG : MultiModuleSdkApi {
         return checkNotNull(clazz.cast(result)) { "Cast failed" }
     }
 
-    // Lazy builders -- llaman factory functions, NO DaggerXxxComponent
-    private fun ensureEnc(core: CoreProvisions): EncProvisions =
-        _enc ?: buildEncProvisions(core, _logger).also { _enc = it }
+    // Lazy builders -- @Volatile + synchronized(lock), llaman factory functions
+    private fun ensureEnc(core: CoreProvisions): EncProvisions {
+        _enc?.let { return it }
+        synchronized(lock) { return _enc ?: buildEncProvisions(core, _logger).also { _enc = it } }
+    }
 
     private fun ensureAuth(core: CoreProvisions): AuthProvisions {
-        val enc = ensureEnc(core)
-        return _auth ?: buildAuthProvisions(core, _logger, enc).also { _auth = it }
+        _auth?.let { return it }
+        synchronized(lock) {
+            _auth?.let { return it }
+            val enc = ensureEnc(core)
+            return buildAuthProvisions(core, _logger, enc).also { _auth = it }
+        }
     }
 
     private fun ensureSyn(core: CoreProvisions): SynProvisions {
-        val enc = ensureEnc(core)
-        val auth = ensureAuth(core)
-        val stor = ensureStor(core)
-        return _sync ?: buildSynProvisions(core, _logger, enc, auth, stor)
-            .also { _sync = it }
+        _sync?.let { return it }
+        synchronized(lock) {
+            _sync?.let { return it }
+            val enc = ensureEnc(core)
+            val auth = ensureAuth(core)
+            val stor = ensureStor(core)
+            return buildSynProvisions(core, _logger, enc, auth, stor)
+                .also { _sync = it }
+        }
+    }
+
+    override fun shutdown() {
+        if (!_initialized) return
+        synchronized(lock) {
+            _core = null; _enc = null; _auth = null
+            _storage = null; _analytics = null; _sync = null
+            _initialized = false
+        }
     }
 }
 ```
@@ -555,10 +626,18 @@ abstract class FeatureProvider<P : Any>(val provisionClass: Class<P>) {
 }
 
 class Resolver {
+
+    private val lock = Any()
     private val providers = HashMap<Class<*>, FeatureProvider<*>>()
     private val serviceIndex = HashMap<Class<*>, Class<*>>()
     private val provisions = java.util.concurrent.ConcurrentHashMap<Class<*>, Any>()
     private val resolvedServices = java.util.concurrent.ConcurrentHashMap<Class<*>, Any>()
+
+    lateinit var config: SdkConfig; private set
+
+    val logger: SdkLogger get() = get(SdkLogger::class.java)
+
+    fun init(config: SdkConfig) { this.config = config }
 
     fun register(provider: FeatureProvider<*>) {
         providers[provider.provisionClass] = provider
@@ -575,13 +654,31 @@ class Resolver {
         return clazz.cast(resolvedServices[clazz])
     }
 
+    fun <P : Any> provision(clazz: Class<P>): P {
+        ensureBuilt(clazz)
+        return clazz.cast(provisions[clazz])
+    }
+
     private fun ensureBuilt(provisionClass: Class<*>) {
-        if (provisions.containsKey(provisionClass)) return
-        val provider = providers[provisionClass]!!
-        val provision = provider.buildUntyped(this)  // DFS: build() llama resolver.provision()
-        provisions[provisionClass] = provision
-        for (serviceClass in provider.services.keys) {
-            resolvedServices[serviceClass] = provider.extractService(provision, serviceClass)
+        if (provisions.containsKey(provisionClass)) return  // fast path without lock
+        synchronized(lock) {
+            if (provisions.containsKey(provisionClass)) return  // double-check inside lock
+            val provider = providers[provisionClass]!!
+            val provision = provider.buildUntyped(this)  // DFS: build() llama resolver.provision()
+            // Write services BEFORE marking provision as built (write-order critico)
+            for (serviceClass in provider.services.keys) {
+                resolvedServices[serviceClass] = provider.extractService(provision, serviceClass)
+            }
+            provisions[provisionClass] = provision  // LAST -- gate for other threads
+        }
+    }
+
+    val builtProvisionCount: Int get() = provisions.size
+
+    fun clear() {
+        synchronized(lock) {
+            providers.clear(); serviceIndex.clear()
+            provisions.clear(); resolvedServices.clear()
         }
     }
 }
@@ -891,7 +988,7 @@ entradas de cada feature-impl automaticamente en build time.
 
 El wiring module lee las entradas via `PackageManager.getServiceInfo()` e
 instancia cada `FeatureProvider` por reflexion. Requiere `Context` en
-`init(context, config)` -- a diferencia de H/I/J que solo requieren `config`.
+`init(context, config)` -- todos los patrones multi-modulo reciben `context` via la interfaz `MultiModuleSdkApi`, pero K es el unico que lo necesita internamente (para `PackageManager`).
 
 ### Codigo de ComponentDiscovery
 
@@ -983,9 +1080,9 @@ que escanea `META-INF/services/` en el classpath. En K, el descubrimiento usa
 mergeado. Ambos patrones reutilizan los mismos `FeatureProvider` y el mismo
 `Resolver` -- solo cambia el mecanismo de discovery.
 
-La implicacion principal es que K requiere `Context` en `init()`, lo que lo hace
-exclusivamente Android. H tambien es JVM-only (por ServiceLoader), pero no
-requiere Android `Context`.
+Todos los patrones multi-modulo reciben `context` via la interfaz `MultiModuleSdkApi`,
+pero K es el unico que lo necesita internamente (para `PackageManager`). H/I/J
+usan ServiceLoader y no dependen del `context` recibido.
 
 ### Ventajas
 

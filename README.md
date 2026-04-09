@@ -36,7 +36,7 @@ sdk/
   wiring-i/               -> Pattern I multi-modulo: Pure Resolver (zero DI framework)
   wiring-j/               -> Pattern J multi-modulo: kotlin-inject (KSP, genera Kotlin)
   wiring-k/               -> Pattern K multi-modulo: AndroidManifest Discovery (Firebase-style)
-  impl-common/            -> Implementaciones compartidas (solo patrones monoliticos)
+  impl-common-d-c/        -> Implementaciones compartidas (solo patrones monoliticos)
   impl-koin/              -> KoinSdk (koinApplication aislado, loadModules, auto-discovery)
   impl-dagger-b/          -> DaggerBSdk (Per-Feature Components + CoreApis)
   impl-dagger-c/          -> DaggerCSdk (ServiceLoader + META-INF/services)
@@ -74,8 +74,8 @@ modulo api con las interfaces publicas:
 `:feature-core-api` contiene solo `SdkConfig` (zero deps).
 `:sdk:api` es un umbrella que re-exporta todas las feature-apis + observability-api, asi que
 los patrones monoliticos (B, C, Koin) siguen dependiendo de `:sdk:api` sin cambios.
-Los feature-impl contienen sus propias `Default*Service` internamente (sin dependencia de impl-common).
-`impl-common` solo se usa en los patrones monoliticos.
+Los feature-impl contienen sus propias `Default*Service` internamente (sin dependencia de impl-common-d-c).
+`impl-common-d-c` solo se usa en los patrones monoliticos.
 
 ## API del consumidor
 
@@ -89,7 +89,7 @@ MultiModuleSdk.init(context, SdkConfig(debug = true))
 val auth: AuthApi = MultiModuleSdk.get()    // builds: Core -> Enc -> Auth
 val sync: SyncApi = MultiModuleSdk.get()    // builds: Stor + Syn (rest cached)
 
-// La app SOLO depende de :sdk:sdk-wiring (o wiring-e2/wiring-g/wiring-h/wiring-k). Zero imports de feature-impl.
+// La app SOLO depende de :sdk:sdk-wiring (o wiring-e2/wiring-g/wiring-h/wiring-i/wiring-j/wiring-k). Zero imports de feature-impl.
 MultiModuleSdk.shutdown()
 ```
 

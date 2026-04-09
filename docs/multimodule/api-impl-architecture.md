@@ -307,8 +307,9 @@ no `@Component` classes de otros feature-impl. Los Components quedan `internal`
 
 ```
 feature-auth-impl
-  ├── api(sdk:di-contracts)            → AuthProvisions, AuthScope, CoreProvisions, EncProvisions
-  ├── implementation(impl-common)      → DefaultAuthService (solo patrones monolíticos)
+  ├── implementation(di-contracts)          → AuthProvisions, AuthScope, CoreProvisions, EncProvisions
+  ├── implementation(feature-auth-api)     → AuthApi
+  ├── implementation(feature-enc-api)      → EncryptionApi (cross-feature dep)
   ✘ NO depende de feature-enc-impl, feature-core-impl
 
 sdk-wiring
@@ -537,28 +538,34 @@ feature-enc-impl/
   internal interface EncComponent : EncProvisions { ... }
 
   // Factory function pública — Component oculto
-  fun buildEncProvisions(core: CoreProvisions): EncProvisions {
-    return DaggerEncComponent.builder().core(core).build()
+  fun buildEncProvisions(core: CoreProvisions, logger: SdkLogger): EncProvisions {
+    return DaggerEncComponent.builder().core(core).logger(logger).build()
   }
 
 feature-auth-impl/
   internal interface AuthComponent : AuthProvisions { ... }
 
-  fun buildAuthProvisions(core: CoreProvisions, enc: EncProvisions): AuthProvisions {
-    return DaggerAuthComponent.builder().core(core).enc(enc).build()
+  fun buildAuthProvisions(core: CoreProvisions, logger: SdkLogger, enc: EncProvisions): AuthProvisions {
+    return DaggerAuthComponent.builder().core(core).logger(logger).enc(enc).build()
   }
 
 sdk/wiring-g/
-  // Lazy ensure*() — llama factory functions, no DaggerXxx builders
-  private var _enc: EncProvisions? = null
+  // @Volatile + synchronized(lock) para thread-safety
+  private val lock = Any()
+  @Volatile private var _enc: EncProvisions? = null
 
   private fun ensureEnc(core: CoreProvisions): EncProvisions {
-    return _enc ?: buildEncProvisions(core).also { _enc = it }
+    _enc?.let { return it }
+    synchronized(lock) { return _enc ?: buildEncProvisions(core, _logger).also { _enc = it } }
   }
 
   private fun ensureAuth(core: CoreProvisions): AuthProvisions {
-    val enc = ensureEnc(core)
-    return _auth ?: buildAuthProvisions(core, enc).also { _auth = it }
+    _auth?.let { return it }
+    synchronized(lock) {
+      _auth?.let { return it }
+      val enc = ensureEnc(core)
+      return buildAuthProvisions(core, _logger, enc).also { _auth = it }
+    }
   }
 ```
 
@@ -868,9 +875,10 @@ sdk/wiring-k/
 `<meta-data>` del AndroidManifest.xml mergeado. Los mismos `FeatureProvider`
 funcionan en ambos patrones sin cambios -- solo cambia el mecanismo de discovery.
 
-**Diferenciador vs H/I/J:** K requiere `Context` en `init()`, lo que lo hace
-exclusivamente Android. H/I/J son JVM-only (por ServiceLoader) pero no requieren
-Android Context.
+**Diferenciador vs H/I/J:** Todos los patrones multi-modulo reciben `context` via
+la interfaz `MultiModuleSdkApi`, pero K es el unico que lo necesita internamente
+(para `PackageManager`). H/I/J usan ServiceLoader y no dependen del `context`
+recibido.
 
 **Pro:**
 - Wiring module inmutable -- zero edicion al anadir features.
@@ -880,7 +888,7 @@ Android Context.
 - DFS resolver -- dependencias se construyen on-demand.
 
 **Contra:**
-- Requiere Android Context -- `init(context, config)` en vez de `init(config)`.
+- Necesita Android Context internamente -- `PackageManager` requiere `context` para leer el manifest.
 - Android exclusivo -- PackageManager no existe fuera de Android.
 - Overhead de init mayor que H (~141,238 ns vs ~60,714 ns).
 - Service dummy en manifest -- boilerplate adicional.
@@ -1086,14 +1094,18 @@ interface AuthComponent : AuthProvisions {
 **Código real** — ver `sdk/sdk-wiring/MultiModuleSdk.kt`:
 
 ```kotlin
-// sdk-wiring — almacena provision interfaces, no Components
-private var _auth: AuthProvisions? = null
+// sdk-wiring — @Volatile + synchronized(lock) para thread-safety
+@Volatile private var _auth: AuthProvisions? = null
 
 private fun ensureAuth(core: CoreProvisions): AuthProvisions {
-    val enc = ensureEnc(core)
-    return _auth ?: DaggerAuthComponent.builder()
-        .core(core).enc(enc).build()
-        .also { _auth = it }
+    _auth?.let { return it }
+    synchronized(lock) {
+        _auth?.let { return it }
+        val enc = ensureEnc(core)
+        return DaggerAuthComponent.builder()
+            .core(core).logger(_logger).enc(enc).build()
+            .also { _auth = it }
+    }
 }
 ```
 
@@ -1104,8 +1116,8 @@ private fun ensureAuth(core: CoreProvisions): AuthProvisions {
 internal interface AuthComponent : AuthProvisions { ... }
 
 // Factory pública que oculta el Component
-fun buildAuthProvisions(core: CoreProvisions, enc: EncProvisions): AuthProvisions {
-    return DaggerAuthComponent.builder().core(core).enc(enc).build()
+fun buildAuthProvisions(core: CoreProvisions, logger: SdkLogger, enc: EncProvisions): AuthProvisions {
+    return DaggerAuthComponent.builder().core(core).logger(logger).enc(enc).build()
 }
 ```
 
@@ -1113,7 +1125,7 @@ fun buildAuthProvisions(core: CoreProvisions, enc: EncProvisions): AuthProvision
 **Contra:** Boilerplate — una factory por feature.
 
 Este es el patrón que implementa Pattern G (`sdk/wiring-g/`). El wiring llama
-`buildAuthProvisions(core, enc)` en vez de `DaggerAuthComponent.builder()`.
+`buildAuthProvisions(core, _logger, enc)` en vez de `DaggerAuthComponent.builder()`.
 Ver sección [Dagger G — Factory Functions](#dagger-g--factory-functions) para
 el análisis completo.
 
@@ -1201,25 +1213,25 @@ feature-observability-impl/    → AndroidSdkLogger (impl)
 sdk/di-contracts/              → CoreProvisions (depende solo de feature-core-api, no de sdk/api)
 ```
 
-### Limitacion conocida: impl-common y sdk/api
+### Aislamiento de feature-impl
 
-Los feature-impl dependen de `impl-common` para compartir implementaciones base. `impl-common`
-a su vez depende de `sdk/api` (umbrella), lo que transitivamente expone todas las feature-apis
-a todos los feature-impl. Esto es una limitacion aceptada en el demo:
+Los feature-impl no dependen de `impl-common-d-c` (que solo se usa en patrones monoliticos).
+Cada feature-impl depende directamente de los feature-*-api especificos que necesita y de
+`di-contracts` para las provision interfaces. Esto garantiza aislamiento real:
 
 ```
-feature-auth-impl → impl-common → sdk/api → EncryptionApi, AuthApi, SyncApi...
+feature-auth-impl → di-contracts (provision interfaces)
+                   → feature-auth-api (AuthApi)
+                   → feature-enc-api (EncryptionApi, cross-feature dep)
+                   → feature-core-api (SdkConfig)
+                   → observability-api (SdkLogger)
 ```
-
-En produccion, `impl-common` deberia depender solo de `core-api` y los feature-impl deberian
-depender directamente de los feature-*-api especificos que necesiten.
 
 ### Insight clave: aislamiento a nivel de contratos
 
-Aunque impl-common filtre todas las APIs, lo importante es que **a nivel de contratos DI** el
-grafo de dependencias se expresa sobre provision interfaces tipadas. Cada feature-impl declara
-`dependencies=[CoreProvisions::class, EncProvisions::class]` — el compilador Dagger valida
-que esas provision interfaces tengan los metodos requeridos.
+A nivel de contratos DI, el grafo de dependencias se expresa sobre provision interfaces tipadas.
+Cada feature-impl declara `dependencies=[CoreProvisions::class, EncProvisions::class]` -- el
+compilador Dagger valida que esas provision interfaces tengan los metodos requeridos.
 
 ---
 

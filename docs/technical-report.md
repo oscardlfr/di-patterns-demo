@@ -319,11 +319,12 @@ El modulo de wiring importa todos los DaggerXxxComponent y orquesta manualmente 
 ```kotlin
 object MultiModuleSdk : MultiModuleSdkApi {
 
+    private val lock = Any()
     private var _logger: SdkLogger = AndroidSdkLogger()
-    private var _core: CoreProvisions? = null
-    private var _enc: EncProvisions? = null
-    private var _auth: AuthProvisions? = null
-    // ... campos nullable por cada feature
+    @Volatile private var _core: CoreProvisions? = null
+    @Volatile private var _enc: EncProvisions? = null
+    @Volatile private var _auth: AuthProvisions? = null
+    // ... @Volatile campos nullable por cada feature
 
     override fun init(context: Context, config: SdkConfig) {
         _core = DaggerCoreComponent.builder()
@@ -346,12 +347,16 @@ object MultiModuleSdk : MultiModuleSdkApi {
         return checkNotNull(clazz.cast(result))
     }
 
-    // Cada feature requiere un metodo dedicado que conoce sus dependencias
+    // @Volatile + synchronized(lock) para thread-safety
     private fun ensureAuth(core: CoreProvisions): AuthProvisions {
-        val enc = ensureEnc(core)  // dependencia explicita
-        return _auth ?: DaggerAuthComponent.builder()
-            .core(core).logger(_logger).enc(enc)
-            .build().also { _auth = it }
+        _auth?.let { return it }
+        synchronized(lock) {
+            _auth?.let { return it }
+            val enc = ensureEnc(core)  // dependencia explicita
+            return DaggerAuthComponent.builder()
+                .core(core).logger(_logger).enc(enc)
+                .build().also { _auth = it }
+        }
     }
 }
 ```
@@ -406,14 +411,18 @@ object MultiModuleSdkK : MultiModuleSdkApi {
     }
 
     private fun discoverProviders(context: Context): List<FeatureProvider<*>> {
-        val info = context.packageManager.getServiceInfo(
-            ComponentName(context, MultiModuleSdkK::class.java),
-            PackageManager.GET_META_DATA
+        val component = ComponentName(context, ComponentDiscoveryService::class.java)
+        val serviceInfo = context.packageManager.getServiceInfo(
+            component,
+            PackageManager.GET_META_DATA,
         )
-        // Lee <meta-data> del AndroidManifest y refleja cada clase como FeatureProvider
-        return info.metaData.keySet()
-            .filter { it.startsWith("com.grinwich.sdk.provider.") }
-            .map { Class.forName(it).getDeclaredConstructor().newInstance() as FeatureProvider<*> }
+        val bundle = serviceInfo.metaData ?: return emptyList()
+        return bundle.keySet()
+            .filter { it.startsWith("com.grinwich.sdk.providers:") }
+            .map { key ->
+                val className = key.removePrefix("com.grinwich.sdk.providers:")
+                Class.forName(className).getDeclaredConstructor().newInstance() as FeatureProvider<*>
+            }
     }
 
     override fun <T : Any> get(clazz: Class<T>): T = resolver.get(clazz)
@@ -516,9 +525,11 @@ class EncKIProvider : KIFeatureProvider<EncProvisions>(EncProvisions::class.java
 
     override fun build(resolver: Resolver): EncProvisions {
         val component = KIEncComponent::class.create(logger = resolver.logger)
+        val enc = component.encryption
+        val hash = component.hash
         return object : EncProvisions {
-            override fun encryption() = component.encryption
-            override fun hash() = component.hash
+            override fun encryption() = enc
+            override fun hash() = hash
         }
     }
 }
