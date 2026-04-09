@@ -827,18 +827,19 @@ abstract class FeatureProvider<P : Any>(val provisionClass: Class<P>) {
 }
 ```
 
-### Resolver.kt -- Motor DFS (105 lineas)
+### Resolver.kt -- Motor DFS thread-safe
 
 El cerebro del Pattern H. Registra providers, indexa servicios, y construye
-provisions bajo demanda con DFS automatico.
+provisions bajo demanda con DFS automatico. Thread-safe via `synchronized` + `ConcurrentHashMap`.
 
 ```kotlin
 class Resolver {
 
+    private val lock = Any()
     private val providers = HashMap<Class<*>, FeatureProvider<*>>()
     private val serviceIndex = HashMap<Class<*>, Class<*>>()
-    private val provisions = java.util.concurrent.ConcurrentHashMap<Class<*>, Any>()
-    private val resolvedServices = java.util.concurrent.ConcurrentHashMap<Class<*>, Any>()
+    private val provisions = ConcurrentHashMap<Class<*>, Any>()
+    private val resolvedServices = ConcurrentHashMap<Class<*>, Any>()
 
     lateinit var config: SdkConfig; private set
 
@@ -859,19 +860,16 @@ class Resolver {
 
     /** Resuelve un servicio por tipo. Auto-construye si no esta en cache. */
     fun <T : Any> get(clazz: Class<T>): T {
-        // 1. Cache hit -- O(1) ConcurrentHashMap lookup
+        // Fast path: cache hit sin lock (ConcurrentHashMap read-only tras build)
         resolvedServices[clazz]?.let {
-            return checkNotNull(clazz.cast(it))
+            return checkNotNull(clazz.cast(it)) { "Cast failed for ${clazz.simpleName}" }
         }
-        // 2. Buscar que provision lo provee
         val provisionClass = serviceIndex[clazz]
             ?: error("No provider for ${clazz.simpleName}")
-        // 3. Construir provision + deps via DFS
         ensureBuilt(provisionClass)
-        // 4. Servicio ahora disponible
         val resolved = resolvedServices[clazz]
-            ?: error("${clazz.simpleName} not available after building")
-        return checkNotNull(clazz.cast(resolved))
+            ?: error("${clazz.simpleName} not available after building ${provisionClass.simpleName}")
+        return checkNotNull(clazz.cast(resolved)) { "Cast failed for ${clazz.simpleName}" }
     }
 
     /** Obtiene una provision construida. Usado por FeatureProvider.build(). */
@@ -879,29 +877,44 @@ class Resolver {
         ensureBuilt(clazz)
         val built = provisions[clazz]
             ?: error("Provision ${clazz.simpleName} not available")
-        return checkNotNull(clazz.cast(built))
+        return checkNotNull(clazz.cast(built)) { "Cast failed for ${clazz.simpleName}" }
     }
 
     /**
-     * DFS recursivo: construye la provision si no existe.
-     * Si el build() del provider llama resolver.provision(dep),
-     * se dispara DFS para esa dep primero.
+     * Thread-safe DFS: synchronized en [lock] para que solo un thread construya a la vez.
+     * Double-check dentro del lock previene doble construccion.
+     * Llamadas recursivas desde build() re-entran el lock del mismo thread (reentrant).
+     *
+     * ORDEN DE ESCRITURA CRITICO:
+     * 1. Escribir resolvedServices PRIMERO (los servicios individuales)
+     * 2. Escribir provisions AL FINAL (es el "gate" que otros threads leen en el fast path)
+     * Si se invirtiera, un thread veria containsKey()=true pero resolvedServices[service]=null.
      */
     private fun ensureBuilt(provisionClass: Class<*>) {
-        if (provisions.containsKey(provisionClass)) return
-        val provider = providers[provisionClass]
-            ?: error("No provider registered for ${provisionClass.simpleName}")
-        // build() puede llamar resolver.provision() -> recursion DFS
-        val provision = provider.buildUntyped(this)
-        provisions[provisionClass] = provision
-        // Extraer y cachear cada servicio expuesto
-        for (serviceClass in provider.services.keys) {
-            resolvedServices[serviceClass] = provider.extractService(provision, serviceClass)
+        if (provisions.containsKey(provisionClass)) return // fast path sin lock
+        synchronized(lock) {
+            if (provisions.containsKey(provisionClass)) return // double-check dentro del lock
+            val provider = providers[provisionClass]
+                ?: error("No provider registered for ${provisionClass.simpleName}")
+            val provision = provider.buildUntyped(this)
+            // Services PRIMERO -- antes de marcar como construido
+            for (serviceClass in provider.services.keys) {
+                resolvedServices[serviceClass] = provider.extractService(provision, serviceClass)
+            }
+            provisions[provisionClass] = provision // ULTIMO -- gate para otros threads
         }
     }
 
     val builtProvisionCount: Int get() = provisions.size
 
+    fun clear() {
+        synchronized(lock) {
+            providers.clear()
+            serviceIndex.clear()
+            provisions.clear()
+            resolvedServices.clear()
+        }
+    }
     fun clear() {
         providers.clear()
         serviceIndex.clear()
