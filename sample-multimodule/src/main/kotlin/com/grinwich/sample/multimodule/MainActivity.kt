@@ -11,14 +11,15 @@ import androidx.compose.ui.unit.dp
 import com.grinwich.sample.multimodule.data.UserRepository
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.wiring.h.MultiModuleSdkH
+import kotlinx.coroutines.launch
 
 /**
  * Demonstrates two SDK consumption patterns in one Activity:
  *
  * 1. **Via Dagger** (recommended for apps with existing Dagger setup):
- *    AppComponent → SdkBridgeModule → UserRepository → constructor injection
+ *    AppComponent -> SdkBridgeModule -> UserRepository -> constructor injection
  *
- * 2. **Direct** (simplest possible — no app-side DI):
+ * 2. **Direct** (simplest possible -- no app-side DI):
  *    MultiModuleSdkH.get<EncryptionApi>()
  *
  * Both work. The Dagger approach is cleaner for large apps.
@@ -31,7 +32,7 @@ class MainActivity : ComponentActivity() {
         val app = application as MultiModuleApp
         val repo = app.appComponent.userRepository()
 
-        // Direct SDK access (no Dagger) — for simple use cases
+        // Direct SDK access (no Dagger) -- for simple use cases
         val encryption: EncryptionApi = MultiModuleSdkH.get()
 
         setContent {
@@ -48,9 +49,14 @@ class MainActivity : ComponentActivity() {
 fun SdkDemoScreen(repo: UserRepository, encryption: EncryptionApi) {
     var loginStatus by remember { mutableStateOf("Not logged in") }
     var encryptedText by remember { mutableStateOf("") }
-    var events by remember { mutableStateOf(emptyList<String>()) }
+    var lastUser by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     repo.trackScreen("SdkDemoScreen")
+
+    LaunchedEffect(Unit) {
+        lastUser = repo.lastUser()
+    }
 
     Column(
         modifier = Modifier
@@ -59,27 +65,30 @@ fun SdkDemoScreen(repo: UserRepository, encryption: EncryptionApi) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
-            "Pattern H — SDK + Dagger2 Integration",
+            "Pattern H -- SDK + Dagger2 Integration",
             style = MaterialTheme.typography.headlineSmall,
         )
 
         HorizontalDivider()
 
-        // ── Dagger-injected repository ──
+        // -- Dagger-injected repository --
         Text("Via Dagger (UserRepository)", style = MaterialTheme.typography.titleMedium)
 
         Button(onClick = {
-            val token = repo.login("demo_user", "password123")
-            loginStatus = "Logged in: ${token.accessToken.take(25)}..."
+            scope.launch {
+                val token = repo.login("demo_user", "password123")
+                loginStatus = "Logged in: ${token.accessToken.take(25)}..."
+                lastUser = repo.lastUser()
+            }
         }) { Text("Login via Repository") }
 
         Text(loginStatus)
-        Text("Last user: ${repo.lastUser() ?: "none"}")
+        Text("Last user: ${lastUser ?: "none"}")
         Text("Is authenticated: ${repo.isLoggedIn()}")
 
         HorizontalDivider()
 
-        // ── Direct SDK access ──
+        // -- Direct SDK access --
         Text("Direct SDK (no Dagger)", style = MaterialTheme.typography.titleMedium)
 
         Button(onClick = {
@@ -93,11 +102,11 @@ fun SdkDemoScreen(repo: UserRepository, encryption: EncryptionApi) {
 
         HorizontalDivider()
 
-        // ── Architecture info ──
+        // -- Architecture info --
         Text(
             "This app depends ONLY on :sdk:wiring-h.\n" +
                 "Dagger bridge resolves SDK services via MultiModuleSdkH.get<T>().\n" +
-                "UserRepository uses @Inject constructor — zero SDK knowledge.",
+                "UserRepository uses @Inject constructor -- zero SDK knowledge.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

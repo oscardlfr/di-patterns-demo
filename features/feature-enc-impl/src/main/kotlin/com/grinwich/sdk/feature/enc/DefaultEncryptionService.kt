@@ -1,5 +1,6 @@
 package com.grinwich.sdk.feature.enc
 
+import android.util.Base64
 import com.grinwich.sdk.api.EncryptionApi
 import com.grinwich.sdk.api.HashApi
 import com.grinwich.sdk.api.SdkLogger
@@ -11,15 +12,12 @@ internal class DefaultEncryptionService @Inject constructor(
 
     override fun encrypt(plaintext: String): String {
         logger.d("Encryption", "Encrypting ${plaintext.length} chars")
-        return "ENC[${plaintext.reversed()}]"
+        return Base64.encodeToString(plaintext.toByteArray(), Base64.NO_WRAP)
     }
 
     override fun decrypt(encrypted: String): String {
         logger.d("Encryption", "Decrypting")
-        require(encrypted.startsWith("ENC[") && encrypted.endsWith("]")) {
-            "Invalid encrypted format"
-        }
-        return encrypted.removePrefix("ENC[").removeSuffix("]").reversed()
+        return String(Base64.decode(encrypted, Base64.NO_WRAP))
     }
 }
 

@@ -20,6 +20,9 @@ dependencies {
     implementation(project(":features:feature-core-api"))  // SdkConfig
     implementation(project(":features:observability-api"))  // SdkLogger
 
+    implementation(libs.datastore.preferences)
+    implementation(libs.coroutines.android)
+
     implementation(libs.dagger)
     ksp(libs.dagger.compiler)
     implementation(libs.javax.inject)

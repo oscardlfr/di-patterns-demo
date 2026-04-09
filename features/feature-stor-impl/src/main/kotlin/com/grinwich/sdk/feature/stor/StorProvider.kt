@@ -10,5 +10,10 @@ class StorProvider : FeatureProvider<StorProvisions>(StorProvisions::class.java)
     )
 
     override fun build(resolver: Resolver): StorProvisions =
-        buildStorProvisions(resolver.provision(CoreProvisions::class.java), resolver.logger, resolver.provision(EncProvisions::class.java))
+        buildStorProvisions(
+            resolver.provision(CoreProvisions::class.java),
+            resolver.logger,
+            resolver.provision(EncProvisions::class.java),
+            resolver.provision(ContextProvisions::class.java),
+        )
 }

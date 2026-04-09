@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.impl.KoinSdk
 import com.grinwich.sdk.impl.SdkModule
+import kotlinx.coroutines.runBlocking
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -74,7 +75,7 @@ class MainActivity : ComponentActivity() {
                             val sync = SdkBenchmark.measure("KoinSdk.get<Sync>()") {
                                 KoinSdk.get<SyncApi>()
                             }
-                            val syncResult = SdkBenchmark.measure("sync.sync()") { sync.sync() }
+                            val syncResult = SdkBenchmark.measure("sync.sync()") { runBlocking { sync.sync() } }
                             appendLine("✅ Sync: up=${syncResult.uploaded}, down=${syncResult.downloaded}")
 
                             appendLine("\n✅ HYBRID: Koin SDK + Dagger 2 bridge:")

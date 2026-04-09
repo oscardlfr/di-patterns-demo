@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.daggerb.DaggerBSdk
 import com.grinwich.sdk.daggerb.DaggerBSdk.Feature
+import kotlinx.coroutines.runBlocking
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,7 +49,7 @@ class MainActivity : ComponentActivity() {
                             }
                             appendLine("Cascaded: $syncInited")
                             DaggerBSdk.get<AuthApi>().login("user", "pass")
-                            val sync = SdkBenchmark.measure("sync()") { DaggerBSdk.get<SyncApi>().sync() }
+                            val sync = SdkBenchmark.measure("sync()") { runBlocking { DaggerBSdk.get<SyncApi>().sync() } }
                             appendLine("✅ Sync: up=${sync.uploaded}, down=${sync.downloaded}")
                             appendLine("After: ${DaggerBSdk.initializedModules}")
 

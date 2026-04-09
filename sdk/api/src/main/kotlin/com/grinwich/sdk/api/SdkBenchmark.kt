@@ -20,6 +20,14 @@ object SdkBenchmark {
         return result
     }
 
+    suspend fun <T> measureSuspend(label: String, block: suspend () -> T): T {
+        val start = System.nanoTime()
+        val result = block()
+        val elapsed = (System.nanoTime() - start) / 1_000_000.0
+        _timings.add(Timing(label, elapsed))
+        return result
+    }
+
     fun report(): String = buildString {
         appendLine("┌─────────────────────────────────────────────────┐")
         appendLine("│ PERFORMANCE METRICS                             │")

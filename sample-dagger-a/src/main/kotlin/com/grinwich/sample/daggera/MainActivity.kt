@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.grinwich.sdk.api.SdkBenchmark
+import kotlinx.coroutines.runBlocking
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -67,7 +68,7 @@ class MainActivity : ComponentActivity() {
                             SdkBenchmark.measure("auth.login") { auth.login("user", "pass") }
 
                             val sync = SdkBenchmark.measure("resolve sync") { sdk.syncApi() }
-                            val syncResult = SdkBenchmark.measure("sync.sync()") { sync.sync() }
+                            val syncResult = SdkBenchmark.measure("sync.sync()") { runBlocking { sync.sync() } }
                             appendLine("✅ Sync: uploaded=${syncResult.uploaded}, downloaded=${syncResult.downloaded}")
                             appendLine("⚠️ Dagger resolved Auth+Storage+Encryption automatically")
                             appendLine("⚠️ But ALL were already in the @Component — no real lazy init")

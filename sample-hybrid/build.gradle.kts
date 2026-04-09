@@ -25,6 +25,7 @@ dependencies {
     implementation(project(":sdk:api"))
     implementation(project(":sdk:impl-koin"))
 
+    implementation(libs.coroutines.android)
     // Dagger 2 for the app's DI (NOT Hilt)
     implementation(libs.dagger)
     ksp(libs.dagger.compiler)

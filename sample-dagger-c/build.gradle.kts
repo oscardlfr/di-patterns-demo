@@ -23,6 +23,7 @@ android {
 dependencies {
     implementation(project(":sdk:api"))
     implementation(project(":sdk:impl-dagger-c"))
+    implementation(libs.coroutines.android)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

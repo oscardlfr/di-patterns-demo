@@ -91,24 +91,24 @@ class DefaultSecureStorageService(
 
     private val store = mutableMapOf<String, String>()
 
-    override fun put(key: String, value: String) {
+    override suspend fun put(key: String, value: String) {
         val hashedKey = hash.sha256Hex(key)
         val encryptedValue = encryption.encrypt(value)
         logger.d("Storage", "PUT $hashedKey → ${encryptedValue.take(15)}...")
         store[hashedKey] = encryptedValue
     }
 
-    override fun get(key: String): String? {
+    override suspend fun get(key: String): String? {
         val hashedKey = hash.sha256Hex(key)
         val encrypted = store[hashedKey] ?: return null
         return encryption.decrypt(encrypted)
     }
 
-    override fun remove(key: String) {
+    override suspend fun remove(key: String) {
         store.remove(hash.sha256Hex(key))
     }
 
-    override fun clear() {
+    override suspend fun clear() {
         store.clear()
     }
 }
@@ -143,7 +143,7 @@ class DefaultSyncService(
     private val logger: SdkLogger,
 ) : SyncApi {
 
-    override fun sync(): SyncResult {
+    override suspend fun sync(): SyncResult {
         // 1. Requires authenticated user
         check(auth.isAuthenticated()) { "Must be logged in to sync. Call auth.login() first." }
 
@@ -165,7 +165,7 @@ class DefaultSyncService(
         )
     }
 
-    override fun pendingCount(): Int {
+    override suspend fun pendingCount(): Int {
         return if (storage.get("sync-queue") != null) 1 else 0
     }
 }

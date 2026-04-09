@@ -40,7 +40,7 @@ object MultiModuleSdkE2 : MultiModuleSdkApi {
      */
     override fun init(context: android.content.Context, config: SdkConfig) {
         check(!_initialized) { "MultiModuleSdkE2 already initialized." }
-        registry.installAll(allAutoEntries(config, _logger))
+        registry.installAll(allAutoEntries(context, config, _logger))
         _initialized = true
     }
 

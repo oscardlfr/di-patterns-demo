@@ -8,6 +8,7 @@ import com.grinwich.sdk.daggerb.DaggerBSdk
 import com.grinwich.sdk.daggerc.DaggerCSdk
 import com.grinwich.sdk.impl.KoinSdk
 import com.grinwich.sdk.impl.SdkModule
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Rule
 import org.junit.Test
@@ -95,7 +96,7 @@ class DiBenchmark {
         DaggerBSdk.get<AuthApi>().login("bench", "pass")
         val sync = DaggerBSdk.get<SyncApi>()
         benchmarkRule.measureRepeated {
-            sync.sync()
+            runBlocking { sync.sync() }
         }
         DaggerBSdk.shutdown()
     }
@@ -151,7 +152,7 @@ class DiBenchmark {
         DaggerCSdk.get<AuthApi>().login("bench", "pass")
         val sync = DaggerCSdk.get<SyncApi>()
         benchmarkRule.measureRepeated {
-            sync.sync()
+            runBlocking { sync.sync() }
         }
         DaggerCSdk.shutdown()
     }
@@ -207,7 +208,7 @@ class DiBenchmark {
         KoinSdk.get<AuthApi>().login("bench", "pass")
         val sync = KoinSdk.get<SyncApi>()
         benchmarkRule.measureRepeated {
-            sync.sync()
+            runBlocking { sync.sync() }
         }
         KoinSdk.shutdown()
     }
@@ -254,7 +255,7 @@ class DiBenchmark {
         bridge.auth().login("bench", "pass")
         val sync = bridge.sync()
         benchmarkRule.measureRepeated {
-            sync.sync()
+            runBlocking { sync.sync() }
         }
         KoinSdk.shutdown()
     }

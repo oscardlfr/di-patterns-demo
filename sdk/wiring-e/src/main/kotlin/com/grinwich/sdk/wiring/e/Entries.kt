@@ -63,12 +63,13 @@ internal fun authEntry(logger: SdkLogger) = ProvisionEntry(
 
 internal fun storEntry(logger: SdkLogger) = ProvisionEntry(
     provisionClass = StorProvisions::class.java,
-    dependencies = setOf(CoreProvisions::class.java, EncProvisions::class.java),
+    dependencies = setOf(CoreProvisions::class.java, EncProvisions::class.java, ContextProvisions::class.java),
     build = { registry ->
         DaggerStorComponent.builder()
             .core(registry.provision(CoreProvisions::class.java))
             .logger(logger)
             .enc(registry.provision(EncProvisions::class.java))
+            .ctx(registry.provision(ContextProvisions::class.java))
             .build()
     },
     services = { prov ->
@@ -112,7 +113,21 @@ internal fun synEntry(logger: SdkLogger) = ProvisionEntry(
     },
 )
 
-internal fun allEntries(config: SdkConfig, logger: SdkLogger) = listOf(
+internal fun ctxEntry(context: android.content.Context) = ProvisionEntry(
+    provisionClass = ContextProvisions::class.java,
+    build = {
+        val appCtx = context.applicationContext
+        object : ContextProvisions {
+            override fun appContext() = appCtx
+        }
+    },
+    services = { prov ->
+        mapOf(android.content.Context::class.java to prov.appContext())
+    },
+)
+
+internal fun allEntries(context: android.content.Context, config: SdkConfig, logger: SdkLogger) = listOf(
+    ctxEntry(context),
     coreEntry(config, logger),
     encEntry(logger),
     authEntry(logger),

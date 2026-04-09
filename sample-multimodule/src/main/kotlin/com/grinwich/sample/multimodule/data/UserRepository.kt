@@ -19,7 +19,7 @@ class UserRepository @Inject constructor(
     private val analytics: AnalyticsApi,
 ) {
 
-    fun login(username: String, password: String): AuthToken {
+    suspend fun login(username: String, password: String): AuthToken {
         val token = auth.login(username, password)
         storage.put("last_user", username)
         analytics.trackEvent("login", mapOf("user" to username))
@@ -28,7 +28,7 @@ class UserRepository @Inject constructor(
 
     fun isLoggedIn(): Boolean = auth.isAuthenticated()
 
-    fun lastUser(): String? = storage.get("last_user")
+    suspend fun lastUser(): String? = storage.get("last_user")
 
     fun trackScreen(screenName: String) {
         analytics.trackEvent("screen_view", mapOf("screen" to screenName))

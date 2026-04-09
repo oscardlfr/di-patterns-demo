@@ -1,138 +1,145 @@
-BENCHMARK RESULTS SUMMARY — Samsung Galaxy S22 Ultra (SM-S908B) — 2026-04-08
+BENCHMARK RESULTS SUMMARY — Samsung Galaxy S22 Ultra (SM-S908B) — 2026-04-09
 Total benchmarks: 277 (DiBenchmark 19 + MultiModuleBenchmark 84 + ScaleBenchmark 37 + MemoryBehaviorTest 57 + StressTortureTest 80)
 All tests: 277/277 PASSED, 0 FAILED
 ScaleBenchmark: 37/37 PASSED
+Storage: DataStore (real disk I/O via suspend + runBlocking)
 
 ====================================================================================================
 
   Init Cold (full graph) — all values in ns
   ------------------------------------------
-  MM-D               740 ns          == << BEST
-  MM-G               803 ns        1.1x
-  MM-E2            5,493 ns        7.4x
-  MM-J            60,296 ns       81.5x
-  MM-H            60,714 ns       82.0x
-  MM-I            62,447 ns       84.4x
-  MM-K           141,238 ns      190.9x << WORST
+  MM-D               805 ns          == << BEST
+  MM-G               867 ns        1.1x
+  MM-E2            9,004 ns       11.2x
+  MM-H            68,612 ns       85.2x
+  MM-I            70,762 ns       87.9x
+  MM-J            72,721 ns       90.3x
+  MM-K           174,145 ns      216.3x << WORST
 
   Resolve First — all values in ns
   ------------------------------------------
-  MM-G              10.3 ns          == << BEST
-  MM-D              10.9 ns        1.1x
-  MM-H              23.6 ns        2.3x
-  MM-K              23.6 ns        2.3x
-  MM-J              23.8 ns        2.3x
-  MM-I              24.0 ns        2.3x
-  MM-E2             27.7 ns        2.7x << WORST
+  MM-G              14.8 ns          == << BEST
+  MM-D              15.9 ns        1.1x
+  MM-E2             34.2 ns        2.3x
+  MM-H              34.4 ns        2.3x
+  MM-K              34.4 ns        2.3x
+  MM-J              34.6 ns        2.3x
+  MM-I              35.0 ns        2.4x << WORST
 
   Lazy Init - No Deps (Analytics) — all values in ns
   ------------------------------------------
-  MM-D               194 ns          == << BEST
-  MM-G               194 ns          ==
-  MM-J               547 ns        2.8x
-  MM-E2              554 ns        2.9x
-  MM-I               565 ns        2.9x
-  MM-H               849 ns        4.4x
-  MM-K             1,371 ns        7.1x << WORST
+  MM-D               260 ns          == << BEST
+  MM-G               264 ns        1.0x
+  MM-E2              741 ns        2.9x
+  MM-I               855 ns        3.3x
+  MM-J             1,065 ns        4.1x
+  MM-H             1,172 ns        4.5x
+  MM-K             1,968 ns        7.6x << WORST
 
   Lazy Init - Cascade (Sync) — all values in ns
   ------------------------------------------
-  MM-G               473 ns          == << BEST
-  MM-D               475 ns          ==
-  MM-E2            1,671 ns        3.5x
-  MM-I             1,873 ns        4.0x
-  MM-J             2,023 ns        4.3x
-  MM-H             2,746 ns        5.8x
-  MM-K             4,218 ns        8.9x << WORST
+  MM-D               715 ns          == << BEST
+  MM-G               723 ns        1.0x
+  MM-E2            2,522 ns        3.5x
+  MM-I             3,955 ns        5.5x
+  MM-H             4,391 ns        6.1x
+  MM-J             5,088 ns        7.1x
+  MM-K             8,992 ns       12.6x << WORST
 
-  Cross-Feature Op (Sync) — all values in ns
+  Cross-Feature Op (Sync — DataStore I/O) — all values in ns
   ------------------------------------------
-  MM-E2           80,686 ns          == << BEST
-  MM-H            83,517 ns          ==
-  MM-G            83,699 ns          ==
-  MM-K            83,743 ns          ==
-  MM-I            84,220 ns          ==
-  MM-D            84,351 ns          ==
-  MM-J            84,477 ns          == << WORST
+  MM-I         1,177,343 ns          == << BEST
+  MM-G         1,196,719 ns        1.0x
+  MM-E2        1,481,424 ns        1.3x
+  MM-D         1,589,109 ns        1.3x
+  MM-J         1,658,252 ns        1.4x
+  MM-K         1,797,444 ns        1.5x
+  MM-H         1,848,525 ns        1.6x << WORST
 
   Stress: Init/Shutdown Cycle — all values in ns
   ------------------------------------------
-  MM-G               158 ns          == << BEST
-  MM-D               159 ns          ==
-  MM-E2            2,799 ns       17.7x
-  MM-J            57,010 ns      360.8x
-  MM-I            57,062 ns      361.2x
-  MM-H            57,941 ns      366.7x
-  MM-K           206,406 ns    1,306.4x << WORST
+  MM-G               248 ns          == << BEST
+  MM-D               300 ns        1.2x
+  MM-E2            4,166 ns       16.8x
+  MM-H            84,010 ns      338.7x
+  MM-I            84,936 ns      342.5x
+  MM-J            85,490 ns      344.7x
+  MM-K           193,791 ns      781.4x << WORST
 
   Stress: Concurrent Resolution — all values in ns
   ------------------------------------------
-  MM-J           273,318 ns          == << BEST
-  MM-I           320,838 ns        1.2x
-  MM-K           333,213 ns        1.2x
-  MM-H           354,212 ns        1.3x
-  MM-D           365,288 ns        1.3x
-  MM-G           365,447 ns        1.3x
-  MM-E2          401,647 ns        1.5x << WORST
+  MM-H           415,995 ns          == << BEST
+  MM-K           419,675 ns        1.0x
+  MM-I           436,625 ns        1.0x
+  MM-G           440,344 ns        1.1x
+  MM-E2          453,339 ns        1.1x
+  MM-J           456,497 ns        1.1x
+  MM-D           466,939 ns        1.1x << WORST
 
   Stress: Resolve All (cached) — all values in ns
   ------------------------------------------
-  MM-G              69.9 ns          == << BEST
-  MM-D              70.0 ns          ==
-  MM-E2              143 ns        2.0x
-  MM-H               144 ns        2.1x
-  MM-I               144 ns        2.1x
-  MM-K               144 ns        2.1x
-  MM-J               148 ns        2.1x << WORST
+  MM-D              99.0 ns          == << BEST
+  MM-G               100 ns        1.0x
+  MM-E2              148 ns        1.5x
+  MM-K               149 ns        1.5x
+  MM-J               150 ns        1.5x
+  MM-H               207 ns        2.1x
+  MM-I               207 ns        2.1x << WORST
 
   Stress: Selective Init — all values in ns
   ------------------------------------------
-  MM-D               185 ns          == << BEST
-  MM-G               188 ns          ==
-  MM-E2            2,311 ns       12.5x
-  MM-I            57,932 ns      313.1x
-  MM-H            59,696 ns      322.7x
-  MM-J            60,671 ns      327.9x
-  MM-K           136,825 ns      739.6x << WORST
+  MM-G               279 ns          == << BEST
+  MM-D               297 ns        1.1x
+  MM-E2            3,758 ns       13.5x
+  MM-J            85,429 ns      306.2x
+  MM-I            91,580 ns      328.2x
+  MM-H            93,664 ns      335.7x
+  MM-K           205,757 ns      737.5x << WORST
 
   Stress: Re-Init — all values in ns
   ------------------------------------------
-  MM-G             1,459 ns          == << BEST
-  MM-D             1,744 ns        1.2x
-  MM-E2            9,615 ns        6.6x
-  MM-I           126,119 ns       86.4x
-  MM-H           127,407 ns       87.3x
-  MM-J           127,489 ns       87.4x
-  MM-K           284,651 ns      195.1x << WORST
+  MM-D             1,764 ns          == << BEST
+  MM-G             2,057 ns        1.2x
+  MM-E2           18,462 ns       10.5x
+  MM-I           175,754 ns       99.6x
+  MM-J           185,630 ns      105.2x
+  MM-H           198,363 ns      112.4x
+  MM-K           424,808 ns      240.8x << WORST
 
   Stress: Incremental Build — all values in ns
   ------------------------------------------
-  MM-D               737 ns          == << BEST
-  MM-G               770 ns        1.0x
-  MM-E2            5,206 ns        7.1x
-  MM-H            60,633 ns       82.3x
-  MM-J            61,678 ns       83.7x
-  MM-I            63,155 ns       85.7x
-  MM-K           142,351 ns      193.1x << WORST
+  MM-D               928 ns          == << BEST
+  MM-G             1,028 ns        1.1x
+  MM-E2            8,355 ns        9.0x
+  MM-H            81,115 ns       87.4x
+  MM-I            84,475 ns       91.0x
+  MM-J            91,478 ns       98.6x
+  MM-K           227,193 ns      244.8x << WORST
 
-  E2E App Startup — all values in ns
+  E2E App Startup (DataStore I/O) — all values in ns
   ------------------------------------------
-  MM-D           101,500 ns          == << BEST
-  MM-G           102,331 ns        1.0x
-  MM-E2          115,339 ns        1.1x
-  MM-H           222,713 ns        2.2x
-  MM-J           228,707 ns        2.3x
-  MM-I           243,625 ns        2.4x
-  MM-K           375,308 ns        3.7x << WORST
+  MM-D           523,532 ns          == << BEST
+  MM-E2          621,301 ns        1.2x
+  MM-G           633,091 ns        1.2x
+  MM-I           652,858 ns        1.2x
+  MM-H           692,444 ns        1.3x
+  MM-J           757,940 ns        1.4x
+  MM-K           938,008 ns        1.8x << WORST
 
 ====================================================================================================
 CONCLUSIONS
 
 Multi-module init cold ranking:
-  MM-D: 740 ns | MM-G: 803 ns | MM-E2: 5,493 ns | MM-J: 60,296 ns | MM-H: 60,714 ns | MM-I: 62,447 ns | MM-K: 141,238 ns
+  MM-D: 805 ns | MM-G: 867 ns | MM-E2: 9,004 ns | MM-H: 68,612 ns | MM-I: 70,762 ns | MM-J: 72,721 ns | MM-K: 174,145 ns
 
 G vs D: 1.1x (G advantage: DaggerXxxComponent stays internal)
-H vs G: 75.6x (H advantage: zero central editing, each feature self-registers)
+H vs G: 79.1x (H advantage: zero central editing, each feature self-registers)
 I vs H: 1.0x (I advantage: zero DI framework — no Dagger, no KSP)
-J vs H: 1.0x (J advantage: modern KSP, less boilerplate, KMP-ready)
-K vs H: 2.3x (K advantage: R8/ProGuard robustness via AndroidManifest metadata)
+J vs H: 1.1x (J advantage: modern KSP, less boilerplate, KMP-ready)
+K vs H: 2.5x (K advantage: R8/ProGuard robustness via AndroidManifest metadata)
+
+CrossFeatureOp note: values increased ~18x (84K -> 1.2-1.8M ns) due to Storage
+migration from in-memory mutableMapOf to DataStore (real disk I/O via suspend +
+runBlocking). This reflects the REAL cost of using DataStore in sync operations.
+Monolithic patterns (DiBenchmark) remain ~90-120K ns because impl-common-d-c
+still uses in-memory storage.

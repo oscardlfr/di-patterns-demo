@@ -4,6 +4,7 @@ import android.os.Debug
 import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.grinwich.sdk.api.*
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Test
@@ -311,7 +312,7 @@ class StressTortureTest {
         assertTrue("$name: auth after login", auth.isAuthenticated())
 
         val sync = sdk.get(SyncApi::class.java)
-        val result = sync.sync()
+        val result = runBlocking { sync.sync() }
         assertNotNull("$name: sync works", result)
     }
 

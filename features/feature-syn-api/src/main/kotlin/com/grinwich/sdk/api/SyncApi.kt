@@ -6,8 +6,8 @@ package com.grinwich.sdk.api
  * and Encryption (for payload signing).
  */
 interface SyncApi {
-    fun sync(): SyncResult
-    fun pendingCount(): Int
+    suspend fun sync(): SyncResult
+    suspend fun pendingCount(): Int
 }
 
 data class SyncResult(

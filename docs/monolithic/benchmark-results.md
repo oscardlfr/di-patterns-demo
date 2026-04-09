@@ -31,12 +31,12 @@ no contra los Components internos. Esto mide el coste real que experimenta el co
 
 | Test | Dagger B | Dagger C | Koin | Hybrid | Mejor |
 |------|----------|----------|------|--------|-------|
-| **initCold** | 1,749 ns | 2,302 ns | 46,953 ns | 43,503 ns | Dagger B |
-| **resolveFirst** | 7.5 ns | 26.3 ns | 647 ns | 1.9 ns | Hybrid |
-| **resolveCached (bridge)** | -- | -- | -- | 1.9 ns | Hybrid |
-| **lazyInit noDeps** | 246 ns | 309 ns | 5,419 ns | -- | Dagger B |
-| **lazyInit cascade** | 1,182 ns | -- | 22,993 ns | -- | Dagger B |
-| **crossFeatureOp** | 82,667 ns | 82,422 ns | ~102,000 ns | 85,234 ns | Dagger C |
+| **initCold** | 1,955 ns | 2,331 ns | 41,385 ns | 40,713 ns | Dagger B |
+| **resolveFirst** | 7.6 ns | 25.7 ns | 721 ns | 2.0 ns | Hybrid |
+| **resolveCached (bridge)** | -- | -- | -- | 2.4 ns | Hybrid |
+| **lazyInit noDeps** | 265 ns | 347 ns | 6,907 ns | -- | Dagger B |
+| **lazyInit cascade** | 1,407 ns | 1,870 ns | 21,495 ns | -- | Dagger B |
+| **crossFeatureOp** | 92,122 ns | 92,585 ns | 120,210 ns | 90,411 ns | Hybrid |
 
 ### Definicion de cada test
 
@@ -63,10 +63,10 @@ no contra los Components internos. Esto mide el coste real que experimenta el co
 
 | Ranking | Patron | Tiempo | Factor vs mejor |
 |---------|--------|--------|-----------------|
-| 1 | Dagger B | 1,749 ns | 1.0x |
-| 2 | Dagger C | 2,302 ns | 1.3x |
-| 3 | Hybrid | 43,503 ns | 24.9x |
-| 4 | Koin | 46,953 ns | 26.8x |
+| 1 | Dagger B | 1,955 ns | 1.0x |
+| 2 | Dagger C | 2,331 ns | 1.2x |
+| 3 | Hybrid | 40,713 ns | 20.8x |
+| 4 | Koin | 41,385 ns | 21.2x |
 
 Dagger B y C crean Components Dagger (codegen puro, sin reflexion). Los objetos generados
 por KSP son factories directas -- la inicializacion es construccion de objetos Java.
@@ -76,40 +76,40 @@ registro de modulos en HashMaps internos, y resolucion eager de singletons. Hybr
 ademas crea el `SdkBridgeComponent` Dagger, pero este coste es marginal frente al
 de Koin.
 
-**En contexto:** 46,953 ns = ~47 microsegundos. Un `Application.onCreate()` tipico
+**En contexto:** 41,385 ns = ~41 microsegundos. Un `Application.onCreate()` tipico
 tarda 200-500 milisegundos. La inicializacion del SDK es menos del 0.01% del arranque.
 
 ### 3.2 Resolucion de servicios (resolveFirst)
 
 | Ranking | Patron | Tiempo | Factor vs mejor |
 |---------|--------|--------|-----------------|
-| 1 | Hybrid | 1.9 ns | 1.0x |
-| 2 | Dagger B | 7.5 ns | 3.9x |
-| 3 | Dagger C | 26.3 ns | 13.8x |
-| 4 | Koin | 647 ns | 340x |
+| 1 | Hybrid | 2.0 ns | 1.0x |
+| 2 | Dagger B | 7.6 ns | 3.8x |
+| 3 | Dagger C | 25.7 ns | 12.9x |
+| 4 | Koin | 721 ns | 361x |
 
 Hybrid gana porque el `@Singleton` de Dagger cachea la instancia en un campo. Acceder
-a un campo es ~2 ns. Dagger B accede a un campo volatil con double-check locking (~7.5 ns).
+a un campo es ~2 ns. Dagger B accede a un campo volatil con double-check locking (~7.6 ns).
 Dagger C itera sobre los `FeatureInitializer` registrados buscando quien provee el
 servicio (~26 ns).
 
-Koin resuelve via HashMap lookup + type matching (~647 ns). Es el mas lento en
+Koin resuelve via HashMap lookup + type matching (~721 ns). Es el mas lento en
 resolucion, pero sigue siendo sub-microsegundo.
 
 ### 3.3 Inicializacion lazy (lazyInit)
 
 | Ranking | Patron | noDeps | cascade |
 |---------|--------|--------|---------|
-| 1 | Dagger B | 246 ns | 1,182 ns |
-| 2 | Dagger C | 309 ns | -- |
-| 3 | Koin | 5,419 ns | 22,993 ns |
+| 1 | Dagger B | 265 ns | 1,407 ns |
+| 2 | Dagger C | 347 ns | 1,870 ns |
+| 3 | Koin | 6,907 ns | 21,495 ns |
 
 Lazy init mide la capacidad de anadir features al SDK despues de `init()`. Dagger crea
-un nuevo Component por feature (~250-300 ns). Koin ejecuta `loadModules()` que registra
-nuevos bindings en el HashMap del `koinApplication` (~5,400 ns).
+un nuevo Component por feature (~265-347 ns). Koin ejecuta `loadModules()` que registra
+nuevos bindings en el HashMap del `koinApplication` (~6,900 ns).
 
-La cascada de Dagger B (Sync con 3 dependencias transitivas) tarda ~1.2 microsegundos.
-La de Koin tarda ~23 microsegundos. Ambos son imperceptibles para el usuario.
+La cascada de Dagger B (Sync con 3 dependencias transitivas) tarda ~1.4 microsegundos.
+La de Koin tarda ~21 microsegundos. Ambos son imperceptibles para el usuario.
 
 El Hybrid no tiene benchmarks de lazy init separados porque las features lazy
 no pasan por el bridge Dagger -- se acceden directamente via `KoinSdk.get()`,
@@ -119,17 +119,21 @@ con el mismo rendimiento que Koin puro.
 
 | Ranking | Patron | Tiempo | Factor vs mejor |
 |---------|--------|--------|-----------------|
-| 1 | Dagger C | 82,422 ns | 1.0x |
-| 2 | Dagger B | 82,667 ns | 1.0x |
-| 3 | Hybrid | 85,234 ns | 1.03x |
-| 4 | Koin | ~102,000 ns | 1.24x |
+| 1 | Hybrid | 90,411 ns | 1.0x |
+| 2 | Dagger B | 92,122 ns | 1.02x |
+| 3 | Dagger C | 92,585 ns | 1.02x |
+| 4 | Koin | 120,210 ns | 1.33x |
 
 La operacion `sync.sync()` invoca logica de negocio real (Auth, Storage, Encryption).
-Los tiempos son dominados por la logica de negocio, no por la resolucion DI. La
-diferencia entre el mas rapido (82,422 ns) y el mas lento (~102,000 ns) es ~20
-microsegundos -- ruido termico del procesador.
+Los patrones monoliticos mantienen crossFeatureOp en el rango ~90,000-120,000 ns porque
+impl-common-d-c sigue usando almacenamiento en memoria (suspend keyword anadido pero sin
+DataStore). Los tiempos son dominados por la logica de negocio, no por la resolucion DI.
 
-**Conclusion:** Post-init, todos los patrones son equivalentes. La eleccion del
+**Nota:** Los patrones multi-modulo muestran crossFeatureOp ~1,200,000-1,800,000 ns porque
+Storage usa DataStore (I/O real a disco). La diferencia entre monoliticos y multi-modulo
+no se debe al patron DI sino al mecanismo de almacenamiento subyacente.
+
+**Conclusion:** Post-init, todos los patrones monoliticos son equivalentes. La eleccion del
 framework DI es invisible en operaciones de negocio.
 
 ---
@@ -138,17 +142,17 @@ framework DI es invisible en operaciones de negocio.
 
 ### 4.1 Rendimiento puro
 
-Dagger B es el patron monolitico mas rapido en inicializacion (1,749 ns) y lazy init
-(246 ns). Hybrid es el mas rapido en resolucion post-init (1.9 ns) gracias al cache
+Dagger B es el patron monolitico mas rapido en inicializacion (1,955 ns) y lazy init
+(265 ns). Hybrid es el mas rapido en resolucion post-init (2.0 ns) gracias al cache
 `@Singleton` de Dagger.
 
 ### 4.2 Diferencias imperceptibles
 
 Todas las diferencias estan por debajo de 1 milisegundo:
 
-- initCold: 1.7 microsegundos (Dagger B) vs 47 microsegundos (Koin) = 45 microsegundos de diferencia
-- resolveFirst: 1.9 ns (Hybrid) vs 647 ns (Koin) = 645 nanosegundos de diferencia
-- crossFeatureOp: ~82 microsegundos vs ~102 microsegundos = ~20 microsegundos de diferencia
+- initCold: 2.0 microsegundos (Dagger B) vs 41 microsegundos (Koin) = 39 microsegundos de diferencia
+- resolveFirst: 2.0 ns (Hybrid) vs 721 ns (Koin) = 719 nanosegundos de diferencia
+- crossFeatureOp: ~90 microsegundos vs ~120 microsegundos = ~30 microsegundos de diferencia
 
 Un frame de Android a 60 FPS son 16.6 milisegundos. Ninguna de estas diferencias
 es perceptible por el usuario ni afecta al rendimiento de la aplicacion.

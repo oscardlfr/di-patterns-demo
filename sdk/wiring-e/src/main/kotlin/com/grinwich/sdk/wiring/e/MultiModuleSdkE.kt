@@ -50,6 +50,9 @@ object MultiModuleSdkE {
 
     val isInitialized: Boolean get() = _initialized
 
+    /** Number of provisions currently built. Useful for verifying lazy behavior in tests. */
+    val builtProvisionCount: Int get() = registry.builtProvisionCount
+
     /** Override the default logger. Persists across init/shutdown cycles. */
     fun setLogger(logger: SdkLogger) {
         _logger = logger
@@ -59,13 +62,18 @@ object MultiModuleSdkE {
      * Initialize with selected features. Core is always built.
      * Dependencies are resolved automatically via topological sort.
      */
+    private var _context: android.content.Context? = null
+
     fun init(
+        context: android.content.Context,
         config: SdkConfig,
         features: Set<Feature> = emptySet(),
     ) {
         check(!_initialized) { "MultiModuleSdkE already initialized." }
+        _context = context.applicationContext
 
-        // Always register core
+        // Always register core + context
+        registry.register(ctxEntry(context))
         registry.register(coreEntry(config, _logger))
 
         // Expand transitive deps + topo-sort
@@ -109,6 +117,7 @@ object MultiModuleSdkE {
         if (!_initialized) return
         registry.clear()
         _initializedFeatures.clear()
+        _context = null
         _initialized = false
     }
 

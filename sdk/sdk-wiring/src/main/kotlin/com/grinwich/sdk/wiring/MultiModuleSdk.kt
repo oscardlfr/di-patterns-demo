@@ -1,5 +1,6 @@
 package com.grinwich.sdk.wiring
 
+import android.content.Context
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.feature.observability.AndroidSdkLogger
 import com.grinwich.sdk.contracts.*
@@ -45,6 +46,7 @@ object MultiModuleSdk : MultiModuleSdkApi {
     @Volatile private var _initialized = false
 
     // Provision interfaces (contracts) — not concrete Component types
+    @Volatile private var _ctxProvisions: ContextProvisions? = null
     @Volatile private var _core: CoreProvisions? = null
     @Volatile private var _enc: EncProvisions? = null
     @Volatile private var _auth: AuthProvisions? = null
@@ -67,6 +69,10 @@ object MultiModuleSdk : MultiModuleSdkApi {
      */
     override fun init(context: android.content.Context, config: SdkConfig) {
         check(!_initialized) { "MultiModuleSdk already initialized. Call shutdown() first." }
+        val appCtx = context.applicationContext
+        _ctxProvisions = object : ContextProvisions {
+            override fun appContext(): Context = appCtx
+        }
         _core = DaggerCoreComponent.builder()
             .config(config)
             .build()
@@ -132,7 +138,7 @@ object MultiModuleSdk : MultiModuleSdkApi {
         synchronized(lock) {
             _storage?.let { return it }
             val enc = ensureEnc(core)
-            return DaggerStorComponent.builder().core(core).logger(_logger).enc(enc).build().also { _storage = it }
+            return DaggerStorComponent.builder().core(core).logger(_logger).enc(enc).ctx(_ctxProvisions!!).build().also { _storage = it }
         }
     }
 
@@ -158,7 +164,7 @@ object MultiModuleSdk : MultiModuleSdkApi {
     override fun shutdown() {
         if (!_initialized) return
         synchronized(lock) {
-            _core = null; _enc = null; _auth = null
+            _ctxProvisions = null; _core = null; _enc = null; _auth = null
             _storage = null; _analytics = null; _sync = null
             _initialized = false
         }

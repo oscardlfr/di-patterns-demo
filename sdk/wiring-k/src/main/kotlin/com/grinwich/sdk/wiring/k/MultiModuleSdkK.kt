@@ -26,7 +26,7 @@ object MultiModuleSdkK : com.grinwich.sdk.api.MultiModuleSdkApi {
 
     override fun init(context: Context, config: SdkConfig) {
         check(!_initialized) { "MultiModuleSdkK already initialized. Call shutdown() first." }
-        resolver.init(config)
+        resolver.init(context, config)
 
         ComponentDiscovery.discover(context).forEach { provider ->
             resolver.register(provider)

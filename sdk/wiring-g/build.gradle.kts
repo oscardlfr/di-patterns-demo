@@ -16,6 +16,9 @@ dependencies {
     // PUBLIC -- the app gets these transitively
     api(project(":sdk:api"))
 
+    // DI infrastructure -- provision interfaces, factory functions
+    implementation(project(":di-contracts"))
+
     // PRIVATE -- factory functions from each feature-impl
     implementation(project(":features:feature-core-impl"))
     implementation(project(":features:feature-enc-impl"))

@@ -66,13 +66,14 @@ internal fun authAutoEntry(logger: SdkLogger) = AutoProvisionEntry(
 
 internal fun storAutoEntry(logger: SdkLogger) = AutoProvisionEntry(
     provisionClass = StorProvisions::class.java,
-    dependencies = setOf(CoreProvisions::class.java, EncProvisions::class.java),
+    dependencies = setOf(CoreProvisions::class.java, EncProvisions::class.java, ContextProvisions::class.java),
     serviceClasses = setOf(StorageApi::class.java),
     build = { registry ->
         DaggerStorComponent.builder()
             .core(registry.provision(CoreProvisions::class.java))
             .logger(logger)
             .enc(registry.provision(EncProvisions::class.java))
+            .ctx(registry.provision(ContextProvisions::class.java))
             .build()
     },
     services = { prov ->
@@ -118,7 +119,22 @@ internal fun synAutoEntry(logger: SdkLogger) = AutoProvisionEntry(
     },
 )
 
-internal fun allAutoEntries(config: SdkConfig, logger: SdkLogger) = listOf(
+internal fun ctxAutoEntry(context: android.content.Context) = AutoProvisionEntry(
+    provisionClass = ContextProvisions::class.java,
+    serviceClasses = setOf(android.content.Context::class.java),
+    build = {
+        val appCtx = context.applicationContext
+        object : ContextProvisions {
+            override fun appContext() = appCtx
+        }
+    },
+    services = { prov ->
+        mapOf(android.content.Context::class.java to prov.appContext())
+    },
+)
+
+internal fun allAutoEntries(context: android.content.Context, config: SdkConfig, logger: SdkLogger) = listOf(
+    ctxAutoEntry(context),
     coreAutoEntry(config, logger),
     encAutoEntry(logger),
     authAutoEntry(logger),

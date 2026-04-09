@@ -1,7 +1,7 @@
 # Reporte Tecnico: Patrones Multi-Modulo de Inyeccion de Dependencias para SDKs Android
 
 **Proyecto:** di-patterns-demo
-**Fecha:** 2026-04-08
+**Fecha:** 2026-04-09
 **Dispositivo:** Samsung Galaxy S22 Ultra (SM-S908B) -- Snapdragon 8 Gen 1, 8 nucleos, 2.8 GHz, Android 16
 **Framework de medicion:** Jetpack Benchmark 1.4.0 con warmup automatico
 **Total de tests:** 277 pasaron, 0 fallaron
@@ -16,7 +16,7 @@ Los 7 patrones fueron instrumentados con Jetpack Benchmark en un Samsung Galaxy 
 
 ### Hallazgo principal
 
-**La diferencia de rendimiento entre los 7 patrones es imperceptible para el usuario.** El init mas lento (Patron K, 141,238 ns) tarda 0.14 milisegundos -- tres ordenes de magnitud por debajo del umbral perceptible de 16,666,666 ns (un frame a 60 fps). La eleccion entre patrones es **arquitectonica**, no de rendimiento.
+**La diferencia de rendimiento entre los 7 patrones es imperceptible para el usuario.** El init mas lento (Patron K, 174,145 ns) tarda 0.17 milisegundos -- tres ordenes de magnitud por debajo del umbral perceptible de 16,666,666 ns (un frame a 60 fps). La eleccion entre patrones es **arquitectonica**, no de rendimiento.
 
 ### Tabla resumen de recomendacion
 
@@ -32,7 +32,7 @@ Los 7 patrones fueron instrumentados con Jetpack Benchmark en un Samsung Galaxy 
 
 ### Tres conclusiones clave
 
-1. **Rendimiento no es diferenciador.** Todos los patrones resuelven servicios en nanosegundos y completan init + resolve + primera operacion en menos de 376,000 ns.
+1. **Rendimiento no es diferenciador.** Todos los patrones resuelven servicios en nanosegundos y completan init + resolve + primera operacion en menos de 938,008 ns (el aumento respecto a ejecuciones anteriores se debe a la migracion de Storage a DataStore con I/O real a disco).
 2. **Escalabilidad si lo es.** Los patrones D y G requieren editar el modulo de wiring por cada feature nuevo; H, I, J y K no requieren cambio alguno en el modulo central.
 3. **El principio de auto-discovery con grafo lazy es el estandar de SDKs corporativos.** Firebase SDK usa un patron conceptualmente identico (auto-registro via AndroidManifest metadata + ComponentRuntime con topo-sort). Pattern H aplica el mismo principio con ServiceLoader + Resolver DFS. Pattern K replica el mecanismo de Firebase de forma aun mas literal: descubre providers via `<meta-data>` en AndroidManifest con PackageManager.
 
@@ -98,18 +98,18 @@ Todas las mediciones en nanosegundos (ns). Dispositivo: Samsung Galaxy S22 Ultra
 
 | Metrica | D | E2 | G | H | I | J | K |
 |---------|---|----|----|---|---|---|---|
-| initCold | 740 | 5,493 | 803 | 60,714 | 62,447 | 60,296 | 141,238 |
-| resolveFirst | 10.9 | 27.7 | 10.3 | 23.6 | 24.0 | 23.8 | 23.6 |
-| lazyInit noDeps | 194 | 554 | 194 | 849 | 565 | 547 | 1,371 |
-| lazyInit cascade | 475 | 1,671 | 473 | 2,746 | 1,873 | 2,023 | 4,218 |
-| crossFeatureOp | 84,351 | 80,686 | 83,699 | 83,517 | 84,220 | 84,477 | 83,743 |
-| stress_initShutdown | 159 | 2,799 | 158 | 57,941 | 57,062 | 57,010 | 206,406 |
-| stress_concurrent | 365,288 | 401,647 | 365,447 | 354,212 | 320,838 | 273,318 | 333,213 |
-| stress_resolveAll | 70.0 | 143 | 69.9 | 144 | 144 | 148 | 144 |
-| stress_selective | 185 | 2,311 | 188 | 59,696 | 57,932 | 60,671 | 136,825 |
-| stress_reInit | 1,744 | 9,615 | 1,459 | 127,407 | 126,119 | 127,489 | 284,651 |
-| stress_incremental | 737 | 5,206 | 770 | 60,633 | 63,155 | 61,678 | 142,351 |
-| e2eStartup | 101,500 | 115,339 | 102,331 | 222,713 | 243,625 | 228,707 | 375,308 |
+| initCold | 805 | 9,004 | 867 | 68,612 | 70,762 | 72,721 | 174,145 |
+| resolveFirst | 15.9 | 34.2 | 14.8 | 34.4 | 35.0 | 34.6 | 34.4 |
+| lazyInit noDeps | 260 | 741 | 264 | 1,172 | 855 | 1,065 | 1,968 |
+| lazyInit cascade | 715 | 2,522 | 723 | 4,391 | 3,955 | 5,088 | 8,992 |
+| crossFeatureOp | 1,589,109 | 1,481,424 | 1,196,719 | 1,848,525 | 1,177,343 | 1,658,252 | 1,797,444 |
+| stress_initShutdown | 300 | 4,166 | 248 | 84,010 | 84,936 | 85,490 | 193,791 |
+| stress_concurrent | 466,939 | 453,339 | 440,344 | 415,995 | 436,625 | 456,497 | 419,675 |
+| stress_resolveAll | 99.0 | 148 | 100 | 207 | 207 | 150 | 149 |
+| stress_selective | 297 | 3,758 | 279 | 93,664 | 91,580 | 85,429 | 205,757 |
+| stress_reInit | 1,764 | 18,462 | 2,057 | 198,363 | 175,754 | 185,630 | 424,808 |
+| stress_incremental | 928 | 8,355 | 1,028 | 81,115 | 84,475 | 91,478 | 227,193 |
+| e2eStartup | 523,532 | 621,301 | 633,091 | 692,444 | 652,858 | 757,940 | 938,008 |
 
 ### 3.2 Analisis por categoria
 
@@ -117,29 +117,29 @@ Todas las mediciones en nanosegundos (ns). Dispositivo: Samsung Galaxy S22 Ultra
 
 | Patron | Tiempo (ns) | Mecanismo |
 |--------|-------------|-----------|
-| D | 740 | Asignacion directa de campos (Dagger codegen) |
-| G | 803 | Idem D, con factory functions |
-| E2 | 5,493 | Cataloga entries en HashMaps, no construye nada |
-| H | 60,714 | ServiceLoader escanea classpath + registra providers |
-| J | 60,296 | Idem H, con KIFeatureProvider |
-| I | 62,447 | Idem H, con PureFeatureProvider |
-| K | 141,238 | PackageManager.getServiceInfo() IPC a system_server + registra providers |
+| D | 805 | Asignacion directa de campos (Dagger codegen) |
+| G | 867 | Idem D, con factory functions |
+| E2 | 9,004 | Cataloga entries en HashMaps, no construye nada |
+| H | 68,612 | ServiceLoader escanea classpath + registra providers |
+| I | 70,762 | Idem H, con PureFeatureProvider |
+| J | 72,721 | Idem H, con KIFeatureProvider |
+| K | 174,145 | PackageManager.getServiceInfo() IPC a system_server + registra providers |
 
-D y G dominan en init frio porque Dagger resuelve el grafo en tiempo de compilacion -- init es solo asignacion de campos. H, I y J pagan el costo del escaneo de classpath via ServiceLoader (~60K ns, mejorado respecto a ejecuciones anteriores gracias al uso de ConcurrentHashMap que es mas rapido para lecturas). K es el mas lento en init (~2x vs H) porque PackageManager.getServiceInfo() es una llamada IPC al system_server, mas costosa que el escaneo local de classpath de ServiceLoader. Sin embargo, el patron mas lento (K = 141,238 ns) es despreciable en el arranque de una app Android (tipicamente 500,000,000 - 2,000,000,000 ns).
+D y G dominan en init frio porque Dagger resuelve el grafo en tiempo de compilacion -- init es solo asignacion de campos. H, I y J pagan el costo del escaneo de classpath via ServiceLoader (~69-73K ns, mejorado respecto a ejecuciones anteriores gracias al uso de ConcurrentHashMap que es mas rapido para lecturas). K es el mas lento en init (~2.5x vs H) porque PackageManager.getServiceInfo() es una llamada IPC al system_server, mas costosa que el escaneo local de classpath de ServiceLoader. Sin embargo, el patron mas lento (K = 174,145 ns) es despreciable en el arranque de una app Android (tipicamente 500,000,000 - 2,000,000,000 ns).
 
 #### Resolve First -- Primera resolucion tras init
 
 | Patron | Tiempo (ns) |
 |--------|-------------|
-| G | 10.3 |
-| D | 10.9 |
-| H | 23.6 |
-| K | 23.6 |
-| J | 23.8 |
-| I | 24.0 |
-| E2 | 27.7 |
+| G | 14.8 |
+| D | 15.9 |
+| E2 | 34.2 |
+| H | 34.4 |
+| K | 34.4 |
+| J | 34.6 |
+| I | 35.0 |
 
-Tras la primera resolucion, todos los patrones sirven desde cache (ConcurrentHashMap lookup). Las diferencias de 10.3 a 27.7 ns estan dentro del margen de ruido del benchmark. K tiene rendimiento identico a H (23.6 ns) porque usa el mismo Resolver y los mismos ConcurrentHashMap lookups.
+Tras la primera resolucion, todos los patrones sirven desde cache (ConcurrentHashMap lookup). Las diferencias de 14.8 a 35.0 ns estan dentro del margen de ruido del benchmark. K tiene rendimiento identico a H (34.4 ns) porque usa el mismo Resolver y los mismos ConcurrentHashMap lookups.
 
 #### Lazy Init -- Construccion bajo demanda
 
@@ -147,55 +147,55 @@ Tras la primera resolucion, todos los patrones sirven desde cache (ConcurrentHas
 
 | Patron | Tiempo (ns) |
 |--------|-------------|
-| D | 194 |
-| G | 194 |
-| J | 547 |
-| E2 | 554 |
-| I | 565 |
-| H | 849 |
-| K | 1,371 |
+| D | 260 |
+| G | 264 |
+| E2 | 741 |
+| I | 855 |
+| J | 1,065 |
+| H | 1,172 |
+| K | 1,968 |
 
 **Con cascada (Sync -- depende de Core + Enc + Auth + Stor):**
 
 | Patron | Tiempo (ns) |
 |--------|-------------|
-| G | 473 |
-| D | 475 |
-| E2 | 1,671 |
-| I | 1,873 |
-| J | 2,023 |
-| H | 2,746 |
-| K | 4,218 |
+| D | 715 |
+| G | 723 |
+| E2 | 2,522 |
+| I | 3,955 |
+| H | 4,391 |
+| J | 5,088 |
+| K | 8,992 |
 
-La cascada Sync es el escenario mas exigente: construir 4 provisions en cadena de 4 niveles. D y G son los mas rapidos (< 500 ns) porque el compilador resuelve el orden de dependencias estaticamente. H, I, J y K pagan el costo del DFS en runtime (el Resolver recorre el grafo dinamicamente). K es ligeramente mas lento que H en cascada (4,218 vs 2,746 ns) por overhead adicional del mecanismo de discovery. Aun asi, la cascada mas lenta (K = 4,218 ns) es imperceptible.
+La cascada Sync es el escenario mas exigente: construir 4 provisions en cadena de 4 niveles. D y G son los mas rapidos (< 725 ns) porque el compilador resuelve el orden de dependencias estaticamente. H, I, J y K pagan el costo del DFS en runtime (el Resolver recorre el grafo dinamicamente). K es ligeramente mas lento que H en cascada (8,992 vs 4,391 ns) por overhead adicional del mecanismo de discovery. Aun asi, la cascada mas lenta (K = 8,992 ns) es imperceptible.
 
 #### Cross-Feature Operation -- Operacion real cruzando features
 
 | Patron | Tiempo (ns) |
 |--------|-------------|
-| E2 | 80,686 |
-| H | 83,517 |
-| G | 83,699 |
-| K | 83,743 |
-| D | 84,351 |
-| I | 84,220 |
-| J | 84,477 |
+| I | 1,177,343 |
+| G | 1,196,719 |
+| E2 | 1,481,424 |
+| D | 1,589,109 |
+| J | 1,658,252 |
+| K | 1,797,444 |
+| H | 1,848,525 |
 
-Una vez resueltos los servicios, el rendimiento depende del codigo de negocio, no del patron DI. Las diferencias entre patrones (80,686 - 84,477 ns) son minimas y reflejan varianza del benchmark, no ventaja arquitectonica. En esta ejecucion, todos los patrones convergen a ~84K ns, confirmando que crossFeatureOp mide trabajo de negocio, no overhead de DI.
+Los valores han aumentado significativamente (~84K ns -> ~1.2-1.8M ns) porque Storage ahora usa DataStore (I/O real a disco via suspend + runBlocking) en lugar de almacenamiento en memoria. Los tiempos reflejan el coste real de operaciones cross-feature con persistencia a disco. Una vez resueltos los servicios, el rendimiento depende del codigo de negocio (incluyendo I/O a disco), no del patron DI. Las diferencias entre patrones se deben a la variabilidad del acceso a disco, no al mecanismo de DI. Nota: ~1.5 ms es perceptible si crossFeatureOp se invoca frecuentemente en el hilo principal.
 
 #### E2E App Startup -- Init + resolve all + primera operacion por feature
 
 | Patron | Tiempo (ns) |
 |--------|-------------|
-| D | 101,500 |
-| G | 102,331 |
-| E2 | 115,339 |
-| H | 222,713 |
-| J | 228,707 |
-| I | 243,625 |
-| K | 375,308 |
+| D | 523,532 |
+| E2 | 621,301 |
+| G | 633,091 |
+| I | 652,858 |
+| H | 692,444 |
+| J | 757,940 |
+| K | 938,008 |
 
-Incluso el patron mas lento (K = 375,308 ns) completa el arranque del SDK con 6 features en 375,308 ns. Esto representa el 0.019% de un arranque tipico de app Android (~2,000,000,000 ns). **Ningun patron es un cuello de botella en el arranque.** K es mas lento que H porque el IPC a system_server se acumula en el ciclo completo de init + resolve + primera operacion, pero ambos estan por debajo de 0.4 ms.
+Los valores han aumentado respecto a ejecuciones anteriores (~102K-375K ns -> ~524K-938K ns) porque el e2e incluye operaciones cross-feature con DataStore (I/O real a disco). Incluso el patron mas lento (K = 938,008 ns) completa el arranque del SDK con 6 features en 938,008 ns. Esto representa el 0.047% de un arranque tipico de app Android (~2,000,000,000 ns). **Ningun patron es un cuello de botella en el arranque.** K es mas lento que H porque el IPC a system_server se acumula en el ciclo completo de init + resolve + primera operacion, pero todos estan por debajo de 1 ms.
 
 ---
 
@@ -259,20 +259,20 @@ H y K muestran 3 provisions tras pedir Encryption (vs 2 en los demas patrones). 
 
 | Metrica | D | E2 | G | H | I | J | K |
 |---------|---|----|----|---|---|---|---|
-| stress_initShutdown (ns) | 159 | 2,799 | 158 | 57,941 | 57,062 | 57,010 | 206,406 |
-| stress_concurrent (ns) | 365,288 | 401,647 | 365,447 | 354,212 | 320,838 | 273,318 | 333,213 |
-| stress_resolveAll (ns) | 70.0 | 143 | 69.9 | 144 | 144 | 148 | 144 |
-| stress_selective (ns) | 185 | 2,311 | 188 | 59,696 | 57,932 | 60,671 | 136,825 |
-| stress_reInit (ns) | 1,744 | 9,615 | 1,459 | 127,407 | 126,119 | 127,489 | 284,651 |
-| stress_incremental (ns) | 737 | 5,206 | 770 | 60,633 | 63,155 | 61,678 | 142,351 |
+| stress_initShutdown (ns) | 300 | 4,166 | 248 | 84,010 | 84,936 | 85,490 | 193,791 |
+| stress_concurrent (ns) | 466,939 | 453,339 | 440,344 | 415,995 | 436,625 | 456,497 | 419,675 |
+| stress_resolveAll (ns) | 99.0 | 148 | 100 | 207 | 207 | 150 | 149 |
+| stress_selective (ns) | 297 | 3,758 | 279 | 93,664 | 91,580 | 85,429 | 205,757 |
+| stress_reInit (ns) | 1,764 | 18,462 | 2,057 | 198,363 | 175,754 | 185,630 | 424,808 |
+| stress_incremental (ns) | 928 | 8,355 | 1,028 | 81,115 | 84,475 | 91,478 | 227,193 |
 
 ### 5.4 Analisis de estres
 
-**Ciclo de vida (initShutdown, reInit, selective, incremental):** D y G son consistentemente mas rapidos (158 - 1,744 ns) porque no invocan ServiceLoader en cada ciclo. H, I y J pagan ~57,000 - 60,000 ns por ciclo init debido al escaneo de classpath (mejorado respecto a ejecuciones anteriores gracias a ConcurrentHashMap, mas rapido para lecturas concurrentes). K paga ~206,000 ns por ciclo init porque PackageManager.getServiceInfo() es un IPC mas costoso que el escaneo local de ServiceLoader. Esto es relevante solo en tests de estres; en uso real, init se llama una vez por sesion de la app.
+**Ciclo de vida (initShutdown, reInit, selective, incremental):** D y G son consistentemente mas rapidos (248 - 2,057 ns) porque no invocan ServiceLoader en cada ciclo. H, I y J pagan ~84,000 - 85,000 ns por ciclo init debido al escaneo de classpath (mejorado respecto a ejecuciones anteriores gracias a ConcurrentHashMap, mas rapido para lecturas concurrentes). K paga ~193,000 ns por ciclo init porque PackageManager.getServiceInfo() es un IPC mas costoso que el escaneo local de ServiceLoader. Esto es relevante solo en tests de estres; en uso real, init se llama una vez por sesion de la app.
 
-**Concurrencia (stress_concurrent):** Todos los patrones convergen a ~273,000 - 401,000 ns. Todos los patrones son ahora thread-safe (synchronized + ConcurrentHashMap). La concurrencia esta dominada por el costo de coordinacion entre threads (locks, CAS), no por el patron DI.
+**Concurrencia (stress_concurrent):** Todos los patrones convergen a ~416,000 - 467,000 ns. Todos los patrones son ahora thread-safe (synchronized + ConcurrentHashMap). La concurrencia esta dominada por el costo de coordinacion entre threads (locks, CAS), no por el patron DI.
 
-**Resolucion cached (stress_resolveAll):** Todos los patrones resuelven el grafo completo desde cache en 69.9 - 148 ns. La diferencia entre G (69.9 ns) y J (148 ns) es insignificante. K (144 ns) se comporta identicamente a H porque usa el mismo Resolver con los mismos ConcurrentHashMap lookups.
+**Resolucion cached (stress_resolveAll):** Todos los patrones resuelven el grafo completo desde cache en 99.0 - 207 ns. La diferencia entre D (99.0 ns) y H (207 ns) es insignificante. K (149 ns) se comporta identicamente a H porque usa el mismo Resolver con los mismos ConcurrentHashMap lookups.
 
 ---
 
@@ -434,7 +434,7 @@ object MultiModuleSdkK : MultiModuleSdkApi {
 }
 ```
 
-**Diferencia con H:** Requiere `Context` en init() para acceder a PackageManager. La ventaja es robustez: las entradas en AndroidManifest sobreviven R8/ProGuard sin necesidad de reglas keep, a diferencia de los archivos META-INF/services de ServiceLoader que pueden ser eliminados por el minificador. El costo es ~2x mas lento en init (141K vs 61K ns, IPC a system_server) pero ambos son imperceptibles (< 0.4 ms).
+**Diferencia con H:** Requiere `Context` en init() para acceder a PackageManager. La ventaja es robustez: las entradas en AndroidManifest sobreviven R8/ProGuard sin necesidad de reglas keep, a diferencia de los archivos META-INF/services de ServiceLoader que pueden ser eliminados por el minificador. El costo es ~2.5x mas lento en init (174K vs 69K ns, IPC a system_server) pero ambos son imperceptibles (< 1 ms).
 
 ### 7.4 Wiring Module -- Pattern I (54 lineas)
 
@@ -619,7 +619,7 @@ Cuantos features tendra el SDK?
 Para un SDK Android nuevo que anticipa crecimiento mas alla de 15-20 features:
 
 1. **Comenzar con Pattern H** (Dagger + ServiceLoader) -- aplica el mismo principio arquitectonico que Firebase SDK (auto-registro, wiring inmutable, grafo lazy). Compile-time safety dentro de cada feature.
-2. **Considerar Pattern K** si R8/ProGuard es agresivo y se prefiere evitar reglas keep para META-INF/services. K reutiliza los mismos FeatureProvider de H, cambiando unicamente el mecanismo de discovery (AndroidManifest `<meta-data>` via PackageManager). El costo es ~2x init mas lento (141K vs 61K ns) y requerir Context en init(), pero ambos son imperceptibles (< 0.4 ms e2e).
+2. **Considerar Pattern K** si R8/ProGuard es agresivo y se prefiere evitar reglas keep para META-INF/services. K reutiliza los mismos FeatureProvider de H, cambiando unicamente el mecanismo de discovery (AndroidManifest `<meta-data>` via PackageManager). El costo es ~2.5x init mas lento (174K vs 69K ns) y requerir Context en init(), pero ambos son imperceptibles (< 1 ms e2e).
 3. **Considerar Pattern I** si los tiempos de build son prioridad (zero codegen, builds mas rapidos) o si el equipo prefiere evitar frameworks DI.
 4. **Considerar Pattern J** si el equipo quiere compile-time safety con menos boilerplate que Dagger y codegen moderno en Kotlin.
 
@@ -635,9 +635,9 @@ La migracion H -> K es trivial (mismo Resolver, mismos FeatureProvider, solo cam
 | Auto-discovery | No | No | No | Si (ServiceLoader) | Si (ServiceLoader) | Si (ServiceLoader) | Si (AndroidManifest) |
 | Edicion central por feature | Si (when + ensure) | Si (1 entry) | Si (when + ensure) | No | No | No | No |
 | Lineas en wiring | 149 | 66 + 129 entries | 107 | 51 | 54 | 55 | 50 |
-| Init frio (ns) | 740 | 5,493 | 803 | 60,714 | 62,447 | 60,296 | 141,238 |
-| Resolve cached (ns) | 10.9 | 27.7 | 10.3 | 23.6 | 24.0 | 23.8 | 23.6 |
-| E2E startup (ns) | 101,500 | 115,339 | 102,331 | 222,713 | 243,625 | 228,707 | 375,308 |
+| Init frio (ns) | 805 | 9,004 | 867 | 68,612 | 70,762 | 72,721 | 174,145 |
+| Resolve cached (ns) | 15.9 | 34.2 | 14.8 | 34.4 | 35.0 | 34.6 | 34.4 |
+| E2E startup (ns) | 523,532 | 621,301 | 633,091 | 692,444 | 652,858 | 757,940 | 938,008 |
 | Build speed | Lento (KSP) | Lento (KSP) | Lento (KSP) | Lento (KSP) | Rapido (0 codegen) | Moderado (KSP) | Lento (KSP) |
 | Escalabilidad (50+ features) | Dificil | Moderada | Dificil | Excelente | Excelente | Excelente | Excelente |
 | Robustez ante R8/ProGuard | Requiere keep | Requiere keep | Requiere keep | Requiere keep | Requiere keep | Requiere keep | Sin reglas keep |

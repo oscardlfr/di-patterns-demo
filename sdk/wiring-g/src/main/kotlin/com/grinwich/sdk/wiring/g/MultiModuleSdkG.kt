@@ -1,5 +1,6 @@
 package com.grinwich.sdk.wiring.g
 
+import android.content.Context
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.contracts.*
 import com.grinwich.sdk.feature.ana.buildAnaProvisions
@@ -31,6 +32,7 @@ object MultiModuleSdkG : MultiModuleSdkApi {
     private var _logger: SdkLogger = AndroidSdkLogger()
     @Volatile private var _initialized = false
 
+    @Volatile private var _ctxProvisions: ContextProvisions? = null
     @Volatile private var _core: CoreProvisions? = null
     @Volatile private var _enc: EncProvisions? = null
     @Volatile private var _auth: AuthProvisions? = null
@@ -50,6 +52,10 @@ object MultiModuleSdkG : MultiModuleSdkApi {
 
     override fun init(context: android.content.Context, config: SdkConfig) {
         check(!_initialized) { "MultiModuleSdkG already initialized. Call shutdown() first." }
+        val appCtx = context.applicationContext
+        _ctxProvisions = object : ContextProvisions {
+            override fun appContext(): Context = appCtx
+        }
         _core = buildCoreProvisions(config)
         _initialized = true
     }
@@ -94,7 +100,7 @@ object MultiModuleSdkG : MultiModuleSdkApi {
         synchronized(lock) {
             _storage?.let { return it }
             val enc = ensureEnc(core)
-            return buildStorProvisions(core, _logger, enc).also { _storage = it }
+            return buildStorProvisions(core, _logger, enc, _ctxProvisions!!).also { _storage = it }
         }
     }
 
@@ -117,7 +123,7 @@ object MultiModuleSdkG : MultiModuleSdkApi {
     override fun shutdown() {
         if (!_initialized) return
         synchronized(lock) {
-            _core = null; _enc = null; _auth = null
+            _ctxProvisions = null; _core = null; _enc = null; _auth = null
             _storage = null; _analytics = null; _sync = null
             _initialized = false
         }

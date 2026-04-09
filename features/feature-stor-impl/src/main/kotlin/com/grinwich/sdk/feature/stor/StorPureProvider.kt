@@ -8,9 +8,10 @@ class StorPureProvider : PureFeatureProvider<StorProvisions>(StorProvisions::cla
         StorageApi::class.java to StorProvisions::storage,
     )
     override fun build(resolver: Resolver): StorProvisions {
+        val ctx = resolver.provision(ContextProvisions::class.java).appContext()
         val enc = resolver.provision(EncProvisions::class.java)
         val logger = resolver.logger
-        val stor = DefaultSecureStorageService(enc.encryption(), enc.hash(), logger)
+        val stor = DefaultSecureStorageService(ctx, enc.encryption(), enc.hash(), logger)
         return object : StorProvisions {
             override fun storage() = stor
         }

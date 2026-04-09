@@ -1,5 +1,6 @@
 package com.grinwich.sdk.feature.stor
 
+import android.content.Context
 import com.grinwich.sdk.api.EncryptionApi
 import com.grinwich.sdk.api.HashApi
 import com.grinwich.sdk.api.SdkLogger
@@ -10,13 +11,14 @@ import me.tatarka.inject.annotations.Provides
 
 @Component
 abstract class KIStorComponent(
+    @get:Provides val context: Context,
     @get:Provides val encryption: EncryptionApi,
     @get:Provides val hash: HashApi,
     @get:Provides val logger: SdkLogger,
 ) {
     abstract val storage: StorageApi
 
-    @Provides fun storageApi(): StorageApi = DefaultSecureStorageService(encryption, hash, logger)
+    @Provides fun storageApi(): StorageApi = DefaultSecureStorageService(context, encryption, hash, logger)
 }
 
 class StorKIProvider : KIFeatureProvider<StorProvisions>(StorProvisions::class.java) {
@@ -24,8 +26,10 @@ class StorKIProvider : KIFeatureProvider<StorProvisions>(StorProvisions::class.j
         StorageApi::class.java to StorProvisions::storage,
     )
     override fun build(resolver: Resolver): StorProvisions {
+        val ctx = resolver.provision(ContextProvisions::class.java).appContext()
         val enc = resolver.provision(EncProvisions::class.java)
         val component = KIStorComponent::class.create(
+            context = ctx,
             encryption = enc.encryption(),
             hash = enc.hash(),
             logger = resolver.logger,

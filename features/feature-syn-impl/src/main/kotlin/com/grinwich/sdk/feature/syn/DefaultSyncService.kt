@@ -10,7 +10,7 @@ internal class DefaultSyncService @Inject constructor(
     private val logger: SdkLogger,
 ) : SyncApi {
 
-    override fun sync(): SyncResult {
+    override suspend fun sync(): SyncResult {
         check(auth.isAuthenticated()) { "Must be logged in to sync. Call auth.login() first." }
 
         val pending = storage.get("sync-queue") ?: "no-pending-data"
@@ -27,7 +27,7 @@ internal class DefaultSyncService @Inject constructor(
         )
     }
 
-    override fun pendingCount(): Int {
+    override suspend fun pendingCount(): Int {
         return if (storage.get("sync-queue") != null) 1 else 0
     }
 }

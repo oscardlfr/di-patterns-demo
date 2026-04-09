@@ -53,6 +53,8 @@ dependencies {
     implementation(libs.javax.inject)
     implementation(libs.koin.core)
 
+    androidTestImplementation(libs.coroutines.android)
+
     androidTestImplementation(libs.benchmark.junit4)
     androidTestImplementation(libs.androidx.runner)
     androidTestImplementation(libs.junit)

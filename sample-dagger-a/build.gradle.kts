@@ -23,8 +23,9 @@ android {
 
 dependencies {
     implementation(project(":sdk:api"))
-    implementation(project(":sdk:impl-common"))
+    implementation(project(":sdk:impl-common-d-c"))
     implementation(project(":features:feature-observability-impl")) // AndroidSdkLogger
+    implementation(libs.coroutines.android)
     implementation(libs.dagger)
     ksp(libs.dagger.compiler)
     implementation(libs.javax.inject)

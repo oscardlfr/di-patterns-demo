@@ -183,6 +183,9 @@ object KoinSdk {
     val isInitialized: Boolean get() = _initialized
     val initializedModules: Set<SdkModule> get() = _initializedModules.toSet()
 
+    /** Number of feature modules currently initialized. Useful for verifying lazy behavior in tests. */
+    val builtProvisionCount: Int get() = _initializedModules.size + (if (_initialized) 1 else 0) // +1 for foundation (Core+Logger)
+
     val koin: Koin
         get() {
             check(_initialized) { "KoinSdk not initialized. Call init() first." }

@@ -50,3 +50,8 @@ interface AnaProvisions {
 interface SynProvisions {
     fun sync(): SyncApi
 }
+
+/** Application context — available to features that need Android APIs. */
+interface ContextProvisions {
+    fun appContext(): android.content.Context
+}

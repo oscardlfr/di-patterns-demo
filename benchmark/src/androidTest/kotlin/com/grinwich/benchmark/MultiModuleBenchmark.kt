@@ -4,6 +4,7 @@ import androidx.benchmark.junit4.BenchmarkRule
 import androidx.benchmark.junit4.measureRepeated
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.grinwich.sdk.api.*
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Rule
 import org.junit.Test
@@ -137,7 +138,7 @@ class MultiModuleBenchmark {
         sdk.get(AuthApi::class.java).login("bench", "pass")
         val sync = sdk.get(SyncApi::class.java)
         benchmarkRule.measureRepeated {
-            sync.sync()
+            runBlocking { sync.sync() }
         }
         sdk.shutdown()
     }
@@ -307,7 +308,7 @@ class MultiModuleBenchmark {
         // Phase 3: First real operations (what happens in Activity.onCreate)
         auth.login("user", "pass")
         enc.encrypt("sensitive-data")
-        stor.put("session", "active")
+        runBlocking { stor.put("session", "active") }
         ana.trackEvent("app_launched")
 
         runWithMeasurementDisabled { sdk.shutdown() }

@@ -1,37 +1,54 @@
 package com.grinwich.sdk.feature.stor
 
+import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
 import com.grinwich.sdk.api.EncryptionApi
 import com.grinwich.sdk.api.HashApi
 import com.grinwich.sdk.api.SdkLogger
 import com.grinwich.sdk.api.StorageApi
-import javax.inject.Inject
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 
-internal class DefaultSecureStorageService @Inject constructor(
+private val Context.sdkDataStore: DataStore<Preferences> by preferencesDataStore(name = "sdk_secure_storage")
+
+internal class DefaultSecureStorageService(
+    context: Context,
     private val encryption: EncryptionApi,
     private val hash: HashApi,
     private val logger: SdkLogger,
 ) : StorageApi {
 
-    private val store = mutableMapOf<String, String>()
+    private val dataStore = context.sdkDataStore
 
-    override fun put(key: String, value: String) {
+    override suspend fun put(key: String, value: String) {
         val hashedKey = hash.sha256Hex(key)
         val encryptedValue = encryption.encrypt(value)
-        logger.d("Storage", "PUT $hashedKey → ${encryptedValue.take(15)}...")
-        store[hashedKey] = encryptedValue
+        logger.d("Storage", "PUT $hashedKey")
+        dataStore.edit { prefs ->
+            prefs[stringPreferencesKey(hashedKey)] = encryptedValue
+        }
     }
 
-    override fun get(key: String): String? {
+    override suspend fun get(key: String): String? {
         val hashedKey = hash.sha256Hex(key)
-        val encrypted = store[hashedKey] ?: return null
-        return encryption.decrypt(encrypted)
+        val encrypted = dataStore.data.map { prefs ->
+            prefs[stringPreferencesKey(hashedKey)]
+        }.first()
+        return encrypted?.let { encryption.decrypt(it) }
     }
 
-    override fun remove(key: String) {
-        store.remove(hash.sha256Hex(key))
+    override suspend fun remove(key: String) {
+        val hashedKey = hash.sha256Hex(key)
+        dataStore.edit { prefs ->
+            prefs.remove(stringPreferencesKey(hashedKey))
+        }
     }
 
-    override fun clear() {
-        store.clear()
+    override suspend fun clear() {
+        dataStore.edit { it.clear() }
     }
 }

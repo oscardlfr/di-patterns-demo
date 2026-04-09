@@ -512,7 +512,7 @@ El Component es `internal`. El entry es público pero no expone tipos Dagger —
 **Contra:**
 - `allEntries()` es un punto central (aunque solo crece en 1 línea por feature).
 - DFS resuelve en runtime — si una dependencia no fue installed, falla en runtime.
-- ~5,000 ns overhead vs D en init cold (negligible: 0.0003 frames).
+- ~8,200 ns overhead vs D en init cold (negligible: 0.0005 frames).
 - 3 clases de infraestructura propias (DiComponent, AutoFeatureEntry, AutoRegistry).
 - Requiere `sdk/di-contracts/` (provision interfaces + infra registry).
 
@@ -680,7 +680,7 @@ zero `@Suppress("UNCHECKED_CAST")`. Ambos escalan a 50+ sin editar el facade.
 - DFS resolver — dependencias se construyen on-demand.
 
 **Contra:**
-- ~76x más lento en init que G (60,714 ns vs 803 ns) — overhead de ServiceLoader + ConcurrentHashMap + registro de providers.
+- ~79x más lento en init que G (68,612 ns vs 867 ns) — overhead de ServiceLoader + ConcurrentHashMap + registro de providers.
 - Provider faltante es error runtime (no compile-time a nivel de grafo completo).
 - Requiere `sdk/di-contracts/` (= D/E/E2/G).
 - JVM exclusivo (Dagger).
@@ -890,7 +890,7 @@ recibido.
 **Contra:**
 - Necesita Android Context internamente -- `PackageManager` requiere `context` para leer el manifest.
 - Android exclusivo -- PackageManager no existe fuera de Android.
-- Overhead de init mayor que H (~141,238 ns vs ~60,714 ns).
+- Overhead de init mayor que H (~174,145 ns vs ~68,612 ns).
 - Service dummy en manifest -- boilerplate adicional.
 
 **Indicado para:** SDKs Android-only donde se prefiere manifest metadata sobre
@@ -958,7 +958,7 @@ Esto elimina incluso `sdkModules()` — verdadero Nivel 2 de aislamiento.
 **Contra:**
 - **No compile-time safety.** Si `feature-encryption:impl` no está en classpath, `get<EncryptionApi>()` crashea en runtime.
 - Mitigación: `checkModules()` en tests — pero es test-time, no compile-time.
-- Overhead runtime: ~47,000 ns init cold, ~647 ns resolve (vs ~7.5 ns Dagger).
+- Overhead runtime: ~41,000 ns init cold, ~721 ns resolve (vs ~7.6 ns Dagger).
 - En una app real, irrelevante (< 0.003 frames).
 
 **Indicado para:** SDKs de cualquier tamaño, especialmente:
@@ -1242,7 +1242,7 @@ Para la arquitectura **api / impl / integration** con visibilidad estricta:
 1. **Koin, E2, H, I, J y K son los approaches que mejor escalan** sin comprometer los requisitos.
    - **Koin:** si el equipo acepta resolución runtime (mitigable con `checkModules()` en tests).
    - **E2:** si compile-time safety es requisito duro (Dagger valida cada Component).
-   - **H:** si zero edición central es prioritario y se acepta ~76x overhead en init vs G (imperceptible en produccion: < 0.4 ms).
+   - **H:** si zero edición central es prioritario y se acepta ~79x overhead en init vs G (imperceptible en produccion: < 1 ms).
    - **I:** si se quiere eliminar toda dependencia de framework DI (zero codegen, zero anotaciones).
    - **J:** si se necesita compile-time safety + KMP support (kotlin-inject via KSP).
    - **K:** si se prefiere manifest metadata sobre ServiceLoader (Firebase-style, Android-only).

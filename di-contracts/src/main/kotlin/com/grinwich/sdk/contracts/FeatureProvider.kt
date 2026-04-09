@@ -64,6 +64,18 @@ class Resolver {
         this.config = config
     }
 
+    fun init(context: android.content.Context, config: SdkConfig) {
+        this.config = config
+        val appCtx = context.applicationContext
+        register(object : FeatureProvider<ContextProvisions>(ContextProvisions::class.java) {
+            override val services: Map<Class<*>, (ContextProvisions) -> Any> =
+                mapOf(android.content.Context::class.java to { p: ContextProvisions -> p.appContext() })
+            override fun build(resolver: Resolver) = object : ContextProvisions {
+                override fun appContext() = appCtx
+            }
+        })
+    }
+
     fun register(provider: FeatureProvider<*>) {
         providers[provider.provisionClass] = provider
         for (serviceClass in provider.services.keys) {

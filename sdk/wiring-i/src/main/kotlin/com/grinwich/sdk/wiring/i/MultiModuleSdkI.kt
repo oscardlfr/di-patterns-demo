@@ -30,7 +30,7 @@ object MultiModuleSdkI : MultiModuleSdkApi {
 
     override fun init(context: android.content.Context, config: SdkConfig) {
         check(!_initialized) { "MultiModuleSdkI already initialized. Call shutdown() first." }
-        resolver.init(config)
+        resolver.init(context, config)
 
         ServiceLoader.load(PureFeatureProvider::class.java).forEach { provider ->
             resolver.register(provider)

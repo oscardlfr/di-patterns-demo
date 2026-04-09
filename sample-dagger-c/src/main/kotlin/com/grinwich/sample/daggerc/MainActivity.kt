@@ -13,6 +13,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.daggerc.DaggerCSdk
+import kotlinx.coroutines.runBlocking
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -47,7 +48,7 @@ class MainActivity : ComponentActivity() {
                             }
                             appendLine("Cascaded: $syncInited")
                             DaggerCSdk.get<AuthApi>().login("user", "pass")
-                            val sync = SdkBenchmark.measure("sync()") { DaggerCSdk.get<SyncApi>().sync() }
+                            val sync = SdkBenchmark.measure("sync()") { runBlocking { DaggerCSdk.get<SyncApi>().sync() } }
                             appendLine("✅ Sync: up=${sync.uploaded}, down=${sync.downloaded}")
                             appendLine("After: ${DaggerCSdk.initializedModules}")
 
