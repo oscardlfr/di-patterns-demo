@@ -20,6 +20,22 @@ abstract class FeatureProvider<P : Any>(val provisionClass: Class<P>) {
 
     abstract val services: Map<Class<*>, (P) -> Any>
 
+    /**
+     * Si true, esta provision sobrevive a shutdown()/clear().
+     * Provisions persistentes estan atadas al ciclo de vida de la app, no del SDK.
+     *
+     * Ejemplo: el logger tiene file handles, buffers, correlation IDs.
+     * Destruirlo en cada shutdown pierde estado y es innecesario.
+     *
+     * Override en el provider concreto para activar:
+     * ```
+     * class ObservabilityProvider : FeatureProvider<ObservabilityProvisions>(...) {
+     *     override val persistent = true
+     * }
+     * ```
+     */
+    open val persistent: Boolean = false
+
     abstract fun build(resolver: Resolver): P
 
     internal fun buildUntyped(resolver: Resolver): Any = build(resolver)
@@ -67,7 +83,10 @@ class Resolver {
     fun init(context: android.content.Context, config: SdkConfig) {
         this.config = config
         val appCtx = context.applicationContext
+
+        // ContextProvisions: persistente porque el applicationContext vive tanto como el proceso
         register(object : FeatureProvider<ContextProvisions>(ContextProvisions::class.java) {
+            override val persistent = true
             override val services: Map<Class<*>, (ContextProvisions) -> Any> =
                 mapOf(android.content.Context::class.java to { p: ContextProvisions -> p.appContext() })
             override fun build(resolver: Resolver) = object : ContextProvisions {
@@ -80,6 +99,9 @@ class Resolver {
         providers[provider.provisionClass] = provider
         for (serviceClass in provider.services.keys) {
             serviceIndex[serviceClass] = provider.provisionClass
+        }
+        if (provider.persistent) {
+            persistentClasses.add(provider.provisionClass)
         }
     }
 
@@ -126,15 +148,48 @@ class Resolver {
         }
     }
 
-    /** Number of provisions currently built. Useful for verifying lazy behavior in tests. */
-    val builtProvisionCount: Int get() = provisions.size
+    /**
+     * Number of non-persistent provisions currently built.
+     *
+     * Excludes persistent provisions (logger, context) because they survive
+     * shutdown and are tied to the app lifecycle, not the SDK lifecycle.
+     * This lets tests verify laziness of BUSINESS features without being
+     * affected by infrastructure provisions that persist across cycles.
+     */
+    val builtProvisionCount: Int get() = provisions.keys.count { it !in persistentClasses }
 
+    /**
+     * Limpia el grafo de provisions construidas, preservando providers
+     * y provisions persistentes (logger, context).
+     *
+     * Providers (el catalogo de FeatureProviders descubiertos via ServiceLoader)
+     * se mantienen — no hay necesidad de re-escanear ServiceLoader en cada reinit.
+     *
+     * Provisions persistentes (marcadas en [persistentClasses]) sobreviven
+     * el shutdown porque estan atadas al ciclo de vida de la app, no del SDK.
+     * Ejemplo: el logger tiene file handles abiertos, correlation IDs, buffers.
+     * Destruirlo y reconstruirlo en cada reinit perderia estado.
+     */
     fun clear() {
         synchronized(lock) {
-            providers.clear()
-            serviceIndex.clear()
+            // Preservar providers — ServiceLoader no necesita re-escanear
+            // Preservar serviceIndex — es derivado de providers
+
+            // Limpiar solo provisions de negocio, preservar persistentes
+            val persistentProvisions = provisions.filterKeys { it in persistentClasses }
+            val persistentServices = resolvedServices.filterKeys { key ->
+                persistentClasses.any { cls ->
+                    providers[cls]?.services?.containsKey(key) == true
+                }
+            }
+
             provisions.clear()
             resolvedServices.clear()
+
+            provisions.putAll(persistentProvisions)
+            resolvedServices.putAll(persistentServices)
         }
     }
+
+    private val persistentClasses = mutableSetOf<Class<*>>()
 }

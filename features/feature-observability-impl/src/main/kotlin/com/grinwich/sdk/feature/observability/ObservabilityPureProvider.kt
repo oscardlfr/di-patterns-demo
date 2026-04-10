@@ -6,6 +6,7 @@ import com.grinwich.sdk.contracts.PureFeatureProvider
 import com.grinwich.sdk.contracts.Resolver
 
 class ObservabilityPureProvider : PureFeatureProvider<ObservabilityProvisions>(ObservabilityProvisions::class.java) {
+    override val persistent = true
     override val services: Map<Class<*>, (ObservabilityProvisions) -> Any> = mapOf(
         SdkLogger::class.java to ObservabilityProvisions::logger,
     )

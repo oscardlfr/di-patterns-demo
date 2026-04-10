@@ -35,12 +35,23 @@ data class SdkExpectedCounts(
     val fullGraph: Int,
 )
 
+/**
+ * Expected NON-PERSISTENT provision counts per pattern.
+ *
+ * builtProvisionCount excludes persistent provisions (logger, context)
+ * because they survive shutdown and are tied to the app lifecycle.
+ *
+ * H/K: Obs + Context persistent via Resolver (-2 from total)
+ * I/J: Obs + Context persistent via Resolver (-2 from total)
+ * D/G: logger is a field (not a provision), no persistent provisions
+ * E2: Obs + Context persistent via AutoProvisionRegistry (-2 from total)
+ */
 val EXPECTED_COUNTS: Map<String, SdkExpectedCounts> = mapOf(
     "D"  to SdkExpectedCounts(afterInit = 1, afterEnc = 2, afterAna = 2, afterSync = 5, fullGraph = 6),
     "E2" to SdkExpectedCounts(afterInit = 0, afterEnc = 2, afterAna = 2, afterSync = 6, fullGraph = 7),
     "G"  to SdkExpectedCounts(afterInit = 1, afterEnc = 2, afterAna = 2, afterSync = 5, fullGraph = 6),
-    "H"  to SdkExpectedCounts(afterInit = 0, afterEnc = 3, afterAna = 3, afterSync = 7, fullGraph = 8),
-    "I"  to SdkExpectedCounts(afterInit = 0, afterEnc = 2, afterAna = 2, afterSync = 7, fullGraph = 8),
-    "J"  to SdkExpectedCounts(afterInit = 0, afterEnc = 2, afterAna = 2, afterSync = 7, fullGraph = 8),
-    "K"  to SdkExpectedCounts(afterInit = 0, afterEnc = 3, afterAna = 3, afterSync = 7, fullGraph = 8),
+    "H"  to SdkExpectedCounts(afterInit = 0, afterEnc = 2, afterAna = 2, afterSync = 5, fullGraph = 6),
+    "I"  to SdkExpectedCounts(afterInit = 0, afterEnc = 1, afterAna = 1, afterSync = 5, fullGraph = 6),
+    "J"  to SdkExpectedCounts(afterInit = 0, afterEnc = 1, afterAna = 1, afterSync = 5, fullGraph = 6),
+    "K"  to SdkExpectedCounts(afterInit = 0, afterEnc = 2, afterAna = 2, afterSync = 5, fullGraph = 6),
 )

@@ -6,6 +6,7 @@ import com.grinwich.sdk.contracts.ObservabilityProvisions
 import com.grinwich.sdk.contracts.Resolver
 
 class ObservabilityKIProvider : KIFeatureProvider<ObservabilityProvisions>(ObservabilityProvisions::class.java) {
+    override val persistent = true
     override val services: Map<Class<*>, (ObservabilityProvisions) -> Any> = mapOf(
         SdkLogger::class.java to ObservabilityProvisions::logger,
     )
