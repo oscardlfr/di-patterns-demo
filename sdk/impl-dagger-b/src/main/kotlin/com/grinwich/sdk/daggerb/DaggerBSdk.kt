@@ -32,6 +32,7 @@ object DaggerBSdk {
     private var _initializedModules = mutableSetOf<Feature>()
     private var _core: CoreApis? = null
     private var _appContext: android.content.Context? = null
+    private var _storageBackend: StorageBackend = StorageBackend.DATA_STORE
 
     private var _enc: IntEncComp? = null
     private var _auth: IntAuthComp? = null
@@ -42,10 +43,16 @@ object DaggerBSdk {
     val isInitialized: Boolean get() = _initialized
     val initializedModules: Set<Feature> get() = _initializedModules.toSet()
 
-    fun init(context: android.content.Context, config: SdkConfig, features: Set<Feature>) {
+    fun init(
+        context: android.content.Context,
+        config: SdkConfig,
+        features: Set<Feature>,
+        storageBackend: StorageBackend = StorageBackend.DATA_STORE,
+    ) {
         check(!_initialized) { "DaggerBSdk already initialized." }
         require(features.isNotEmpty()) { "features must not be empty." }
         _appContext = context.applicationContext
+        _storageBackend = storageBackend
         _core = CoreApisImpl(config, foundationLogger)
         _initialized = true
         for (f in features) getOrInitModule(f)
@@ -71,7 +78,7 @@ object DaggerBSdk {
                 _auth = DaggerIntAuthComp.builder().core(authCore).build()
             }
             Feature.STORAGE -> {
-                val storCore = StorCoreApisImpl(core, _enc!!.encryption(), _enc!!.hash(), _appContext!!)
+                val storCore = StorCoreApisImpl(core, _enc!!.encryption(), _enc!!.hash(), _appContext!!, _storageBackend)
                 _storage = DaggerIntStorComp.builder().core(storCore).build()
             }
             Feature.ANALYTICS -> {
@@ -111,7 +118,7 @@ object DaggerBSdk {
         if (!_initialized) return
         _core = null; _enc = null; _auth = null
         _storage = null; _analytics = null; _sync = null
-        _appContext = null
+        _appContext = null; _storageBackend = StorageBackend.DATA_STORE
         _initialized = false; _initializedModules.clear()
     }
 }

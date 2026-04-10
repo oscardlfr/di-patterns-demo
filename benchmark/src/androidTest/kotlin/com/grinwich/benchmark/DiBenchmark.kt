@@ -4,6 +4,7 @@ import androidx.benchmark.junit4.BenchmarkRule
 import androidx.benchmark.junit4.measureRepeated
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.grinwich.sdk.api.*
+import com.grinwich.sdk.common.StorageBackend
 import com.grinwich.sdk.daggerb.DaggerBSdk
 import com.grinwich.sdk.daggerc.DaggerCSdk
 import com.grinwich.sdk.impl.KoinSdk
@@ -254,6 +255,112 @@ class DiBenchmark {
         val bridge = DaggerBenchBridgeComponent.builder().build()
         bridge.auth().login("bench", "pass")
         val sync = bridge.sync()
+        benchmarkRule.measureRepeated {
+            runBlocking { sync.sync() }
+        }
+        KoinSdk.shutdown()
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 5. STORAGE BACKEND COMPARISON — Fake vs SharedPreferences vs DataStore
+    //
+    // Tres backends para aislar costes:
+    // - FAKE: in-memory HashMap. Mide SOLO el coste del DI framework.
+    // - SHARED_PREFS: I/O sincrono. Persistencia real basica.
+    // - DATA_STORE: I/O async (coroutines). Persistencia real moderna.
+    // ════════════════════════════════════════════════════════
+
+    // ── Fake (DI puro, zero I/O) ──
+
+    @Test
+    fun crossFeatureOp_daggerB_fake() {
+        DaggerBSdk.init(testContext, config, DaggerBSdk.Feature.entries.toSet(), StorageBackend.FAKE)
+        DaggerBSdk.get<AuthApi>().login("bench", "pass")
+        val sync = DaggerBSdk.get<SyncApi>()
+        benchmarkRule.measureRepeated { runBlocking { sync.sync() } }
+        DaggerBSdk.shutdown()
+    }
+
+    @Test
+    fun crossFeatureOp_daggerC_fake() {
+        DaggerCSdk.init(testContext, config, setOf("encryption", "auth", "storage", "analytics", "sync"), StorageBackend.FAKE)
+        DaggerCSdk.get<AuthApi>().login("bench", "pass")
+        val sync = DaggerCSdk.get<SyncApi>()
+        benchmarkRule.measureRepeated { runBlocking { sync.sync() } }
+        DaggerCSdk.shutdown()
+    }
+
+    @Test
+    fun crossFeatureOp_koin_fake() {
+        KoinSdk.init(testContext, setOf(SdkModule.Encryption.Default, SdkModule.Auth.Default, SdkModule.Storage.Secure, SdkModule.Analytics.Default, SdkModule.Sync.Default), config, storageBackend = StorageBackend.FAKE)
+        KoinSdk.get<AuthApi>().login("bench", "pass")
+        val sync = KoinSdk.get<SyncApi>()
+        benchmarkRule.measureRepeated { runBlocking { sync.sync() } }
+        KoinSdk.shutdown()
+    }
+
+    // ── DataStore vs SharedPreferences ──
+
+    @Test
+    fun crossFeatureOp_daggerB_datastore() {
+        DaggerBSdk.init(testContext, config, DaggerBSdk.Feature.entries.toSet(), StorageBackend.DATA_STORE)
+        DaggerBSdk.get<AuthApi>().login("bench", "pass")
+        val sync = DaggerBSdk.get<SyncApi>()
+        benchmarkRule.measureRepeated {
+            runBlocking { sync.sync() }
+        }
+        DaggerBSdk.shutdown()
+    }
+
+    @Test
+    fun crossFeatureOp_daggerB_sharedprefs() {
+        DaggerBSdk.init(testContext, config, DaggerBSdk.Feature.entries.toSet(), StorageBackend.SHARED_PREFS)
+        DaggerBSdk.get<AuthApi>().login("bench", "pass")
+        val sync = DaggerBSdk.get<SyncApi>()
+        benchmarkRule.measureRepeated {
+            runBlocking { sync.sync() }
+        }
+        DaggerBSdk.shutdown()
+    }
+
+    @Test
+    fun crossFeatureOp_daggerC_datastore() {
+        DaggerCSdk.init(testContext, config, setOf("encryption", "auth", "storage", "analytics", "sync"), StorageBackend.DATA_STORE)
+        DaggerCSdk.get<AuthApi>().login("bench", "pass")
+        val sync = DaggerCSdk.get<SyncApi>()
+        benchmarkRule.measureRepeated {
+            runBlocking { sync.sync() }
+        }
+        DaggerCSdk.shutdown()
+    }
+
+    @Test
+    fun crossFeatureOp_daggerC_sharedprefs() {
+        DaggerCSdk.init(testContext, config, setOf("encryption", "auth", "storage", "analytics", "sync"), StorageBackend.SHARED_PREFS)
+        DaggerCSdk.get<AuthApi>().login("bench", "pass")
+        val sync = DaggerCSdk.get<SyncApi>()
+        benchmarkRule.measureRepeated {
+            runBlocking { sync.sync() }
+        }
+        DaggerCSdk.shutdown()
+    }
+
+    @Test
+    fun crossFeatureOp_koin_datastore() {
+        KoinSdk.init(testContext, setOf(SdkModule.Encryption.Default, SdkModule.Auth.Default, SdkModule.Storage.Secure, SdkModule.Analytics.Default, SdkModule.Sync.Default), config, storageBackend = StorageBackend.DATA_STORE)
+        KoinSdk.get<AuthApi>().login("bench", "pass")
+        val sync = KoinSdk.get<SyncApi>()
+        benchmarkRule.measureRepeated {
+            runBlocking { sync.sync() }
+        }
+        KoinSdk.shutdown()
+    }
+
+    @Test
+    fun crossFeatureOp_koin_sharedprefs() {
+        KoinSdk.init(testContext, setOf(SdkModule.Encryption.Default, SdkModule.Auth.Default, SdkModule.Storage.Secure, SdkModule.Analytics.Default, SdkModule.Sync.Default), config, storageBackend = StorageBackend.SHARED_PREFS)
+        KoinSdk.get<AuthApi>().login("bench", "pass")
+        val sync = KoinSdk.get<SyncApi>()
         benchmarkRule.measureRepeated {
             runBlocking { sync.sync() }
         }

@@ -117,7 +117,13 @@ object AuthRegistration : SdkModuleRegistration {
 object StorageRegistration : SdkModuleRegistration {
     override val module = SdkModule.Storage.Secure
     override val koinModule = module {
-        single<StorageApi> { DefaultSecureStorageService(get(), get(), get(), get()) }
+        single<StorageApi> {
+            when (get<StorageBackend>()) {
+                StorageBackend.FAKE -> FakeStorageService(get(), get(), get())
+                StorageBackend.DATA_STORE -> DataStoreStorageService(get(), get(), get(), get())
+                StorageBackend.SHARED_PREFS -> SharedPrefsStorageService(get(), get(), get(), get())
+            }
+        }
     }
     init { SdkModuleRegistry.register(module) { koinModule } }
 }
@@ -147,11 +153,12 @@ internal object FoundationSingletons {
     val logger: SdkLogger = AndroidSdkLogger()
 }
 
-private fun foundationModule(context: android.content.Context, config: SdkConfig) = module {
+private fun foundationModule(context: android.content.Context, config: SdkConfig, storageBackend: StorageBackend) = module {
     single<android.content.Context> { context }
     single<SdkConfig> { config }
     single<SdkLogger> { FoundationSingletons.logger }
     single<CoreApis> { CoreApisImpl(get(), get()) }
+    single<StorageBackend> { storageBackend }
 }
 
 // ============================================================
@@ -198,6 +205,7 @@ object KoinSdk {
         modules: Set<SdkModule>,
         config: SdkConfig = SdkConfig(),
         appModules: List<Module> = emptyList(),
+        storageBackend: StorageBackend = StorageBackend.DATA_STORE,
     ) {
         check(!_initialized) { "KoinSdk already initialized. Call shutdown() first." }
         require(modules.isNotEmpty()) { "modules must not be empty." }
@@ -206,7 +214,7 @@ object KoinSdk {
         discoverRegistrations(modules)
 
         val appCtx = context.applicationContext
-        val foundation = foundationModule(appCtx, config)
+        val foundation = foundationModule(appCtx, config, storageBackend)
         val resolved = modules.map { SdkModuleRegistry.resolve(it) }
 
         val app = koinApplication {

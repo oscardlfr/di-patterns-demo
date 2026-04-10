@@ -26,6 +26,7 @@ object DaggerCSdk {
     private var _initialized = false
     private var _core: CoreApis? = null
     internal var _appContext: android.content.Context? = null
+    internal var _storageBackend: StorageBackend = StorageBackend.DATA_STORE
 
     val isInitialized: Boolean get() = _initialized
     val initializedModules: Set<String> get() = _initializers.keys.toSet()
@@ -43,10 +44,16 @@ object DaggerCSdk {
         }
     }
 
-    fun init(context: android.content.Context, config: SdkConfig, features: Set<String>) {
+    fun init(
+        context: android.content.Context,
+        config: SdkConfig,
+        features: Set<String>,
+        storageBackend: StorageBackend = StorageBackend.DATA_STORE,
+    ) {
         check(!_initialized) { "DaggerCSdk already initialized." }
         require(features.isNotEmpty()) { "features must not be empty." }
         _appContext = context.applicationContext
+        _storageBackend = storageBackend
         _core = CoreApisImpl(config, foundationLogger)
         _initialized = true
         for (f in features) getOrInitModule(f)
@@ -85,5 +92,6 @@ object DaggerCSdk {
         _initializers.values.forEach { it.shutdown() }
         _initializers.clear()
         _initialized = false; _core = null; _appContext = null
+        _storageBackend = StorageBackend.DATA_STORE
     }
 }

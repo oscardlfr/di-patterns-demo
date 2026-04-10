@@ -63,12 +63,14 @@ internal interface StorCoreApis : CoreApis {
     val encryptionApi: EncryptionApi
     val hashApi: HashApi
     val appContext: android.content.Context
+    val storageBackend: StorageBackend
 }
 internal class StorCoreApisImpl(
     private val base: CoreApis,
     override val encryptionApi: EncryptionApi,
     override val hashApi: HashApi,
     override val appContext: android.content.Context,
+    override val storageBackend: StorageBackend = StorageBackend.DATA_STORE,
 ) : StorCoreApis {
     override val config get() = base.config
     override val logger get() = base.logger
@@ -84,8 +86,11 @@ internal interface IntStorComp {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) internal annotation class BStorScope
 @Module internal class IntStorMod {
-    @Provides @BStorScope fun storage(core: StorCoreApis): StorageApi =
-        DefaultSecureStorageService(core.appContext, core.encryptionApi, core.hashApi, core.logger)
+    @Provides @BStorScope fun storage(core: StorCoreApis): StorageApi = when (core.storageBackend) {
+        StorageBackend.FAKE -> FakeStorageService(core.encryptionApi, core.hashApi, core.logger)
+        StorageBackend.DATA_STORE -> DataStoreStorageService(core.appContext, core.encryptionApi, core.hashApi, core.logger)
+        StorageBackend.SHARED_PREFS -> SharedPrefsStorageService(core.appContext, core.encryptionApi, core.hashApi, core.logger)
+    }
 }
 
 // --- Analytics (only Core) ---

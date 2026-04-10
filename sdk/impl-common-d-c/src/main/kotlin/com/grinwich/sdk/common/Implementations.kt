@@ -1,8 +1,13 @@
 package com.grinwich.sdk.common
 
 import android.util.Base64
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.feature.observability.AndroidSdkLogger
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 
 // ============================================================
 // CoreApis implementation
@@ -77,10 +82,62 @@ class DefaultAuthService(
 }
 
 // ============================================================
-// Storage — depends on EncryptionApi AND HashApi (cross-feature!)
+// Storage — THREE backends for benchmark comparison
 // ============================================================
 
-class DefaultSecureStorageService(
+/**
+ * Which persistence backend the monolithic Storage uses.
+ *
+ * - FAKE: in-memory HashMap, zero I/O, zero Context. Aisla el coste puro del DI framework
+ *   (HashMap lookups, DFS traversal, ServiceLoader scan) sin ruido de disco.
+ * - SHARED_PREFS: SharedPreferences, I/O sincrono. Persistencia real basica.
+ * - DATA_STORE: Jetpack DataStore, I/O async (coroutines). Persistencia real moderna.
+ *   Paridad con multi-module (feature-stor-impl usa DataStore).
+ */
+enum class StorageBackend { FAKE, SHARED_PREFS, DATA_STORE }
+
+/**
+ * Fake backend — in-memory HashMap, zero I/O, zero Context.
+ *
+ * No necesita Context ni disco. Mide SOLO el coste del DI framework:
+ * cuanto tarda el SDK en resolver servicios, construir provisions, y ejecutar
+ * logica de negocio (encrypt, hash, auth) SIN el overhead de persistencia.
+ *
+ * Ideal para comparar patrones DI entre si (D vs H vs Koin) sin que
+ * el ruido de I/O enmascare las diferencias.
+ */
+class FakeStorageService(
+    private val encryption: EncryptionApi,
+    private val hash: HashApi,
+    private val logger: SdkLogger,
+) : StorageApi {
+
+    private val store = mutableMapOf<String, String>()
+
+    override suspend fun put(key: String, value: String) {
+        val hashedKey = hash.sha256Hex(key)
+        val encryptedValue = encryption.encrypt(value)
+        logger.d("Storage", "PUT $hashedKey")
+        store[hashedKey] = encryptedValue
+    }
+
+    override suspend fun get(key: String): String? {
+        val hashedKey = hash.sha256Hex(key)
+        val encrypted = store[hashedKey] ?: return null
+        return encryption.decrypt(encrypted)
+    }
+
+    override suspend fun remove(key: String) {
+        store.remove(hash.sha256Hex(key))
+    }
+
+    override suspend fun clear() {
+        store.clear()
+    }
+}
+
+/** SharedPreferences backend — synchronous, fast, legacy. */
+class SharedPrefsStorageService(
     context: android.content.Context,
     private val encryption: EncryptionApi,
     private val hash: HashApi,
@@ -110,6 +167,46 @@ class DefaultSecureStorageService(
         prefs.edit().clear().apply()
     }
 }
+
+/** DataStore backend — async, modern, same as multi-module feature-stor-impl. */
+private val android.content.Context.monoDataStore by preferencesDataStore(name = "sdk_mono_datastore")
+
+class DataStoreStorageService(
+    context: android.content.Context,
+    private val encryption: EncryptionApi,
+    private val hash: HashApi,
+    private val logger: SdkLogger,
+) : StorageApi {
+
+    private val dataStore = context.monoDataStore
+
+    override suspend fun put(key: String, value: String) {
+        val hashedKey = hash.sha256Hex(key)
+        val encryptedValue = encryption.encrypt(value)
+        logger.d("Storage", "PUT $hashedKey")
+        dataStore.edit { prefs -> prefs[stringPreferencesKey(hashedKey)] = encryptedValue }
+    }
+
+    override suspend fun get(key: String): String? {
+        val hashedKey = hash.sha256Hex(key)
+        return dataStore.data.map { prefs -> prefs[stringPreferencesKey(hashedKey)] }.first()
+            ?.let { encryption.decrypt(it) }
+    }
+
+    override suspend fun remove(key: String) {
+        val hashedKey = hash.sha256Hex(key)
+        dataStore.edit { prefs -> prefs.remove(stringPreferencesKey(hashedKey)) }
+    }
+
+    override suspend fun clear() {
+        dataStore.edit { it.clear() }
+    }
+}
+
+/** Backward-compat alias — resolves to DataStore (parity with multi-module). */
+@Suppress("unused")
+@Deprecated("Use DataStoreStorageService or SharedPrefsStorageService explicitly", ReplaceWith("DataStoreStorageService"))
+typealias DefaultSecureStorageService = DataStoreStorageService
 
 // ============================================================
 // Analytics — ZERO cross-feature deps (Case 1: standalone lazy init)

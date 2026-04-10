@@ -15,4 +15,6 @@ android {
 dependencies {
     api(project(":sdk:api"))
     implementation(project(":features:feature-observability-impl"))  // AndroidSdkLogger
+    implementation(libs.datastore.preferences)
+    implementation(libs.coroutines.android)
 }
