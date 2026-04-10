@@ -4,7 +4,7 @@ import androidx.benchmark.junit4.BenchmarkRule
 import androidx.benchmark.junit4.measureRepeated
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.grinwich.sdk.api.*
-import com.grinwich.sdk.common.StorageBackend
+import com.grinwich.sdk.api.StorageBackend
 import com.grinwich.sdk.daggerb.DaggerBSdk
 import com.grinwich.sdk.daggerc.DaggerCSdk
 import com.grinwich.sdk.impl.KoinSdk

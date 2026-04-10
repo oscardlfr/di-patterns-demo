@@ -4,6 +4,7 @@ import androidx.benchmark.junit4.BenchmarkRule
 import androidx.benchmark.junit4.measureRepeated
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.grinwich.sdk.api.*
+import com.grinwich.sdk.api.StorageBackend
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Rule
@@ -312,5 +313,43 @@ class MultiModuleBenchmark {
         ana.trackEvent("app_launched")
 
         runWithMeasurementDisabled { sdk.shutdown() }
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 13. STORAGE BACKEND COMPARISON — Pattern H
+    //
+    // Fake vs SharedPreferences vs DataStore on multi-module.
+    // Pattern H is the primary multi-module target; D and K
+    // included for cross-pattern comparison.
+    // ════════════════════════════════════════════════════════
+
+    private val configFake = SdkConfig(debug = false, storageBackend = StorageBackend.FAKE)
+    private val configSharedPrefs = SdkConfig(debug = false, storageBackend = StorageBackend.SHARED_PREFS)
+    private val configDataStore = SdkConfig(debug = false, storageBackend = StorageBackend.DATA_STORE)
+
+    // -- Pattern H --
+
+    @Test fun crossFeatureOp_H_fake() = crossFeatureOpWith(ALL_LAZY_SDKS[3].second, configFake)
+    @Test fun crossFeatureOp_H_sharedprefs() = crossFeatureOpWith(ALL_LAZY_SDKS[3].second, configSharedPrefs)
+    @Test fun crossFeatureOp_H_datastore() = crossFeatureOpWith(ALL_LAZY_SDKS[3].second, configDataStore)
+
+    // -- Pattern D --
+
+    @Test fun crossFeatureOp_D_fake() = crossFeatureOpWith(ALL_LAZY_SDKS[0].second, configFake)
+    @Test fun crossFeatureOp_D_sharedprefs() = crossFeatureOpWith(ALL_LAZY_SDKS[0].second, configSharedPrefs)
+    @Test fun crossFeatureOp_D_datastore() = crossFeatureOpWith(ALL_LAZY_SDKS[0].second, configDataStore)
+
+    // -- Pattern K --
+
+    @Test fun crossFeatureOp_K_fake() = crossFeatureOpWith(ALL_LAZY_SDKS[6].second, configFake)
+    @Test fun crossFeatureOp_K_sharedprefs() = crossFeatureOpWith(ALL_LAZY_SDKS[6].second, configSharedPrefs)
+    @Test fun crossFeatureOp_K_datastore() = crossFeatureOpWith(ALL_LAZY_SDKS[6].second, configDataStore)
+
+    private fun crossFeatureOpWith(sdk: MultiModuleSdkApi, cfg: SdkConfig) {
+        sdk.init(testContext, cfg)
+        sdk.get(AuthApi::class.java).login("bench", "pass")
+        val sync = sdk.get(SyncApi::class.java)
+        benchmarkRule.measureRepeated { runBlocking { sync.sync() } }
+        sdk.shutdown()
     }
 }

@@ -4,6 +4,7 @@ import com.grinwich.sdk.api.EncryptionApi
 import com.grinwich.sdk.api.HashApi
 import com.grinwich.sdk.api.SdkLogger
 import com.grinwich.sdk.api.StorageApi
+import com.grinwich.sdk.api.StorageBackend
 import com.grinwich.sdk.contracts.ContextProvisions
 import com.grinwich.sdk.contracts.CoreProvisions
 import com.grinwich.sdk.contracts.EncProvisions
@@ -43,6 +44,10 @@ interface StorComponent : StorProvisions {
 @Module
 internal class StorModule {
     @Provides @StorScope
-    fun storage(ctx: ContextProvisions, encryption: EncryptionApi, hash: HashApi, logger: SdkLogger): StorageApi =
-        DefaultSecureStorageService(ctx.appContext(), encryption, hash, logger)
+    fun storage(core: CoreProvisions, ctx: ContextProvisions, encryption: EncryptionApi, hash: HashApi, logger: SdkLogger): StorageApi =
+        when (core.config().storageBackend) {
+            StorageBackend.FAKE -> FakeStorageService(encryption, hash, logger)
+            StorageBackend.SHARED_PREFS -> SharedPrefsStorageService(ctx.appContext(), encryption, hash, logger)
+            StorageBackend.DATA_STORE -> DataStoreStorageService(ctx.appContext(), encryption, hash, logger)
+        }
 }

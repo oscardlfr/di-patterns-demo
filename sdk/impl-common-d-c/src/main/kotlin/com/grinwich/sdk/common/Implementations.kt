@@ -84,17 +84,8 @@ class DefaultAuthService(
 // ============================================================
 // Storage — THREE backends for benchmark comparison
 // ============================================================
-
-/**
- * Which persistence backend the monolithic Storage uses.
- *
- * - FAKE: in-memory HashMap, zero I/O, zero Context. Aisla el coste puro del DI framework
- *   (HashMap lookups, DFS traversal, ServiceLoader scan) sin ruido de disco.
- * - SHARED_PREFS: SharedPreferences, I/O sincrono. Persistencia real basica.
- * - DATA_STORE: Jetpack DataStore, I/O async (coroutines). Persistencia real moderna.
- *   Paridad con multi-module (feature-stor-impl usa DataStore).
- */
-enum class StorageBackend { FAKE, SHARED_PREFS, DATA_STORE }
+// StorageBackend enum is now in :features:feature-core-api (com.grinwich.sdk.api.StorageBackend)
+// so both monolithic and multi-module patterns share the same type.
 
 /**
  * Fake backend — in-memory HashMap, zero I/O, zero Context.
