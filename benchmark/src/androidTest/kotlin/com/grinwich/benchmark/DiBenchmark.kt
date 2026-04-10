@@ -51,7 +51,7 @@ class DiBenchmark {
 
     @Test
     fun initCold_daggerB() = benchmarkRule.measureRepeated {
-        DaggerBSdk.init(config, DaggerBSdk.Feature.entries.toSet())
+        DaggerBSdk.init(testContext, config, DaggerBSdk.Feature.entries.toSet())
         DaggerBSdk.get<EncryptionApi>()
         DaggerBSdk.get<HashApi>()
         DaggerBSdk.get<AuthApi>()
@@ -63,7 +63,7 @@ class DiBenchmark {
 
     @Test
     fun resolveFirst_daggerB() {
-        DaggerBSdk.init(config, setOf(DaggerBSdk.Feature.ENCRYPTION))
+        DaggerBSdk.init(testContext, config, setOf(DaggerBSdk.Feature.ENCRYPTION))
         benchmarkRule.measureRepeated {
             DaggerBSdk.get<EncryptionApi>()
         }
@@ -73,7 +73,7 @@ class DiBenchmark {
     @Test
     fun lazyInit_noDeps_daggerB_analytics() = benchmarkRule.measureRepeated {
         runWithMeasurementDisabled {
-            DaggerBSdk.init(config, setOf(DaggerBSdk.Feature.ENCRYPTION))
+            DaggerBSdk.init(testContext, config, setOf(DaggerBSdk.Feature.ENCRYPTION))
         }
         DaggerBSdk.getOrInitModule(DaggerBSdk.Feature.ANALYTICS)
         DaggerBSdk.get<AnalyticsApi>()
@@ -83,7 +83,7 @@ class DiBenchmark {
     @Test
     fun lazyInit_cascade_daggerB_sync() = benchmarkRule.measureRepeated {
         runWithMeasurementDisabled {
-            DaggerBSdk.init(config, setOf(DaggerBSdk.Feature.ENCRYPTION))
+            DaggerBSdk.init(testContext, config, setOf(DaggerBSdk.Feature.ENCRYPTION))
         }
         DaggerBSdk.getOrInitModule(DaggerBSdk.Feature.SYNC)
         DaggerBSdk.get<SyncApi>()
@@ -92,7 +92,7 @@ class DiBenchmark {
 
     @Test
     fun crossFeatureOp_daggerB_sync() {
-        DaggerBSdk.init(config, DaggerBSdk.Feature.entries.toSet())
+        DaggerBSdk.init(testContext, config, DaggerBSdk.Feature.entries.toSet())
         DaggerBSdk.get<AuthApi>().login("bench", "pass")
         val sync = DaggerBSdk.get<SyncApi>()
         benchmarkRule.measureRepeated {
@@ -107,7 +107,7 @@ class DiBenchmark {
 
     @Test
     fun initCold_daggerC() = benchmarkRule.measureRepeated {
-        DaggerCSdk.init(config, setOf("encryption", "auth", "storage", "analytics", "sync"))
+        DaggerCSdk.init(testContext, config, setOf("encryption", "auth", "storage", "analytics", "sync"))
         DaggerCSdk.get<EncryptionApi>()
         DaggerCSdk.get<HashApi>()
         DaggerCSdk.get<AuthApi>()
@@ -119,7 +119,7 @@ class DiBenchmark {
 
     @Test
     fun resolveFirst_daggerC() {
-        DaggerCSdk.init(config, setOf("encryption"))
+        DaggerCSdk.init(testContext, config, setOf("encryption"))
         benchmarkRule.measureRepeated {
             DaggerCSdk.get<EncryptionApi>()
         }
@@ -129,7 +129,7 @@ class DiBenchmark {
     @Test
     fun lazyInit_noDeps_daggerC_analytics() = benchmarkRule.measureRepeated {
         runWithMeasurementDisabled {
-            DaggerCSdk.init(config, setOf("encryption"))
+            DaggerCSdk.init(testContext, config, setOf("encryption"))
         }
         DaggerCSdk.getOrInitModule("analytics")
         DaggerCSdk.get<AnalyticsApi>()
@@ -139,7 +139,7 @@ class DiBenchmark {
     @Test
     fun lazyInit_cascade_daggerC_sync() = benchmarkRule.measureRepeated {
         runWithMeasurementDisabled {
-            DaggerCSdk.init(config, setOf("encryption"))
+            DaggerCSdk.init(testContext, config, setOf("encryption"))
         }
         DaggerCSdk.getOrInitModule("sync")
         DaggerCSdk.get<SyncApi>()
@@ -148,7 +148,7 @@ class DiBenchmark {
 
     @Test
     fun crossFeatureOp_daggerC_sync() {
-        DaggerCSdk.init(config, setOf("encryption", "auth", "storage", "analytics", "sync"))
+        DaggerCSdk.init(testContext, config, setOf("encryption", "auth", "storage", "analytics", "sync"))
         DaggerCSdk.get<AuthApi>().login("bench", "pass")
         val sync = DaggerCSdk.get<SyncApi>()
         benchmarkRule.measureRepeated {
@@ -163,7 +163,7 @@ class DiBenchmark {
 
     @Test
     fun initCold_koin() = benchmarkRule.measureRepeated {
-        KoinSdk.init(setOf(SdkModule.Encryption.Default, SdkModule.Auth.Default, SdkModule.Storage.Secure, SdkModule.Analytics.Default, SdkModule.Sync.Default), config)
+        KoinSdk.init(testContext, setOf(SdkModule.Encryption.Default, SdkModule.Auth.Default, SdkModule.Storage.Secure, SdkModule.Analytics.Default, SdkModule.Sync.Default), config)
         KoinSdk.get<EncryptionApi>()
         KoinSdk.get<HashApi>()
         KoinSdk.get<AuthApi>()
@@ -175,7 +175,7 @@ class DiBenchmark {
 
     @Test
     fun resolveFirst_koin() {
-        KoinSdk.init(setOf(SdkModule.Encryption.Default), config)
+        KoinSdk.init(testContext, setOf(SdkModule.Encryption.Default), config)
         benchmarkRule.measureRepeated {
             KoinSdk.get<EncryptionApi>()
         }
@@ -185,7 +185,7 @@ class DiBenchmark {
     @Test
     fun lazyInit_noDeps_koin_analytics() = benchmarkRule.measureRepeated {
         runWithMeasurementDisabled {
-            KoinSdk.init(setOf(SdkModule.Encryption.Default), config)
+            KoinSdk.init(testContext, setOf(SdkModule.Encryption.Default), config)
         }
         KoinSdk.getOrInitModule(SdkModule.Analytics.Default)
         KoinSdk.get<AnalyticsApi>()
@@ -195,7 +195,7 @@ class DiBenchmark {
     @Test
     fun lazyInit_cascade_koin_sync() = benchmarkRule.measureRepeated {
         runWithMeasurementDisabled {
-            KoinSdk.init(setOf(SdkModule.Encryption.Default), config)
+            KoinSdk.init(testContext, setOf(SdkModule.Encryption.Default), config)
         }
         KoinSdk.getOrInitModule(SdkModule.Sync.Default)
         KoinSdk.get<SyncApi>()
@@ -204,7 +204,7 @@ class DiBenchmark {
 
     @Test
     fun crossFeatureOp_koin_sync() {
-        KoinSdk.init(setOf(SdkModule.Encryption.Default, SdkModule.Auth.Default, SdkModule.Storage.Secure, SdkModule.Analytics.Default, SdkModule.Sync.Default), config)
+        KoinSdk.init(testContext, setOf(SdkModule.Encryption.Default, SdkModule.Auth.Default, SdkModule.Storage.Secure, SdkModule.Analytics.Default, SdkModule.Sync.Default), config)
         KoinSdk.get<AuthApi>().login("bench", "pass")
         val sync = KoinSdk.get<SyncApi>()
         benchmarkRule.measureRepeated {
@@ -220,7 +220,7 @@ class DiBenchmark {
 
     @Test
     fun hybrid_initCold() = benchmarkRule.measureRepeated {
-        KoinSdk.init(setOf(SdkModule.Encryption.Default, SdkModule.Auth.Default, SdkModule.Storage.Secure, SdkModule.Analytics.Default, SdkModule.Sync.Default), config)
+        KoinSdk.init(testContext, setOf(SdkModule.Encryption.Default, SdkModule.Auth.Default, SdkModule.Storage.Secure, SdkModule.Analytics.Default, SdkModule.Sync.Default), config)
         val bridge = DaggerBenchBridgeComponent.builder().build()
         bridge.encryption(); bridge.hash(); bridge.auth()
         bridge.storage(); bridge.analytics(); bridge.sync()
@@ -229,7 +229,7 @@ class DiBenchmark {
 
     @Test
     fun hybrid_resolveFirst_viaBridge() {
-        KoinSdk.init(setOf(SdkModule.Encryption.Default, SdkModule.Auth.Default, SdkModule.Storage.Secure, SdkModule.Analytics.Default, SdkModule.Sync.Default), config)
+        KoinSdk.init(testContext, setOf(SdkModule.Encryption.Default, SdkModule.Auth.Default, SdkModule.Storage.Secure, SdkModule.Analytics.Default, SdkModule.Sync.Default), config)
         val bridge = DaggerBenchBridgeComponent.builder().build()
         benchmarkRule.measureRepeated {
             bridge.encryption()
@@ -239,7 +239,7 @@ class DiBenchmark {
 
     @Test
     fun hybrid_resolveCached_viaBridge() {
-        KoinSdk.init(setOf(SdkModule.Encryption.Default, SdkModule.Auth.Default, SdkModule.Storage.Secure, SdkModule.Analytics.Default, SdkModule.Sync.Default), config)
+        KoinSdk.init(testContext, setOf(SdkModule.Encryption.Default, SdkModule.Auth.Default, SdkModule.Storage.Secure, SdkModule.Analytics.Default, SdkModule.Sync.Default), config)
         val bridge = DaggerBenchBridgeComponent.builder().build()
         bridge.encryption() // warm cache
         benchmarkRule.measureRepeated {
@@ -250,7 +250,7 @@ class DiBenchmark {
 
     @Test
     fun hybrid_crossFeatureOp_sync() {
-        KoinSdk.init(setOf(SdkModule.Encryption.Default, SdkModule.Auth.Default, SdkModule.Storage.Secure, SdkModule.Analytics.Default, SdkModule.Sync.Default), config)
+        KoinSdk.init(testContext, setOf(SdkModule.Encryption.Default, SdkModule.Auth.Default, SdkModule.Storage.Secure, SdkModule.Analytics.Default, SdkModule.Sync.Default), config)
         val bridge = DaggerBenchBridgeComponent.builder().build()
         bridge.auth().login("bench", "pass")
         val sync = bridge.sync()

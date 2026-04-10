@@ -31,6 +31,7 @@ object DaggerBSdk {
     private var _initialized = false
     private var _initializedModules = mutableSetOf<Feature>()
     private var _core: CoreApis? = null
+    private var _appContext: android.content.Context? = null
 
     private var _enc: IntEncComp? = null
     private var _auth: IntAuthComp? = null
@@ -41,9 +42,10 @@ object DaggerBSdk {
     val isInitialized: Boolean get() = _initialized
     val initializedModules: Set<Feature> get() = _initializedModules.toSet()
 
-    fun init(config: SdkConfig, features: Set<Feature>) {
+    fun init(context: android.content.Context, config: SdkConfig, features: Set<Feature>) {
         check(!_initialized) { "DaggerBSdk already initialized." }
         require(features.isNotEmpty()) { "features must not be empty." }
+        _appContext = context.applicationContext
         _core = CoreApisImpl(config, foundationLogger)
         _initialized = true
         for (f in features) getOrInitModule(f)
@@ -69,7 +71,7 @@ object DaggerBSdk {
                 _auth = DaggerIntAuthComp.builder().core(authCore).build()
             }
             Feature.STORAGE -> {
-                val storCore = StorCoreApisImpl(core, _enc!!.encryption(), _enc!!.hash())
+                val storCore = StorCoreApisImpl(core, _enc!!.encryption(), _enc!!.hash(), _appContext!!)
                 _storage = DaggerIntStorComp.builder().core(storCore).build()
             }
             Feature.ANALYTICS -> {
@@ -109,6 +111,7 @@ object DaggerBSdk {
         if (!_initialized) return
         _core = null; _enc = null; _auth = null
         _storage = null; _analytics = null; _sync = null
+        _appContext = null
         _initialized = false; _initializedModules.clear()
     }
 }

@@ -25,6 +25,7 @@ class DaggerAApp : Application() {
         super.onCreate()
         sdkComponent = DaggerSdkComponent.builder()
             .config(SdkConfig(debug = true))
+            .context(applicationContext)
             .build()
     }
 

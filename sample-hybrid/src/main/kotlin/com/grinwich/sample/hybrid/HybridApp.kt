@@ -24,6 +24,7 @@ class HybridApp : Application() {
 
         // SDK FIRST — must exist before Dagger resolves bridge bindings
         KoinSdk.init(
+            context = this,
             modules = setOf(SdkModule.Encryption.Default),
             config = SdkConfig(debug = true),
         )

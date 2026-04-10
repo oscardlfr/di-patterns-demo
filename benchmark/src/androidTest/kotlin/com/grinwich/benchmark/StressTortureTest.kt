@@ -566,6 +566,68 @@ class StressTortureTest {
     }
 
     // ════════════════════════════════════════════════════════
+    // 15. LOGGER PERSISTENCE — same instance across shutdown/reinit
+    // ════════════════════════════════════════════════════════
+
+    @Test fun loggerPersistence_D() = loggerPersistence("D")
+    @Test fun loggerPersistence_E2() = loggerPersistence("E2")
+    @Test fun loggerPersistence_G() = loggerPersistence("G")
+    @Test fun loggerPersistence_H() = loggerPersistence("H")
+    @Test fun loggerPersistence_I() = loggerPersistence("I")
+    @Test fun loggerPersistence_J() = loggerPersistence("J")
+    @Test fun loggerPersistence_K() = loggerPersistence("K")
+
+    /**
+     * Verifica que el logger (ObservabilityProvisions) sobrevive shutdown/reinit.
+     *
+     * El logger esta marcado como persistent=true en los patrones que usan Resolver
+     * (H/I/J/K). En D/G el logger es un campo del object (sobrevive por diseno).
+     * En E2 el logger se pasa como parametro al registry (sobrevive por diseno).
+     *
+     * Para H/I/J/K: assertSame(logger1, logger2) — misma instancia tras reinit.
+     * Para D/G: el logger es _logger field, siempre la misma instancia.
+     * Para E2: el logger es _logger field pasado a allAutoEntries, misma instancia.
+     */
+    private fun loggerPersistence(name: String) {
+        val sdk = sdkByName(name)
+        sdk.init(testContext, config)
+        val logger1 = sdk.get(SdkLogger::class.java)
+        sdk.shutdown()
+        sdk.init(testContext, config)
+        val logger2 = sdk.get(SdkLogger::class.java)
+        assertSame("$name: logger must persist across shutdown/reinit", logger1, logger2)
+        sdk.shutdown()
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 16. CONTEXT PERSISTENCE — same instance across shutdown/reinit
+    //     Only for H/I/J/K (Resolver-based with persistent ContextProvisions).
+    // ════════════════════════════════════════════════════════
+
+    @Test fun contextPersistence_H() = contextPersistence("H")
+    @Test fun contextPersistence_I() = contextPersistence("I")
+    @Test fun contextPersistence_J() = contextPersistence("J")
+    @Test fun contextPersistence_K() = contextPersistence("K")
+
+    /**
+     * Verifica que el Context (ContextProvisions) sobrevive shutdown/reinit.
+     *
+     * ContextProvisions esta marcado como persistent=true en el Resolver.
+     * El applicationContext vive tanto como el proceso — no tiene sentido
+     * destruirlo y reconstruirlo en cada reinit.
+     */
+    private fun contextPersistence(name: String) {
+        val sdk = sdkByName(name)
+        sdk.init(testContext, config)
+        val ctx1 = sdk.get(android.content.Context::class.java)
+        sdk.shutdown()
+        sdk.init(testContext, config)
+        val ctx2 = sdk.get(android.content.Context::class.java)
+        assertSame("$name: context must persist across shutdown/reinit", ctx1, ctx2)
+        sdk.shutdown()
+    }
+
+    // ════════════════════════════════════════════════════════
     // Helpers
     // ════════════════════════════════════════════════════════
 

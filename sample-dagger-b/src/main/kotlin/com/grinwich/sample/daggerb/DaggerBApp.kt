@@ -7,6 +7,6 @@ import com.grinwich.sdk.daggerb.DaggerBSdk
 class DaggerBApp : Application() {
     override fun onCreate() {
         super.onCreate()
-        DaggerBSdk.init(SdkConfig(debug = true), setOf(DaggerBSdk.Feature.ENCRYPTION))
+        DaggerBSdk.init(this, SdkConfig(debug = true), setOf(DaggerBSdk.Feature.ENCRYPTION))
     }
 }

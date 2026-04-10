@@ -12,7 +12,7 @@
 **Metrica reportada:** mediana de `timeNs` (no media -- ignora outliers por GC o throttle)  
 **Build type:** release (`isMinifyEnabled = false` -- sin R8, mide codigo real)  
 **Errores suprimidos:** EMULATOR, LOW-BATTERY, ACTIVITY-MISSING  
-**Fecha:** 2026-04-09
+**Fecha:** 2026-04-10
 
 ---
 
@@ -23,18 +23,18 @@ Total: 35 tests (12 benchmarks + 9 memoria + 14 stress y concurrencia). Todos pa
 
 | Categoria | Test | Resultado | Criterio |
 |-----------|------|-----------|----------|
-| **Benchmark** | initCold | 68,612 ns | Init + ServiceLoader scan + register |
-| | resolveFirst | 34.4 ns | Singleton cached lookup |
-| | lazyInit noDeps | 1,172 ns | Build Analytics (0 cross-deps) |
-| | lazyInit cascade | 4,391 ns | Build Sync (4-level DFS cascade) |
-| | crossFeatureOp | 1,848,525 ns | Real operation across Auth+Stor+Enc (DataStore I/O) |
-| | e2eStartup | 692,444 ns | Init + resolve all + first ops (DataStore I/O) |
-| | stress_initShutdown | 84,010 ns | One init/get/shutdown cycle |
-| | stress_concurrent | 415,995 ns | 4 threads simultaneous get<T>() |
-| | stress_resolveAll | 207 ns | 6 services from cache sequential |
-| | stress_selective | 93,664 ns | Init + 1 feature + shutdown |
-| | stress_reInit | 198,363 ns | Two full cycles |
-| | stress_incremental | 81,115 ns | 6 features one by one |
+| **Benchmark** | initCold | 95,870 ns | Init + ServiceLoader scan + register |
+| | resolveFirst | 34.8 ns | Singleton cached lookup |
+| | lazyInit noDeps | 1,211 ns | Build Analytics (0 cross-deps) |
+| | lazyInit cascade | 3,769 ns | Build Sync (4-level DFS cascade) |
+| | crossFeatureOp | 1,165,232 ns | Real operation across Auth+Stor+Enc (DataStore I/O) |
+| | e2eStartup | 651,291 ns | Init + resolve all + first ops (DataStore I/O) |
+| | stress_initShutdown | 85,446 ns | One init/get/shutdown cycle |
+| | stress_concurrent | 472,057 ns | 4 threads simultaneous get<T>() |
+| | stress_resolveAll | 208 ns | 6 services from cache sequential |
+| | stress_selective | 84,193 ns | Init + 1 feature + shutdown |
+| | stress_reInit | 179,690 ns | Two full cycles |
+| | stress_incremental | 96,927 ns | 6 features one by one |
 | **Memoria** | initOnly | OK | builtProvisionCount == 0 after init |
 | | getEnc | OK | builtProvisionCount == 3 after get(Enc) |
 | | getAna | OK | builtProvisionCount == 3 after get(Ana) |
@@ -67,7 +67,7 @@ Total: 35 tests (12 benchmarks + 9 memoria + 14 stress y concurrencia). Todos pa
 
 ---
 
-**initCold** | 68,612 ns
+**initCold** | 95,870 ns
 ```
 1. sdk.init(context, config)
 2. ServiceLoader.load(FeatureProvider::class.java) escanea META-INF/services
@@ -80,18 +80,18 @@ ninguna provision (laziness total).
 
 ---
 
-**resolveFirst** | 34.4 ns
+**resolveFirst** | 34.8 ns
 ```
 1. sdk.get(EncryptionApi::class.java)
 2. resolvedServices[clazz] -> cache hit en ConcurrentHashMap
 3. return instancia cacheada
 ```
 Con la provision ya construida, la resolucion es un lookup O(1) en el ConcurrentHashMap
-de resolvedServices. 34.4 ns es el costo de un get() + cast.
+de resolvedServices. 34.8 ns es el costo de un get() + cast.
 
 ---
 
-**lazyInit noDeps** | 1,172 ns
+**lazyInit noDeps** | 1,211 ns
 ```
 1. sdk.get(AnalyticsApi::class.java)
 2. Resolver: serviceIndex[AnalyticsApi] -> AnaProvisions
@@ -102,11 +102,11 @@ de resolvedServices. 34.4 ns es el costo de un get() + cast.
 4. Cachea AnaProvisions + servicios en ConcurrentHashMap
 ```
 Analytics no tiene cross-deps con Auth, Storage ni Sync. Solo necesita Core y Logger.
-1,172 ns mide construir un feature aislado con su DFS minimo.
+1,211 ns mide construir un feature aislado con su DFS minimo.
 
 ---
 
-**lazyInit cascade** | 4,391 ns
+**lazyInit cascade** | 3,769 ns
 ```
 1. sdk.get(SyncApi::class.java)
 2. Resolver: serviceIndex[SyncApi] -> SynProvisions
@@ -124,11 +124,11 @@ Analytics no tiene cross-deps con Auth, Storage ni Sync. Solo necesita Core y Lo
    b. CONSTRUYE Syn
 ```
 La cascada mas profunda del grafo: 4 niveles de DFS recursivo. Construye 6 provisions
-(Core, Observability, Enc, Auth, Stor, Syn). 4,391 ns para todo el arbol.
+(Core, Observability, Enc, Auth, Stor, Syn). 3,769 ns para todo el arbol.
 
 ---
 
-**crossFeatureOp** | 1,848,525 ns
+**crossFeatureOp** | 1,165,232 ns
 ```
 1. sdk.init(context, config)
 2. auth = sdk.get(AuthApi)
@@ -140,24 +140,24 @@ La cascada mas profunda del grafo: 4 niveles de DFS recursivo. Construye 6 provi
 ```
 Mide trabajo real de negocio cruzando 3 features: login + almacenamiento seguro + cifrado.
 El costo dominante es la logica de negocio (crypto, I/O a disco via DataStore), no la
-resolucion DI. El aumento respecto a ejecuciones anteriores (~84K ns -> ~1.8M ns) se debe
-a la migracion de Storage a DataStore con I/O real a disco (suspend + runBlocking).
+resolucion DI. Los valores reflejan el coste real de operaciones cross-feature con
+persistencia a disco (sync.sync()).
 
 ---
 
-**e2eStartup** | 692,444 ns
+**e2eStartup** | 651,291 ns
 ```
-1. sdk.init(context, config)                    -- ~68,612 ns
+1. sdk.init(context, config)                    -- ~95,870 ns
 2. sdk.get() de los 6 servicios                -- cascade DFS
 3. Primera operacion por cada feature           -- trabajo real (DataStore I/O)
 ```
 Simula un arranque real completo: init + resolver todas las features + ejecutar la primera
-operacion de cada una. 692,444 ns = ~0.69 ms para el SDK completo. El aumento respecto a
-ejecuciones anteriores (~223K ns) se debe a las operaciones cross-feature con DataStore.
+operacion de cada una. 651,291 ns = ~0.65 ms para el SDK completo. El valor incluye DataStore (I/O real a disco)
+en las operaciones cross-feature.
 
 ---
 
-**stress_initShutdown** | 84,010 ns
+**stress_initShutdown** | 85,446 ns
 ```
 1. sdk.init(context, config)
 2. sdk.get(EncryptionApi)
@@ -167,7 +167,7 @@ Un ciclo completo de vida del SDK. Mide el overhead de init + build de 1 feature
 
 ---
 
-**stress_concurrent** | 415,995 ns
+**stress_concurrent** | 472,057 ns
 ```
 1. sdk.init(context, config)
 2. Lanzar 4 threads simultaneos:
@@ -182,7 +182,7 @@ del Resolver serializa las construcciones pero permite lookups concurrentes.
 
 ---
 
-**stress_resolveAll** | 207 ns
+**stress_resolveAll** | 208 ns
 ```
 1. (grafo ya construido)
 2. sdk.get(EncryptionApi)
@@ -192,12 +192,12 @@ del Resolver serializa las construcciones pero permite lookups concurrentes.
 6. sdk.get(SyncApi)
 7. sdk.get(HashApi)
 ```
-6 lookups secuenciales desde cache. 207 ns / 6 = 34.5 ns por servicio, consistente con
-resolveFirst (34.4 ns). Puro ConcurrentHashMap lookup.
+6 lookups secuenciales desde cache. 208 ns / 6 = 34.7 ns por servicio, consistente con
+resolveFirst (34.8 ns). Puro ConcurrentHashMap lookup.
 
 ---
 
-**stress_selective** | 93,664 ns
+**stress_selective** | 84,193 ns
 ```
 1. sdk.init(context, config)
 2. sdk.get(EncryptionApi)   -- solo 1 de 6 features
@@ -208,7 +208,7 @@ stress_initShutdown porque el costo dominante es init + shutdown, no el build de
 
 ---
 
-**stress_reInit** | 198,363 ns
+**stress_reInit** | 179,690 ns
 ```
 1. sdk.init(context, config)
 2. sdk.get() de todos los servicios
@@ -217,12 +217,12 @@ stress_initShutdown porque el costo dominante es init + shutdown, no el build de
 5. sdk.get() de todos los servicios
 6. sdk.shutdown()
 ```
-Dos ciclos completos. ~198K ns / 2 = ~99K ns por ciclo, consistente con los benchmarks
+Dos ciclos completos. ~180K ns / 2 = ~90K ns por ciclo, consistente con los benchmarks
 individuales. Verifica que no hay degradacion entre ciclos.
 
 ---
 
-**stress_incremental** | 81,115 ns
+**stress_incremental** | 96,927 ns
 ```
 1. sdk.init(context, config)
 2. sdk.get(EncryptionApi)    -- 3 provisions (Obs+Core+Enc)

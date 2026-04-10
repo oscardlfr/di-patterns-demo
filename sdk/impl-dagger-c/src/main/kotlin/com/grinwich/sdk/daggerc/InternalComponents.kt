@@ -61,6 +61,7 @@ internal interface CAuthComp {
 internal interface CStorComp {
     fun storage(): StorageApi
     @Component.Builder interface Builder {
+        @dagger.BindsInstance fun ctx(ctx: android.content.Context): Builder
         @dagger.BindsInstance fun enc(enc: EncryptionApi): Builder
         @dagger.BindsInstance fun hash(h: HashApi): Builder
         @dagger.BindsInstance fun logger(l: SdkLogger): Builder
@@ -69,7 +70,7 @@ internal interface CStorComp {
 }
 @javax.inject.Scope @Retention(AnnotationRetention.RUNTIME) internal annotation class CStorScope
 @Module internal class CStorMod {
-    @Provides @CStorScope fun storage(enc: EncryptionApi, h: HashApi, l: SdkLogger): StorageApi = DefaultSecureStorageService(enc, h, l)
+    @Provides @CStorScope fun storage(ctx: android.content.Context, enc: EncryptionApi, h: HashApi, l: SdkLogger): StorageApi = DefaultSecureStorageService(ctx, enc, h, l)
 }
 
 @CAnaScope @Component(modules = [CAnaMod::class])
@@ -142,7 +143,8 @@ class StorageInit : FeatureInitializer {
     override fun init(core: CoreApis, resolved: ServiceResolver) {
         val enc = resolved.resolve(EncryptionApi::class.java)!!
         val hash = resolved.resolve(HashApi::class.java)!!
-        comp = DaggerCStorComp.builder().enc(enc).hash(hash).logger(core.logger).build()
+        val ctx = DaggerCSdk._appContext ?: error("DaggerCSdk not initialized with context")
+        comp = DaggerCStorComp.builder().ctx(ctx).enc(enc).hash(hash).logger(core.logger).build()
     }
     override fun shutdown() { comp = null }
     override fun <T> getService(serviceClass: Class<T>): T? = when (serviceClass) {

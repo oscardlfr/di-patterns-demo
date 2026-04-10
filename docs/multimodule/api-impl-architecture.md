@@ -512,7 +512,7 @@ El Component es `internal`. El entry es público pero no expone tipos Dagger —
 **Contra:**
 - `allEntries()` es un punto central (aunque solo crece en 1 línea por feature).
 - DFS resuelve en runtime — si una dependencia no fue installed, falla en runtime.
-- ~8,200 ns overhead vs D en init cold (negligible: 0.0005 frames).
+- ~7,068 ns overhead vs D en init cold (negligible: 0.0004 frames).
 - 3 clases de infraestructura propias (DiComponent, AutoFeatureEntry, AutoRegistry).
 - Requiere `sdk/di-contracts/` (provision interfaces + infra registry).
 
@@ -680,7 +680,7 @@ zero `@Suppress("UNCHECKED_CAST")`. Ambos escalan a 50+ sin editar el facade.
 - DFS resolver — dependencias se construyen on-demand.
 
 **Contra:**
-- ~79x más lento en init que G (68,612 ns vs 867 ns) — overhead de ServiceLoader + ConcurrentHashMap + registro de providers.
+- ~79x más lento en init que G (95,870 ns vs 1,214 ns) — overhead de ServiceLoader + ConcurrentHashMap + registro de providers.
 - Provider faltante es error runtime (no compile-time a nivel de grafo completo).
 - Requiere `sdk/di-contracts/` (= D/E/E2/G).
 - JVM exclusivo (Dagger).
@@ -890,7 +890,7 @@ recibido.
 **Contra:**
 - Necesita Android Context internamente -- `PackageManager` requiere `context` para leer el manifest.
 - Android exclusivo -- PackageManager no existe fuera de Android.
-- Overhead de init mayor que H (~174,145 ns vs ~68,612 ns).
+- Overhead de init mayor que H (~210,826 ns vs ~95,870 ns).
 - Service dummy en manifest -- boilerplate adicional.
 
 **Indicado para:** SDKs Android-only donde se prefiere manifest metadata sobre
@@ -958,7 +958,7 @@ Esto elimina incluso `sdkModules()` — verdadero Nivel 2 de aislamiento.
 **Contra:**
 - **No compile-time safety.** Si `feature-encryption:impl` no está en classpath, `get<EncryptionApi>()` crashea en runtime.
 - Mitigación: `checkModules()` en tests — pero es test-time, no compile-time.
-- Overhead runtime: ~41,000 ns init cold, ~721 ns resolve (vs ~7.6 ns Dagger).
+- Overhead runtime: ~50,332 ns init cold, ~700 ns resolve (vs ~7.6 ns Dagger).
 - En una app real, irrelevante (< 0.003 frames).
 
 **Indicado para:** SDKs de cualquier tamaño, especialmente:

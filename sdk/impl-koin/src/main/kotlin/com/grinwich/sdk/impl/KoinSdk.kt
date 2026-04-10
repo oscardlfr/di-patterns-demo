@@ -117,7 +117,7 @@ object AuthRegistration : SdkModuleRegistration {
 object StorageRegistration : SdkModuleRegistration {
     override val module = SdkModule.Storage.Secure
     override val koinModule = module {
-        single<StorageApi> { DefaultSecureStorageService(get(), get(), get()) }
+        single<StorageApi> { DefaultSecureStorageService(get(), get(), get(), get()) }
     }
     init { SdkModuleRegistry.register(module) { koinModule } }
 }
@@ -147,7 +147,8 @@ internal object FoundationSingletons {
     val logger: SdkLogger = AndroidSdkLogger()
 }
 
-private fun foundationModule(config: SdkConfig) = module {
+private fun foundationModule(context: android.content.Context, config: SdkConfig) = module {
+    single<android.content.Context> { context }
     single<SdkConfig> { config }
     single<SdkLogger> { FoundationSingletons.logger }
     single<CoreApis> { CoreApisImpl(get(), get()) }
@@ -193,6 +194,7 @@ object KoinSdk {
         }
 
     fun init(
+        context: android.content.Context,
         modules: Set<SdkModule>,
         config: SdkConfig = SdkConfig(),
         appModules: List<Module> = emptyList(),
@@ -203,7 +205,8 @@ object KoinSdk {
         validateNoDuplicateCategories(modules)
         discoverRegistrations(modules)
 
-        val foundation = foundationModule(config)
+        val appCtx = context.applicationContext
+        val foundation = foundationModule(appCtx, config)
         val resolved = modules.map { SdkModuleRegistry.resolve(it) }
 
         val app = koinApplication {

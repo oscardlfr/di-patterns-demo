@@ -1,5 +1,6 @@
 package com.grinwich.sdk.common
 
+import android.util.Base64
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.feature.observability.AndroidSdkLogger
 
@@ -20,16 +21,12 @@ class DefaultEncryptionService(private val logger: SdkLogger) : EncryptionApi {
 
     override fun encrypt(plaintext: String): String {
         logger.d("Encryption", "Encrypting ${plaintext.length} chars")
-        // Fake AES — real impl would use javax.crypto
-        return "ENC[${plaintext.reversed()}]"
+        return Base64.encodeToString(plaintext.toByteArray(), Base64.NO_WRAP)
     }
 
     override fun decrypt(encrypted: String): String {
         logger.d("Encryption", "Decrypting")
-        require(encrypted.startsWith("ENC[") && encrypted.endsWith("]")) {
-            "Invalid encrypted format"
-        }
-        return encrypted.removePrefix("ENC[").removeSuffix("]").reversed()
+        return String(Base64.decode(encrypted, Base64.NO_WRAP))
     }
 }
 
@@ -84,32 +81,33 @@ class DefaultAuthService(
 // ============================================================
 
 class DefaultSecureStorageService(
+    context: android.content.Context,
     private val encryption: EncryptionApi,
     private val hash: HashApi,
     private val logger: SdkLogger,
 ) : StorageApi {
 
-    private val store = mutableMapOf<String, String>()
+    private val prefs = context.getSharedPreferences("sdk_mono_storage", android.content.Context.MODE_PRIVATE)
 
     override suspend fun put(key: String, value: String) {
         val hashedKey = hash.sha256Hex(key)
         val encryptedValue = encryption.encrypt(value)
         logger.d("Storage", "PUT $hashedKey → ${encryptedValue.take(15)}...")
-        store[hashedKey] = encryptedValue
+        prefs.edit().putString(hashedKey, encryptedValue).apply()
     }
 
     override suspend fun get(key: String): String? {
         val hashedKey = hash.sha256Hex(key)
-        val encrypted = store[hashedKey] ?: return null
+        val encrypted = prefs.getString(hashedKey, null) ?: return null
         return encryption.decrypt(encrypted)
     }
 
     override suspend fun remove(key: String) {
-        store.remove(hash.sha256Hex(key))
+        prefs.edit().remove(hash.sha256Hex(key)).apply()
     }
 
     override suspend fun clear() {
-        store.clear()
+        prefs.edit().clear().apply()
     }
 }
 

@@ -25,6 +25,7 @@ object DaggerCSdk {
     private var _available: Map<String, FeatureInitializer>? = null
     private var _initialized = false
     private var _core: CoreApis? = null
+    internal var _appContext: android.content.Context? = null
 
     val isInitialized: Boolean get() = _initialized
     val initializedModules: Set<String> get() = _initializers.keys.toSet()
@@ -42,9 +43,10 @@ object DaggerCSdk {
         }
     }
 
-    fun init(config: SdkConfig, features: Set<String>) {
+    fun init(context: android.content.Context, config: SdkConfig, features: Set<String>) {
         check(!_initialized) { "DaggerCSdk already initialized." }
         require(features.isNotEmpty()) { "features must not be empty." }
+        _appContext = context.applicationContext
         _core = CoreApisImpl(config, foundationLogger)
         _initialized = true
         for (f in features) getOrInitModule(f)
@@ -82,6 +84,6 @@ object DaggerCSdk {
     fun shutdown() {
         _initializers.values.forEach { it.shutdown() }
         _initializers.clear()
-        _initialized = false; _core = null
+        _initialized = false; _core = null; _appContext = null
     }
 }

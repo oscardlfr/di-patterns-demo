@@ -7,6 +7,6 @@ import com.grinwich.sdk.daggerc.DaggerCSdk
 class DaggerCApp : Application() {
     override fun onCreate() {
         super.onCreate()
-        DaggerCSdk.init(SdkConfig(debug = true), setOf("encryption"))
+        DaggerCSdk.init(this, SdkConfig(debug = true), setOf("encryption"))
     }
 }

@@ -35,6 +35,7 @@ interface SdkComponent {
     @Component.Builder
     interface Builder {
         @dagger.BindsInstance fun config(config: SdkConfig): Builder
+        @dagger.BindsInstance fun context(context: android.content.Context): Builder
         fun build(): SdkComponent
     }
 }
@@ -54,7 +55,7 @@ interface SdkComponent {
 }
 
 @Module class StorageModule {
-    @Provides @Singleton fun storage(enc: EncryptionApi, hash: HashApi, logger: SdkLogger): StorageApi = DefaultSecureStorageService(enc, hash, logger)
+    @Provides @Singleton fun storage(ctx: android.content.Context, enc: EncryptionApi, hash: HashApi, logger: SdkLogger): StorageApi = DefaultSecureStorageService(ctx, enc, hash, logger)
 }
 
 @Module class AnalyticsModule {
