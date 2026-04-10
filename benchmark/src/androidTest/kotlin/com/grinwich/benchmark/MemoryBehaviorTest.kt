@@ -238,10 +238,42 @@ class MemoryBehaviorTest {
     private fun sdkByName(name: String): MultiModuleSdkApi =
         ALL_LAZY_SDKS.first { it.first == name }.second
 
+    /**
+     * Fuerza la ejecucion del Garbage Collector antes de medir memoria.
+     *
+     * System.gc() es una SUGERENCIA — la JVM/ART puede ignorarla.
+     * Por eso llamamos multiples veces con yield() y sleep() entre medio:
+     *
+     * 1. System.gc()     — sugiere al GC que recoja objetos sin referencia
+     * 2. Thread.yield()  — cede la CPU al thread del GC para que pueda arrancar
+     *                      (sin yield, nuestro thread podria seguir ejecutando
+     *                       y el GC thread no obtener tiempo de CPU)
+     * 3. System.gc()     — segunda sugerencia por si la primera no se ejecuto
+     * 4. Thread.sleep(50) — pausa 50ms para dar tiempo al GC a completar
+     *                       (el GC puede necesitar varios ms para recorrer el heap)
+     *
+     * No es una garantia de que el GC corra, pero en la practica funciona
+     * consistentemente en Android/ART con estas multiples sugerencias.
+     */
     private fun forceGc() {
         System.gc(); Thread.yield(); System.gc(); Thread.sleep(50)
     }
 
+    /**
+     * Mide la memoria heap usada por objetos Java/Kotlin vivos.
+     *
+     * HEAP = zona de memoria donde viven todos los objetos creados con constructores.
+     * Cuando haces `val enc = DefaultEncryptionService(logger)`, esa instancia
+     * ocupa espacio en el heap hasta que el GC la recoge.
+     *
+     * - totalMemory() = heap total asignado al proceso por la JVM/ART
+     * - freeMemory()  = parte del heap que esta libre (no tiene objetos)
+     * - La resta       = memoria ocupada por objetos vivos
+     * - Dividido por 1024 = resultado en kilobytes (KB)
+     *
+     * Usado en leakDetection: si tras 1,000 ciclos init/shutdown el heap
+     * crece mas de 2,048 KB, hay objetos que no se liberan (memory leak).
+     */
     private fun usedHeapKb(): Long {
         val rt = Runtime.getRuntime()
         return (rt.totalMemory() - rt.freeMemory()) / 1024

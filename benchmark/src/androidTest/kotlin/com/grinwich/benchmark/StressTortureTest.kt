@@ -42,6 +42,29 @@ class StressTortureTest {
     @Test fun thunderingHerd_J() = thunderingHerd("J")
     @Test fun thunderingHerd_K() = thunderingHerd("K")
 
+    /**
+     * THUNDERING HERD: 100 threads llaman get<EncryptionApi>() al MISMO instante.
+     *
+     * Usa CyclicBarrier — un punto de sincronizacion donde N threads esperan
+     * hasta que TODOS han llegado, y entonces se desbloquean simultaneamente.
+     *
+     * Sin CyclicBarrier: los threads arrancan uno a uno. El primero termina
+     * antes de que el ultimo empiece. No hay contention real.
+     *
+     * Con CyclicBarrier(100): los 100 threads llaman barrier.await() y se
+     * bloquean. Cuando el thread #100 llega, los 100 se desbloquean y
+     * ejecutan sdk.get() en el MISMO nanosegundo. Esto maximiza la
+     * probabilidad de race conditions en el Resolver.
+     *
+     * CopyOnWriteArrayList: lista thread-safe para recoger resultados.
+     * Una ArrayList normal corromperia su estado interno si 100 threads
+     * llaman add() simultaneamente.
+     *
+     * Verifica:
+     * - 0 errores (el Resolver no lanza excepciones bajo contention)
+     * - 100 resultados (ningun thread se quedo sin respuesta)
+     * - Todos assertSame (singleton — todos reciben la MISMA instancia)
+     */
     private fun thunderingHerd(name: String) {
         val sdk = sdkByName(name)
         sdk.init(testContext, config)
@@ -49,20 +72,23 @@ class StressTortureTest {
         sdk.get(AnalyticsApi::class.java)
 
         val threadCount = 100
+        // CyclicBarrier: todos los threads esperan aqui hasta que los 100 han llegado.
+        // Cuando el ultimo llega, se desbloquean todos simultaneamente.
         val barrier = CyclicBarrier(threadCount)
+        // CopyOnWriteArrayList: thread-safe para escrituras concurrentes.
         val results = CopyOnWriteArrayList<EncryptionApi>()
         val errors = CopyOnWriteArrayList<Throwable>()
 
         val threads = (1..threadCount).map {
             Thread {
                 try {
-                    barrier.await()
-                    results.add(sdk.get(EncryptionApi::class.java))
+                    barrier.await()  // BLOQUEA hasta que los 100 threads llegan aqui
+                    results.add(sdk.get(EncryptionApi::class.java))  // los 100 ejecutan esto AL MISMO TIEMPO
                 } catch (e: Throwable) { errors.add(e) }
             }
         }
         threads.forEach { it.start() }
-        threads.forEach { it.join(5000) }
+        threads.forEach { it.join(5000) }  // espera max 5 segundos a que todos terminen
 
         assertTrue("$name: errors in herd: ${errors.map { it.message }}", errors.isEmpty())
         assertEquals("$name: all threads got result", threadCount, results.size)
@@ -159,6 +185,24 @@ class StressTortureTest {
     @Test fun memoryPressure_J() = memoryPressure("J")
     @Test fun memoryPressure_K() = memoryPressure("K")
 
+    /**
+     * MEMORY PRESSURE: verifica que las provisions sobreviven un GC storm.
+     *
+     * El GC (Garbage Collector) recoge automaticamente objetos que ya no
+     * tienen referencias. Si el Resolver guardara provisions con WeakReference,
+     * el GC las recogeria y get() devolveria una instancia diferente (rota).
+     *
+     * Este test fuerza al GC a ejecutarse agresivamente:
+     * 1. Construye EncryptionApi (provision en el Resolver)
+     * 2. Crea 5 MB de basura (5x ByteArray de 1 MB) para presionar al GC
+     * 3. Llama System.gc() + Thread.yield() entre cada allocation
+     *    (yield cede CPU al GC thread para que pueda recoger la basura)
+     * 4. Verifica que la provision sigue viva (assertSame = misma instancia)
+     * 5. Verifica que el DFS sigue funcionando (construir Sync tras el GC storm)
+     *
+     * Pasa porque el Resolver usa ConcurrentHashMap con strong references —
+     * el GC no puede recoger objetos que estan en un HashMap.
+     */
     private fun memoryPressure(name: String) {
         val sdk = sdkByName(name)
         val expected = EXPECTED_COUNTS[name]!!
@@ -166,15 +210,18 @@ class StressTortureTest {
         val enc = sdk.get(EncryptionApi::class.java)
         assertEquals(expected.afterEnc, sdk.builtProvisionCount)
 
-        // GC storm
+        // GC STORM: crear 5 MB de basura para forzar al GC a ejecutarse.
+        // ByteArray(1_000_000) = 1 MB de basura que se descarta inmediatamente.
+        // System.gc() + Thread.yield() entre cada allocation para dar oportunidad
+        // al GC de recoger basura Y intentar recoger nuestras provisions.
         repeat(5) { System.gc(); Thread.yield(); @Suppress("UNUSED_VARIABLE") val g = ByteArray(1_000_000) }
-        System.gc(); Thread.sleep(100)
+        System.gc(); Thread.sleep(100)  // pausa final para que el GC complete
 
-        // Must survive
+        // Las provisions DEBEN sobrevivir — strong refs en ConcurrentHashMap
         assertEquals("$name: provisions survive GC", expected.afterEnc, sdk.builtProvisionCount)
         assertSame("$name: same instance after GC", enc, sdk.get(EncryptionApi::class.java))
 
-        // Continue building
+        // El DFS debe seguir funcionando despues del GC storm
         sdk.get(SyncApi::class.java)
         assertEquals("$name: cascade after GC", expected.afterSync, sdk.builtProvisionCount)
     }
@@ -525,10 +572,33 @@ class StressTortureTest {
     private fun sdkByName(name: String): MultiModuleSdkApi =
         ALL_LAZY_SDKS.first { it.first == name }.second
 
+    /**
+     * Fuerza la ejecucion del Garbage Collector.
+     *
+     * Version mas agresiva que la de MemoryBehaviorTest (3x gc + 100ms sleep)
+     * porque los stress tests generan mas basura (10,000 ciclos de objetos).
+     *
+     * System.gc() = sugerencia a la JVM/ART para recoger objetos sin referencia.
+     * Thread.yield() = cede CPU al GC thread para que pueda ejecutarse.
+     * Thread.sleep(100) = pausa 100ms para dar tiempo al GC a completar.
+     *
+     * Llamamos 3 veces porque ART (Android Runtime) a veces necesita multiples
+     * pasadas para recoger objetos con referencias circulares o weak refs.
+     */
     private fun forceGc() {
         System.gc(); Thread.yield(); System.gc(); Thread.sleep(100); System.gc()
     }
 
+    /**
+     * Mide memoria heap usada en KB.
+     *
+     * HEAP = memoria donde viven los objetos Java/Kotlin.
+     * totalMemory() - freeMemory() = bytes ocupados por objetos vivos.
+     *
+     * En stress10K medimos heap ANTES y DESPUES de 10,000 ciclos.
+     * Si el delta > 5,120 KB, hay un memory leak (objetos que deberian
+     * haberse liberado en shutdown() pero alguien los retiene).
+     */
     private fun usedHeapKb(): Long {
         val rt = Runtime.getRuntime()
         return (rt.totalMemory() - rt.freeMemory()) / 1024
