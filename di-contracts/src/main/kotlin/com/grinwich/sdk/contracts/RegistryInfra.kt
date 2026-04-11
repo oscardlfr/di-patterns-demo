@@ -66,6 +66,7 @@ class ProvisionRegistry {
         val sorted = topoSort(entries)
         for (entry in sorted) {
             // Type-safe by construction: entry was registered as ProvisionEntry<P>
+            @Suppress("UNCHECKED_CAST")
             register(entry as ProvisionEntry<Any>)
         }
     }
