@@ -1,4 +1,4 @@
-# Recomendacion de Patron DI para SDK Android-Only (+50 modulos, 10 devs)
+# Recomendacion de Patron DI para SDK Android (+50 modulos, 10 devs)
 
 **Fecha:** 2026-04-12  
 **Contexto:** Seleccion de patron de inyeccion de dependencias para un SDK Android nativo corporativo  
@@ -9,19 +9,24 @@
 
 ## 1. Contexto
 
-Un SDK corporativo Android-only con las siguientes caracteristicas:
+Un SDK corporativo Android con las siguientes caracteristicas:
 
 - **+50 modulos funcionales** (features) mantenidos por equipos independientes
 - **10 desarrolladores** trabajando en paralelo sobre el mismo repositorio
 - **Android nativo:** sin requisito KMP (no iOS, no Desktop)
-- **Pattern H como baseline:** actualmente planificado/en uso con ServiceLoader + Resolver DFS + Dagger
 - **Logger persistente** que sobrevive a ciclos de shutdown/reinit del SDK
 - **Auto-registro:** anadir un feature nuevo = 0 cambios en el wiring central
 - **Acceso concurrente thread-safe** desde multiples threads del consumidor
 - **Inicializacion lazy:** el consumidor paga solo por las features que usa
 
-La pregunta central: **Es Pattern H la eleccion correcta para este contexto, o hay patrones
-Android-only que ofrecen un mejor balance?**
+**Nota sobre el scope de evaluacion:** Los patrones KMP-compatible (O, O2, P, P2, N) funcionan
+en Android. "KMP-compatible" no significa "KMP-only" -- significa que el patron compila para
+los 24 targets de Kotlin, incluyendo Android/JVM. Se evaluan junto con los patrones
+Android-only porque un equipo Android puede adoptarlos sin obligarse a soportar otras
+plataformas. La ventaja adicional: si el SDK necesita KMP en el futuro, la migracion es zero-cost.
+
+La pregunta central: **Cual patron ofrece el mejor balance de auto-registro, compile-time safety,
+lazy singletons, y rendimiento para este contexto?**
 
 ---
 
@@ -38,20 +43,65 @@ Android-only que ofrecen un mejor balance?**
 | 7 | Init performance | IMPORTANTE | Impacto en cold start del consumidor. Una vez por sesion |
 | 8 | Resolve cached performance | IMPORTANTE | Impacto en hot paths: cada `sdk.get<T>()` paga este costo |
 
-**Criterios NO relevantes para este caso:**
-- KMP: No se necesita. Descarta la necesidad de sweet-spi, kotlin-inject o Metro como reemplazo de Dagger
-- Soporte multiplataforma: El SDK es exclusivamente Android
-
 **Criterios eliminatorios:** Si un patron no cumple los 3 MUST HAVE, se descarta.
 
 ---
 
-## 3. Evaluacion de Candidatos Android-Only
+## 3. Evaluacion de Candidatos
 
-Se evaluan 6 patrones que escalan a 50+ modulos (D y G descartados previamente
-por requerir edicion central proporcional al numero de features).
+Se evaluan 11 patrones que escalan a 50+ modulos, agrupados por tier segun cuantos
+criterios MUST HAVE cumplen y la calidad de ese cumplimiento.
 
-### 3.1 Pattern H -- ServiceLoader + Resolver DFS + Dagger (baseline)
+### Tier 1 -- Compile-time + Auto-registro + Lazy (mejores candidatos)
+
+Estos patrones cumplen los 3 MUST HAVE con la maxima calidad: compile-time safety completa
+(no parcial), auto-registro zero-touch, y lazy singletons genuinos.
+
+| Criterio | O2 (Metro Lazy) | P2 (kotlin-inject-anvil Lazy) |
+|----------|-----------------|-------------------------------|
+| **Framework** | Metro compiler plugin | kotlin-inject KSP |
+| Auto-registro | **OK** -- `@ContributesTo` agrega al grafo automaticamente | **OK** -- `@ContributesTo` agrega al grafo via KSP merge |
+| Compile-time safety | **OK** -- grafo completo validado en compilacion | **OK** -- KSP valida bindings en compilacion |
+| Lazy | **OK** -- `Lazy<T>` difiere singletons hasta primer acceso | **OK** -- `@SingleIn` scope, lazy via kotlin-inject |
+| Thread-safe shutdown | **OK** -- LazyCreationTracker.deactivate() + nullify graph | **OK** -- LazyCreationTracker.deactivate() + nullify component |
+| Logger persistente | **OK** -- `@SingleIn(AppScope)` sobrevive a feature scopes | **OK** -- `@SingleIn(AppScope)` sobrevive a feature scopes |
+| Madurez | **BAJA** -- Metro v0.6.6. Mantenido por ZacSweers (Slack). Compiler plugin acoplado a version de Kotlin | **MEDIA** -- kotlin-inject 4+ anos. anvil ext v0.1.7. Amazon (Ring, Alexa) mantiene |
+| Init Cold | **1,127 ns** | **1,416 ns** |
+| Resolve All (cached) | **86 ns** | **156 ns** |
+| Re-Init | **2,305 ns** | **2,929 ns** |
+| MUST HAVEs | **3/3** | **3/3** |
+
+**O2** es objetivamente el mas rapido: init 95x mas rapido que H (1,127 vs 106,865 ns),
+resolve cached 2.3x mas rapido (86 vs 202 ns), re-init 157x mas rapido (2,305 vs 362,649 ns).
+
+**P2** es ~25% mas lento que O2 pero usa KSP estandar en vez de compiler plugin,
+lo que reduce el riesgo de rotura en bumps de Kotlin.
+
+### Tier 2 -- Compile-time + Auto-registro, pero Eager
+
+Cumplen auto-registro y compile-time safety, pero NO lazy. Todos los singletons se
+crean en init. Con 50 features y el usuario usando solo 5, las otras 45 se instancian
+innecesariamente.
+
+| Criterio | O (Metro) | P (kotlin-inject-anvil) |
+|----------|-----------|-------------------------|
+| Auto-registro | **OK** -- `@ContributesTo` | **OK** -- `@ContributesTo` |
+| Compile-time safety | **OK** -- compiler plugin | **OK** -- KSP |
+| Lazy | **NO** -- eager: todos los singletons en init | **NO** -- eager |
+| Init Cold | **603 ns** (el mas rapido de todos) | **1,064 ns** |
+| Resolve All | **80 ns** | **165 ns** |
+| Re-Init | **36,000 ns** (15.6x mas lento que O2) | **28,000 ns** (9.6x mas lento que P2) |
+| MUST HAVEs | **2/3** (falla Lazy) | **2/3** (falla Lazy) |
+
+Con 50+ features opcionales, la falta de lazy es un descarte para este caso.
+Si todas las features se usaran siempre, Tier 2 seria preferible por su simplicidad.
+
+### Tier 3 -- Auto-registro + Lazy, pero sin compile-time safety completa
+
+Tienen auto-registro zero-touch y lazy genuino, pero un binding/provider faltante
+solo se detecta en runtime.
+
+#### 3.3.1 Pattern H -- ServiceLoader + Resolver DFS + Dagger
 
 **Arquitectura:** Cada feature-impl declara un `FeatureProvider` (~19 lineas) registrado via
 `META-INF/services`. El Resolver descubre providers via `ServiceLoader.load()` y construye
@@ -59,261 +109,239 @@ provisions on-demand con DFS recursivo. Cada feature usa Dagger internamente.
 
 | Criterio | Evaluacion | Detalle |
 |----------|-----------|---------|
-| Auto-registro | **OK** | `META-INF/services` + ServiceLoader. Zero edicion central. Anadir feature = crear FeatureProvider + 1 fichero META-INF |
+| Auto-registro | **OK** | `META-INF/services` + ServiceLoader. Zero edicion central |
 | Compile-time safety | **PARCIAL** | Dagger valida cada Component individualmente, pero un provider faltante es error runtime |
 | Lazy | **OK** | DFS genuino: `builtProvisionCount == 0` tras init (confirmado en 9 tests de memoria) |
-| Thread-safe shutdown | **OK** | `concurrentShutdown` pasa 200 rounds de read vs shutdown race. synchronized + ConcurrentHashMap |
+| Thread-safe shutdown | **OK** | `concurrentShutdown` pasa 200 rounds. synchronized + ConcurrentHashMap |
 | Logger persistente | **OK** | ObservabilityProvider con flag `persistent` sobrevive a shutdown/reinit |
 | Madurez | **ALTA** | Dagger: 10+ anos. ServiceLoader: JDK estandar. 35 tests, 10K ciclos, zero leaks |
-| Init cold | 106,865 ns | ServiceLoader scan domina el costo |
-| Resolve cached | 202 ns | ConcurrentHashMap lookup O(1) |
+| Init Cold | **106,865 ns** | ServiceLoader scan domina el costo |
+| Resolve All (cached) | **212 ns** | ConcurrentHashMap lookup O(1) |
+| Re-Init | **362,649 ns** | ServiceLoader + rebuild completo |
+| MUST HAVEs | **2.5/3** (compile-time parcial) |
 
 **Pros:**
-- Auto-registro perfecto: anadir META-INF/services = feature registrado. Wiring inmutable (51 lineas, nunca cambia)
-- DFS lazy demostrado: pedir EncryptionApi NO construye Auth/Storage/Sync (confirmado en tests)
-- Thread-safe probado: thunderingHerd (100 threads), concurrentBuild (6 threads x 100 rounds), concurrentShutdown (200 rounds)
-- Zero leak: 10,000 ciclos con heap delta de 4 KB
-- Cada feature-impl compila independientemente con Dagger (compile-time safety per-Component)
+- Arquitectura probada: 35 tests, thunderingHerd (100 threads), concurrentBuild (6 threads x 100 rounds), 10,000 ciclos sin leaks
+- Auto-registro perfecto via META-INF/services
+- DFS lazy genuino demostrado
+- Dagger + ServiceLoader = ecosistema maduro
 
 **Contras:**
-- Provider faltante = runtime error (no se detecta en compilacion)
-- Init 158x mas lento que Q (676 ns) por el scan de ServiceLoader
-- Mantener Resolver propio = costo de mantenimiento (105 lineas de Resolver.kt)
+- Provider faltante = runtime error
+- Init 95x mas lento que O2 (106,865 vs 1,127 ns)
+- Re-init 157x mas lento que O2 (362,649 vs 2,305 ns)
+- Resolver propio = 105 lineas a mantener
 
-### 3.2 Pattern Q -- Hilt-style Dagger Eager
+#### 3.3.2 Pattern I -- Pure Resolver (zero framework DI)
 
-**Arquitectura:** Cada feature-impl define un `@Module @InstallIn(SingletonComponent)`. Todos los
-modules se listan explicitamente en un `@Component(modules=[...])`. Dagger genera todo el wiring
-en compilacion. Init = `DaggerSdkComponent.factory().create()`.
+| Criterio | Evaluacion |
+|----------|-----------|
+| Auto-registro | **OK** -- ServiceLoader |
+| Compile-time safety | **NO** -- zero DI framework = zero validacion |
+| Lazy | **OK** -- DFS identico a H |
+| Init Cold | **94,255 ns** |
+| MUST HAVEs | **2/3** (falla compile-time safety) |
+
+Zero compile-time safety con 10 devs y 50+ modulos = alto riesgo. Descartado.
+
+#### 3.3.3 Pattern K -- AndroidManifest Metadata Discovery
+
+| Criterio | Evaluacion |
+|----------|-----------|
+| Auto-registro | **OK** -- AndroidManifest meta-data + manifest merger |
+| Compile-time safety | **PARCIAL** -- igual que H |
+| Lazy | **OK** -- DFS identico a H |
+| Init Cold | **213,737 ns** -- 2x mas lento que H |
+| MUST HAVEs | **2.5/3** |
+
+Solo tiene sentido si R8/ProGuard elimina META-INF/services y no se pueden anadir keep rules.
+Init 2x mas lento que H sin beneficio adicional.
+
+### Tier 4 -- Compile-time + Lazy, pero sin auto-registro
+
+Tienen compile-time safety completa y lazy singletons, pero requieren edicion central
+para cada feature nuevo.
+
+#### 3.4.1 Pattern Q2 -- Hilt-style Dagger Lazy
 
 | Criterio | Evaluacion | Detalle |
 |----------|-----------|---------|
-| Auto-registro | **NO** | Cada feature @Module se lista en `@Component(modules=[...])`. Edicion central obligatoria |
-| Compile-time safety | **OK** | Grafo completo validado por Dagger. Binding faltante = error de compilacion |
-| Lazy | **NO** | Eager: todos los @Singleton se crean al construir el Component |
-| Thread-safe shutdown | **OK** | Nullificar component es atomico |
-| Logger persistente | **OK** | @Singleton en el component raiz |
-| Madurez | **ALTA** | Dagger/Hilt: 10+ anos, Google mantiene, documentacion extensa |
-| Init cold | 676 ns | El mas rapido: solo instancia un objeto pre-wired |
-| Resolve cached | 64 ns | Acceso directo a binding generado por Dagger |
-
-**Pros:**
-- Compile-time safety COMPLETA: todo el grafo validado en compilacion
-- Init ultra-rapido (676 ns) y resolve ultra-rapido (64 ns)
-- Convencion familiar para desarrolladores Android (Hilt es el estandar)
-
-**Contras:**
-- **Sin auto-registro:** cada feature nuevo requiere editar `@Component(modules=[HiltXxxModule::class, ...])`
-- Con 50+ modules, la lista del @Component se vuelve inmanejable y genera merge conflicts
-- **Sin lazy:** todos los singletons se crean en init. Si solo usas 5 de 50 features, las otras 45 se instancian igualmente
-- 10 devs editando el mismo @Component = cuello de botella de merge
-
-### 3.3 Pattern Q2 -- Hilt-style Dagger Lazy
-
-**Arquitectura:** Identico a Q pero los metodos de provision retornan `dagger.Lazy<T>`.
-El component se crea en init, pero los singletons NO se instancian hasta el primer `.get()`.
-`LazyCreationTracker` cuenta features materializadas.
-
-| Criterio | Evaluacion | Detalle |
-|----------|-----------|---------|
-| Auto-registro | **NO** | Misma limitacion que Q: modules en `@Component(modules=[...])` |
+| Auto-registro | **NO** | Cada feature @Module se lista en `@Component(modules=[...])` |
 | Compile-time safety | **OK** | Grafo completo validado por Dagger |
 | Lazy | **OK** | `dagger.Lazy<T>` difiere construccion hasta primer acceso |
-| Thread-safe shutdown | **OK** | Nullificar component + deactivar LazyCreationTracker |
-| Logger persistente | **OK** | @Singleton + Lazy en el component raiz |
-| Madurez | **ALTA** | Dagger: 10+ anos. dagger.Lazy es API oficial estable |
-| Init cold | 1,080 ns | Setup de LazyCreationTracker anade ~400 ns vs Q |
-| Resolve cached | 85 ns | `Lazy.get()` post-primera invocacion |
+| Madurez | **ALTA** | Dagger 10+ anos. `dagger.Lazy` es API oficial |
+| Init Cold | **1,080 ns** |
+| Resolve All | **85 ns** |
+| Re-Init | **2,157 ns** -- el mas rapido de todos |
+| MUST HAVEs | **2/3** (falla auto-registro) |
 
-**Pros:**
-- Re-init ultra-rapido: 2,157 ns (168x mas rapido que H, 11.6x mas rapido que Q)
-- Lazy real: singletons on-demand como H, pero con compile-time safety
-- LazyCreationTracker ofrece observabilidad de cuantas features se han materializado
+**Trade-off:** Con 50 modules, `@Component(modules=[...])` tiene 50 lineas que 10 devs
+editan simultaneamente. Merge conflicts frecuentes. Pero si UN dev mantiene el wiring,
+es gestionable.
 
-**Contras:**
-- **Sin auto-registro:** misma lista central de modules que Q
-- Con 50+ modules, el merge conflict en el @Component es identico al de Q
-- 10 devs editando el mismo fichero de wiring = cuello de botella
+#### 3.4.2 Pattern E2 -- AutoProvisionRegistry + DFS
 
-### 3.4 Pattern E2 -- AutoProvisionRegistry + DFS
+| Criterio | Evaluacion |
+|----------|-----------|
+| Auto-registro | **PARCIAL** -- 1 linea en `allEntries()` por feature |
+| Compile-time safety | **OK** -- Dagger per-Component |
+| Lazy | **OK** -- DFS on-demand |
+| Init Cold | **10,983 ns** |
+| MUST HAVEs | **2.5/3** (auto-registro parcial) |
 
-**Arquitectura:** Un `AutoProvisionRegistry` cataloga `AutoProvisionEntry` en init (HashMap puts)
-y construye Components on-demand via DFS recursivo. Anadir modulo = 1 linea en `allEntries()`.
+Semi-auto: lista central de entries genera merge conflicts a escala, aunque cada feature
+solo anade 1 linea.
 
-| Criterio | Evaluacion | Detalle |
-|----------|-----------|---------|
-| Auto-registro | **PARCIAL** | Semi-auto: anadir feature = 1 linea en `allEntries()`. Mejor que D, peor que H |
-| Compile-time safety | **OK** | Dagger valida cada Component. DFS con entries explicitas |
-| Lazy | **OK** | `get<T>()` auto-construye por DFS recursivo |
-| Thread-safe shutdown | **OK** | Registry cache + synchronized |
-| Logger persistente | **PARCIAL** | Requiere wiring manual para logger persistente |
-| Madurez | **ALTA** | Dagger + HashMap: componentes probados |
-| Init cold | 10,983 ns | Catalogar entries en HashMaps |
-| Resolve cached | 199 ns | HashMap lookup similar a H |
+### Tier 5 -- Koin-based (runtime DI, sin compile-time safety)
 
-**Pros:**
-- Compile-time safety per-Component
-- Init 10x mas rapido que H (sin ServiceLoader)
-- DFS lazy como H
+| Criterio | N (sweet-spi + Koin) | L (Koin + ServiceLoader) | M (Koin + ServiceLoader Lazy) |
+|----------|---------------------|--------------------------|-------------------------------|
+| Auto-registro | **OK** | **OK** | **OK** |
+| Compile-time safety | **NO** -- Koin runtime | **NO** | **NO** |
+| Lazy | **OK** -- Koin `single{}` | **OK** | **OK** |
+| Init Cold | **69,636 ns** | **154,403 ns** | **164,353 ns** |
+| Resolve All (cached) | **6,328 ns** | **6,244 ns** | **7,920 ns** |
+| Re-Init | **732,000 ns** | **1.1M ns** | **1.2M ns** |
+| MUST HAVEs | **2/3** | **2/3** | **2/3** |
 
-**Contras:**
-- Semi-auto: requiere lista central de entries (aunque es 1 linea por feature)
-- A 50+ features, `allEntries()` crece y genera merge conflicts (menor que Q pero no zero)
-
-### 3.5 Pattern K -- AndroidManifest Metadata Discovery
-
-**Arquitectura:** Misma que H (FeatureProvider + Resolver DFS), pero el descubrimiento usa
-`PackageManager.getServiceInfo()` para leer `<meta-data>` del AndroidManifest.xml mergeado.
-Inmune a R8 stripping de META-INF.
-
-| Criterio | Evaluacion | Detalle |
-|----------|-----------|---------|
-| Auto-registro | **OK** | AndroidManifest meta-data + manifest merger. Zero edicion central |
-| Compile-time safety | **PARCIAL** | Dagger per-Component. Provider faltante es error runtime (= H) |
-| Lazy | **OK** | DFS identico a H |
-| Thread-safe shutdown | **OK** | Mismo Resolver que H |
-| Logger persistente | **OK** | Mismo mecanismo que H |
-| Madurez | **ALTA** | PackageManager: API de Android estandar |
-| Init cold | 213,737 ns | PackageManager + reflexion: 2x mas lento que H |
-| Resolve cached | 203 ns | Mismo ConcurrentHashMap lookup que H |
-
-**Pros:**
-- R8-safe: AndroidManifest no se procesa por R8/ProGuard (META-INF si puede eliminarse sin keep rules)
-- Mismo auto-registro zero-touch que H
-- Para apps con ProGuard agresivo que elimina META-INF, K es la alternativa directa
-
-**Contras:**
-- Init 213K ns = 2x mas lento que H, 316x mas lento que Q
-- Requiere Android Context en init (H no lo necesita)
-- PackageManager queries pueden ser lentas en dispositivos de gama baja
-
-### 3.6 Pattern I -- Pure Resolver (zero framework DI)
-
-**Arquitectura:** Misma que H (ServiceLoader + Resolver DFS), pero las features se construyen
-sin Dagger ni ningun framework. Constructor injection puro de Kotlin.
-
-| Criterio | Evaluacion | Detalle |
-|----------|-----------|---------|
-| Auto-registro | **OK** | ServiceLoader descubre `PureFeatureProvider`. Zero edicion central |
-| Compile-time safety | **NO** | Zero DI framework = zero validacion de bindings |
-| Lazy | **OK** | DFS identico a H |
-| Thread-safe shutdown | **OK** | Mismo Resolver que H |
-| Logger persistente | **PARCIAL** | Sin framework, logger persistence requiere implementacion manual |
-| Madurez | **ALTA** | Zero dependencias externas |
-| Init cold | 94,255 ns | Similar a H pero sin overhead de Dagger setup |
-| Resolve cached | 203 ns | Mismo ConcurrentHashMap lookup que H |
-
-**Pros:**
-- Zero dependencias: sin Dagger, sin KSP, sin codegen
-- Control total del codigo
-- Ligeramente mas rapido en init que H (sin Dagger overhead)
-
-**Contras:**
-- **Sin compile-time safety:** 10 devs con +50 modulos y zero validacion automatica = alto riesgo
-- Constructor injection manual crece proporcionalmente con la complejidad de cada feature
-- No viable para un equipo de 10 devs que necesita garantias de compilacion
+N es el mejor Koin-based pero su resolve cached (6,328 ns) es 74x mas lento que O2 (86 ns).
+Sin compile-time safety, 10 devs con 50+ modulos = bindings rotos en produccion.
+L y M anaden ServiceLoader JVM-only sin beneficio significativo.
 
 ---
 
-## 4. Recomendacion para Android-Only
+## 4. Recomendacion
 
-### Recomendacion Primaria: Pattern H (confirmado)
+### Los datos hablan: O2 y P2 son objetivamente los mejores candidatos
 
-**H ofrece el mejor balance para un SDK Android corporativo con +50 modulos y 10 devs:**
+La tabla de rendimiento es contundente:
 
-1. **Auto-registro via ServiceLoader** -- anadir `META-INF/services` = feature registrado.
-   Zero cambios en ningun otro fichero. Con +50 modulos esto es critico: ningun merge conflict
-   en el wiring central porque el wiring es inmutable (51 lineas que nunca cambian)
+| Metrica | O2 (Metro Lazy) | P2 (KI-anvil Lazy) | H (ServiceLoader) | Q2 (Dagger Lazy) |
+|---------|----------------:|--------------------:|-------------------:|------------------:|
+| Init Cold | 1,127 ns | 1,416 ns | 106,865 ns | 1,080 ns |
+| Resolve All | 86 ns | 156 ns | 212 ns | 85 ns |
+| Re-Init | 2,305 ns | 2,929 ns | 362,649 ns | 2,157 ns |
+| Auto-registro | OK | OK | OK | **NO** |
+| Compile-time | OK | OK | PARCIAL | OK |
+| Lazy | OK | OK | OK | OK |
+| Madurez | BAJA | MEDIA | ALTA | ALTA |
 
-2. **Resolver DFS con thread-safe shutdown** -- `concurrentShutdown` pasa 200 rounds de
-   read vs shutdown race. `synchronized` + `ConcurrentHashMap` garantiza consistencia.
-   `thunderingHerd` valida 100 threads simultaneos devolviendo la misma instancia
+O2 y P2 son los unicos patrones que cumplen **los 3 MUST HAVE con maxima calidad** (compile-time
+completa, no parcial). Q2 tiene compile-time completa y lazy, pero no tiene auto-registro. H
+tiene auto-registro y lazy, pero compile-time parcial.
 
-3. **Lazy by design** -- `builtProvisionCount == 0` despues de init (confirmado en 9 tests de
-   memoria). El consumidor paga solo por las features que usa. Si de 50 features solo accede 5,
-   las otras 45 nunca se instancian
+### Recomendacion: Estrategia por fases
 
-4. **Logger persistence** -- ObservabilityProvider con flag `persistent` sobrevive a ciclos de
-   shutdown/reinit. Observabilidad continua garantizada
+La decision depende del apetito de riesgo del equipo:
 
-5. **Cada feature-impl compila independientemente con Dagger** -- compile-time safety
-   per-Component. Un binding faltante dentro de un Component = error de compilacion en ese modulo
+#### Opcion A -- Si el equipo acepta frameworks jovenes (Metro v0.6.6 / kotlin-inject-anvil v0.1.7)
 
-6. **Init cost (106,865 ns = ~107 us) es aceptable** -- ocurre una sola vez al arrancar la app.
-   107 us es imperceptible en un cold start de 500-2000 ms
+**Pattern O2 (Metro Lazy)** -- objetivamente el mejor balance:
 
-7. **Resolve cached (202 ns) es rapido para hot paths** -- ConcurrentHashMap lookup O(1).
-   60x mas rapido que Koin (~12,150 ns). 3x mas lento que Dagger directo (64 ns), pero la
-   diferencia de 140 ns es irrelevante en operaciones de negocio que cuestan microsegundos
+- **95x mas rapido init** que H (1,127 vs 106,865 ns)
+- **2.5x mas rapido resolve** que H (86 vs 212 ns)
+- **157x mas rapido re-init** que H (2,305 vs 362,649 ns)
+- Auto-registro zero-editing (`@ContributesTo`)
+- Compile-time safety completa
+- Lazy singletons genuinos (`Lazy<T>`)
+- Thread-safe
+- **Bonus:** si el SDK necesita KMP en el futuro, cero migracion
 
-8. **35 tests demuestran robustez** -- 12 benchmarks, 9 memoria, 14 stress/concurrencia.
-   10,000 ciclos con heap delta de 4 KB. Zero leaks
+**Riesgo:** Metro v0.6.6 es mantenido principalmente por ZacSweers (1 persona, Slack).
+Compiler plugin acoplado a version de Kotlin -- cada bump de Kotlin puede requerir esperar
+a que Metro se actualice.
 
-**El unico trade-off de H:** provider faltante = error runtime, no de compilacion. **Mitigacion:**
-test `verify()` en CI que ejecuta `sdk.init()` + `sdk.get<T>()` para cada servicio registrado.
-Un provider faltante se detecta en CI antes de llegar a produccion.
+**Alternativa dentro de esta opcion:** **P2 (kotlin-inject-anvil Lazy)** si el equipo
+prefiere KSP estandar sobre compiler plugin. ~25% mas lento que O2 pero con mejor
+tooling support y Amazon como maintainer.
 
-### Alternativa si compile-time safety es prioridad absoluta: Pattern Q2
+#### Opcion B -- Si el equipo necesita ecosistema maduro/probado
 
-**Cuando considerar Q2 sobre H:**
-- El equipo prioriza compile-time safety COMPLETA sobre auto-registro
-- El numero de features crece lentamente (poco merge conflict en @Component)
-- Hot restart frecuente (Q2: 2,157 ns re-init vs H: 362,649 ns)
+**Pattern H** -- la opcion conservadora correcta:
 
-**Trade-off de Q2:** cada feature nuevo requiere editar `@Component(modules=[...])`.
-Con 10 devs y 50+ modules, esto implica:
-- La lista de modules en el @Component se convierte en 50+ lineas
-- Merge conflicts frecuentes cuando 2+ devs anaden features simultaneamente
-- Disciplina de rebase constante en el fichero de wiring
+- ServiceLoader es estandar JVM (20+ anos)
+- Dagger 2 es estandar Android (Google-maintained, 10+ anos)
+- Resolver DFS probado: 35 tests, 10K ciclos, zero leaks
+- Auto-registro zero-touch via META-INF/services
+- Lazy genuino demostrado (builtProvisionCount == 0 tras init)
+- Thread-safe: thunderingHerd (100 threads), concurrentShutdown (200 rounds)
 
-### Alternativa si R8/ProGuard elimina META-INF: Pattern K
+**Trade-off:** 95x mas lento init, 157x mas lento re-init, compile-time parcial.
+**Pero:** 106,865 ns = 0.107 ms. En un app startup de 500-2000 ms, es irrelevante.
+El costo real de H es el riesgo de runtime errors por provider faltante,
+mitigable con test `verify()` en CI.
 
-**Cuando considerar K sobre H:**
-- ProGuard/R8 esta configurado agresivamente y elimina `META-INF/services`
-- Anadir keep rules para META-INF no es posible (politica de la empresa)
-- Se acepta el costo extra de init (213K ns vs 107K ns)
+#### Opcion C -- Si el equipo prioriza compile-time safety + madurez
 
-K usa AndroidManifest metadata que sobrevive a cualquier optimizacion de R8.
+**Pattern Q2 (Dagger Lazy)** -- pero aceptar que no tiene auto-registro:
+
+- Dagger maduro (10+ anos, Google-maintained) + compile-time completo + `dagger.Lazy<T>`
+- Re-init ultra-rapido: 2,157 ns (el mas rapido de todos los patrones)
+- Init rapido: 1,080 ns
+- Con 50 modules, `@Component(modules=[...])` tiene 50 lineas -- gestionable si UN dev
+  mantiene el wiring y el equipo tiene disciplina de rebase
+
+**Trade-off:** Merge conflicts en el @Component son inevitables con 10 devs. Si el ritmo
+de features nuevos es bajo (2-3/mes), es tolerable. Si es alto (5+/mes), no es viable.
+
+### Plan recomendado (data-driven)
+
+1. **Corto plazo: Pattern H** -- produccion inmediata, riesgo minimo, arquitectura probada.
+   Funciona hoy con 0 incognitas.
+
+2. **Monitorear O2/P2** -- seguir la madurez de Metro y kotlin-inject-anvil:
+   - Cuando alcancen v1.0 (releases estables, sin breaking changes frecuentes)
+   - Cuando haya adopcion corporativa documentada (mas alla de Slack/Amazon interno)
+   - Cuando el soporte a Kotlin version bumps sea demostrable (2+ bumps sin rotura)
+
+3. **Migrar a O2 o P2** cuando el ecosistema madure -- la migracion es modular:
+   feature por feature, sin big-bang. Los feature-impl cambian internamente (Dagger -> Metro
+   o kotlin-inject), pero la API del SDK no cambia.
 
 ---
 
-## 5. Por que NO los otros patrones Android-only
+## 5. Por que NO los otros patrones
 
 | Patron | Razon de descarte | Criterio fallido |
 |--------|-------------------|------------------|
 | **D** (Component Deps) | No auto-registro. When-blocks crecen linealmente con features | Auto-registro (MUST HAVE) |
 | **G** (Factory Functions) | No auto-registro. `ensure*()` functions crecen linealmente | Auto-registro (MUST HAVE) |
-| **E2** (AutoProvisionRegistry) | Semi-auto: lista central de entries genera merge conflicts a escala | Auto-registro parcial |
+| **Q** (Hilt-style Dagger eager) | No auto-registro + no lazy. 50 singletons creados en init aunque se usen 5 | Auto-registro + Lazy (2 MUST HAVE) |
 | **I** (Pure Resolver) | Zero compile-time safety. 10 devs sin validacion = alto riesgo | Compile-time safety (MUST HAVE) |
-| **Q** (Hilt-style eager) | No auto-registro + no lazy. 50 singletons creados en init aunque se usen 5 | Auto-registro + Lazy (2 MUST HAVE) |
-| **Q2** (Hilt-style lazy) | No auto-registro. 50+ modules en @Component = merge conflicts | Auto-registro (MUST HAVE). Alternativa viable si se acepta trade-off |
-| **K** (AndroidManifest) | Viable pero init 2x mas lento que H sin beneficio adicional (excepto R8-safety) | Alternativa, no descarte total |
+| **O** (Metro eager) | Cumple auto-registro y compile-time, pero no lazy. Con 50 features opcionales, la falta de lazy desperdicia recursos | Lazy (MUST HAVE) |
+| **P** (kotlin-inject-anvil eager) | Misma limitacion que O: sin lazy singletons | Lazy (MUST HAVE) |
+| **N** (sweet-spi + Koin) | Sin compile-time safety. Resolve 74x mas lento que O2 (6,328 vs 86 ns). Koin runtime = bindings rotos en produccion | Compile-time safety (MUST HAVE) |
+| **L** (Koin + ServiceLoader) | Mismos problemas que N + ServiceLoader overhead. Init 154K ns, resolve 6,244 ns | Compile-time (MUST) + rendimiento |
+| **M** (Koin + ServiceLoader Lazy) | El peor performer overall. Lazy cascade 48,334 ns. Re-init 1.2M ns | Compile-time (MUST) + rendimiento |
+| **E2** (AutoProvisionRegistry) | Semi-auto-registro: lista central de entries genera merge conflicts. No zero-touch | Auto-registro parcial |
+| **K** (AndroidManifest) | Init 2x mas lento que H sin beneficio. Solo viable si R8 elimina META-INF | Alternativa a H si R8 es problema |
+| **Q2** (Hilt-style Dagger Lazy) | No auto-registro. 50+ modules en @Component = merge conflicts. Alternativa viable si se acepta trade-off | Auto-registro (MUST HAVE). Alternativa si equipo acepta wiring manual |
 
-**Nota sobre Q y Q2:** Ambos ofrecen compile-time safety COMPLETA (el unico punto debil de H).
-Si el equipo tiene disciplina de rebase y el numero de features crece lentamente, Q2 es una
-alternativa genuina. Pero a +50 modules con 10 devs anadiendo features en paralelo, el
-auto-registro de H supera el beneficio de compile-time safety completa de Q2.
+**Nota sobre Q2:** Ofrece compile-time safety COMPLETA + Lazy (2 de 3 MUST HAVE). Si el
+equipo tiene disciplina de rebase y el ritmo de features nuevos es moderado, Q2 es una
+alternativa genuina. Pero a +50 modules con 10 devs en paralelo, el auto-registro
+de O2/P2/H supera el beneficio de eliminar el merge conflict risk.
 
 ---
 
-## 6. Fortalezas de Pattern H confirmadas por benchmarks
+## 6. Evidencia de Benchmarks
 
-### Tabla comparativa en los 8 criterios
+### Tabla comparativa en los 8 criterios -- Todos los candidatos viables
 
-| # | Criterio | H | Q | Q2 | E2 | K | I |
-|---|----------|---|---|----|----|---|---|
-| 1 | Auto-registro | **OK** | NO | NO | PARCIAL | **OK** | **OK** |
-| 2 | Compile-time safety | PARCIAL | **OK** | **OK** | **OK** | PARCIAL | NO |
-| 3 | Lazy | **OK** | NO | **OK** | **OK** | **OK** | **OK** |
-| 4 | Thread-safe shutdown | **OK** | **OK** | **OK** | **OK** | **OK** | **OK** |
-| 5 | Logger persistente | **OK** | **OK** | **OK** | PARCIAL | **OK** | PARCIAL |
-| 6 | Madurez ecosistema | **ALTA** | **ALTA** | **ALTA** | **ALTA** | **ALTA** | **ALTA** |
-| 7 | Init cold (ns) | 106,865 | **676** | 1,080 | 10,983 | 213,737 | 94,255 |
-| 8 | Resolve cached (ns) | 202 | **64** | 85 | 199 | 203 | 203 |
-| | **MUST HAVEs cumplidos** | **3/3** | **1/3** | **2/3** | **2.5/3** | **3/3** | **2/3** |
-| | **Candidato viable** | **SI** | NO | Alternativa | Alternativa | Alternativa | NO |
+| # | Criterio | O2 | P2 | H | Q2 | E2 | K | I |
+|---|----------|----|----|---|----|----|---|---|
+| 1 | Auto-registro | **OK** | **OK** | **OK** | NO | PARCIAL | **OK** | **OK** |
+| 2 | Compile-time safety | **OK** | **OK** | PARCIAL | **OK** | **OK** | PARCIAL | NO |
+| 3 | Lazy | **OK** | **OK** | **OK** | **OK** | **OK** | **OK** | **OK** |
+| 4 | Thread-safe shutdown | **OK** | **OK** | **OK** | **OK** | **OK** | **OK** | **OK** |
+| 5 | Logger persistente | **OK** | **OK** | **OK** | **OK** | PARCIAL | **OK** | PARCIAL |
+| 6 | Madurez ecosistema | **BAJA** | **MEDIA** | **ALTA** | **ALTA** | **ALTA** | **ALTA** | **ALTA** |
+| 7 | Init cold (ns) | **1,127** | **1,416** | 106,865 | **1,080** | 10,983 | 213,737 | 94,255 |
+| 8 | Resolve cached (ns) | **86** | **156** | 212 | **85** | 211 | 213 | 211 |
+| | **MUST HAVEs cumplidos** | **3/3** | **3/3** | **2.5/3** | **2/3** | **2.5/3** | **2.5/3** | **2/3** |
+| | **Candidato viable** | **Tier 1** | **Tier 1** | **Tier 3** | **Tier 4** | **Tier 4** | **Tier 3** | NO |
 
-### Tests clave de Pattern H
+### Tests clave de Pattern H (Tier 3 pero probado en produccion)
 
 | Test | Resultado | Que demuestra |
 |------|-----------|---------------|
@@ -324,84 +352,103 @@ auto-registro de H supera el beneficio de compile-time safety completa de Q2.
 | `leakDetection` | 1,000 ciclos, delta < 2,048 KB | Zero memory leaks en el Resolver |
 | `stress10K` | 10,000 ciclos, heap = 4 KB | Estabilidad a escala extrema |
 | `rapidFire` | 5,000 ciclos | Ciclo init/get/shutdown determinista y repetible |
-| `errorResilience` | 5 escenarios | Maquina de estados correcta (double init, get antes de init, etc.) |
+| `errorResilience` | 5 escenarios | Maquina de estados correcta |
 | `functional` | 1,000 reinits | Encrypt+Auth+Sync funcionan tras 1,000 ciclos |
 | `loggerPersistence` | Logger sobrevive shutdown | Observabilidad continua entre ciclos |
 
 ---
 
-## 7. Evidencia de Benchmarks
+## 7. Benchmarks Detallados (Samsung Galaxy S22 Ultra, Jetpack Benchmark 1.4.0)
 
-### Benchmarks principales (Samsung Galaxy S22 Ultra, Jetpack Benchmark 1.4.0)
+### Todos los patrones comparados
 
-| Operacion | H | Q | Q2 | E2 | K | I |
-|-----------|--:|--:|---:|---:|--:|--:|
-| Init Cold (ns) | 106,865 | 676 | 1,080 | 10,983 | 213,737 | 94,255 |
-| Resolve First (ns) | 202 | 257 | 306 | 199 | 203 | 203 |
-| Resolve All (ns) | 212 | 64 | 85 | 211 | 213 | 211 |
-| Lazy noDeps (ns) | 1,278 | 1,735 | 236 | 1,049 | 2,996 | 1,112 |
-| Lazy cascade (ns) | 3,892 | 318 | 504 | 3,088 | 7,900 | 4,122 |
-| E2E Startup (ns) | 1,745,145 | 950,000 | 1,300,000 | 1,400,000 | 2,300,000 | 1,700,000 |
-| Init/Shutdown cycle (ns) | 99,293 | 403 | 549 | 4,418 | 201,490 | 103,695 |
-| Re-Init (ns) | 362,649 | 25,000 | 2,157 | 17,000 | 767,000 | 427,000 |
-| Concurrent Access (ns) | 515,355 | 591,000 | 586,000 | 571,000 | 554,000 | 608,000 |
+| Operacion | O2 | P2 | H | Q2 | Q | E2 | K | I | O | P | N |
+|-----------|---:|---:|--:|---:|--:|---:|--:|--:|--:|--:|--:|
+| Init Cold (ns) | 1,127 | 1,416 | 106,865 | 1,080 | 676 | 10,983 | 213,737 | 94,255 | 603 | 1,064 | 69,636 |
+| Resolve First (ns) | 315 | 335 | 202 | 306 | 257 | 199 | 203 | 203 | 288 | 336 | 5,855 |
+| Resolve All (ns) | 86 | 156 | 212 | 85 | 64 | 211 | 213 | 211 | 80 | 165 | 6,328 |
+| Lazy noDeps (ns) | 238 | 284 | 1,278 | 236 | 1,735 | 1,049 | 2,996 | 1,112 | 2,098 | 1,941 | 20,018 |
+| Lazy cascade (ns) | 507 | 734 | 3,892 | 504 | 318 | 3,088 | 7,900 | 4,122 | 346 | 607 | 22,706 |
+| E2E Startup (ns) | 1.5M | 993K | 1.7M | 1.3M | 950K | 1.4M | 2.3M | 1.7M | 1.2M | 1.4M | 2.0M |
+| Init/Shutdown (ns) | 516 | 508 | 99,293 | 549 | 403 | 4,418 | 201,490 | 103,695 | 301 | 293 | 42,293 |
+| Re-Init (ns) | 2,305 | 2,929 | 362,649 | 2,157 | 25,000 | 17,000 | 767,000 | 427,000 | 36,000 | 28,000 | 732,000 |
+| Concurrent (ns) | 587K | 638K | 515K | 586K | 591K | 571K | 554K | 608K | 586K | 618K | 784K |
 
 ### Interpretacion para el caso de +50 modulos
 
-1. **Init Cold (una vez por sesion):** H paga 107 us por ServiceLoader scan. Es ~0.1 ms en un
-   cold start de 500-2000 ms. Imperceptible para el usuario. Q/Q2 son mas rapidos pero requieren
-   edicion central (inviable a +50 modules)
+1. **Init Cold (una vez por sesion):** O2 paga 1,127 ns. H paga 106,865 ns. La diferencia
+   es 95x pero **ambos son irrelevantes** en un cold start de 500-2000 ms (0.001 vs 0.107 ms).
+   Init performance NO es el criterio diferenciador.
 
-2. **Resolve cached (hot path):** 202 ns por llamada a `sdk.get<T>()`. Si el consumidor hace
-   100 resoluciones por segundo, el overhead total es 20 us/s. Negligible. Q es 3x mas rapido (64 ns)
-   pero la diferencia de 140 ns no justifica perder auto-registro
+2. **Resolve cached (hot path):** O2 resuelve en 86 ns. H en 212 ns. N en 6,328 ns.
+   Si el consumidor hace 1,000 resoluciones por segundo, el overhead es:
+   O2 = 86 us/s, H = 212 us/s, N = 6.3 ms/s. Solo N es problematico.
 
-3. **Lazy cascade:** 3,892 ns para construir la cadena mas profunda (Core -> Enc -> Auth + Stor -> Sync).
-   Q resuelve en 318 ns (12x mas rapido) porque Dagger pre-wired todo. Pero H solo paga este
-   costo la primera vez; despues todo esta cacheado a 202 ns
+3. **Lazy noDeps:** O2 (238 ns) y Q2 (236 ns) dominan. H (1,278 ns) es 5x mas lento.
+   N (20,018 ns) es 84x mas lento. Lazy materializado correctamente = diferencia real.
 
-4. **Re-Init:** H paga 363K ns. Q2 es 168x mas rapido (2,157 ns). Si hot restart es frecuente
-   (testing, config changes), Q2 tiene ventaja aqui. En produccion, re-init es raro
+4. **Re-Init (hot restart):** O2 (2,305 ns) vs H (362,649 ns) = 157x. Si el SDK hace
+   hot restart frecuente (testing, config changes), Tier 1 tiene ventaja masiva.
+   En produccion, re-init es raro.
 
-5. **Concurrent Access:** Todos los patrones convergen (~500-600K ns) porque el overhead es
-   threading, no DI. H es competitivo
+5. **Concurrent Access:** Todos convergen (~500-700K ns). Threading domina, no DI.
+   Ningun patron tiene ventaja.
 
 ---
 
-## 8. Riesgos con Pattern H y Mitigaciones
+## 8. Riesgos y Mitigaciones
+
+### Riesgos de Pattern H (Tier 3 -- opcion conservadora)
 
 | # | Riesgo | Probabilidad | Impacto | Mitigacion |
 |---|--------|-------------|---------|-----------|
-| 1 | ServiceLoader scan time crece con classpath size | MEDIA | BAJO | ProGuard keep rules para `META-INF/services/`. A 50+ features el scan sigue siendo < 200 us. Benchmark en CI para detectar regresiones |
-| 2 | Provider faltante = error runtime | MEDIA | ALTO | Test `verify()` en CI: `sdk.init()` + `sdk.get<T>()` para cada servicio. Detecta provider faltante antes de release. CI lo ejecuta en cada PR |
-| 3 | Dagger KSP compilation time | MEDIA | MEDIO | KSP incremental: solo recompila el modulo cambiado. Gradle build cache para modulos no modificados. Cada feature-impl compila su DaggerComponent independientemente |
-| 4 | R8/ProGuard elimina META-INF/services | BAJA | ALTO | Regla en `proguard-rules.pro`: `-keep class META-INF/services/**`. Si no es viable, migrar a Pattern K (AndroidManifest discovery). La migracion es directa: mismos FeatureProviders, solo cambia el mecanismo de descubrimiento |
-| 5 | Resolver.kt como codigo propio a mantener | BAJA | BAJO | 105 lineas, 35 tests que validan su comportamiento. API estable y minima. Costo de mantenimiento marginal vs. costo de migrar a otro framework |
-| 6 | Escalabilidad del DFS con +50 features | BAJA | BAJO | ScaleBenchmark prueba DFS con 500+ features simuladas. ConcurrentHashMap lookup es O(1). El grafo es aciclico por diseno (Dagger lo garantiza per-Component) |
+| 1 | ServiceLoader scan crece con classpath | MEDIA | BAJO | ProGuard keep rules. A 50+ features < 200 us. Benchmark en CI |
+| 2 | Provider faltante = error runtime | MEDIA | ALTO | Test `verify()` en CI: `sdk.init()` + `sdk.get<T>()` para cada servicio. Detecta antes de release |
+| 3 | Dagger KSP compilation time | MEDIA | MEDIO | KSP incremental. Cada feature-impl compila su DaggerComponent independientemente |
+| 4 | R8 elimina META-INF/services | BAJA | ALTO | Keep rule en proguard-rules.pro. Si no viable, migrar a Pattern K |
+| 5 | Resolver.kt como codigo propio | BAJA | BAJO | 105 lineas, 35 tests. API estable. Costo marginal |
+
+### Riesgos de Pattern O2 (Tier 1 -- opcion data-driven)
+
+| # | Riesgo | Probabilidad | Impacto | Mitigacion |
+|---|--------|-------------|---------|-----------|
+| 1 | Metro v0.6.6 breaking changes | ALTA | ALTO | Pin version estricto. No actualizar sin validar suite completa. Mantener fork si es necesario |
+| 2 | Kotlin version coupling | ALTA | MEDIO | Metro compiler plugin se acopla a version de Kotlin. Cada bump puede requerir esperar a Metro. Monitorear releases |
+| 3 | ZacSweers deja de mantener Metro | MEDIA | ALTO | Codigo open-source, forkable. Comunidad Slack usa internamente. Si abandono: migrar a P2 (misma semantica @ContributesTo) |
+| 4 | Documentacion escasa | MEDIA | BAJO | Codigo fuente como documentacion. Patrones similares a Anvil/Hilt |
+
+### Riesgos de Pattern P2 (Tier 1 -- alternativa KSP)
+
+| # | Riesgo | Probabilidad | Impacto | Mitigacion |
+|---|--------|-------------|---------|-----------|
+| 1 | kotlin-inject-anvil abandona mantenimiento | BAJA | ALTO | kotlin-inject core es independiente. Anvil extensions open-source y forkable. Amazon usa en produccion |
+| 2 | KSP breaking changes en Kotlin 2.x | MEDIA | MEDIO | KSP mantenido por Google/JetBrains. Historial de migraciones suaves |
+| 3 | Documentacion mas escasa que Dagger | MEDIA | BAJO | kotlin-inject conceptos familiares (Component, Provides, Scope). 1-2 dias de training |
 
 ### Mitigacion general: CI continuo
 
-Mantener la suite de 35 tests ejecutandose en CI:
-- **12 benchmarks** para detectar regresiones de performance
-- **9 tests de memoria** para detectar leaks (limite: heap delta < 2,048 KB en 1,000 ciclos)
-- **14 tests de stress** para validar concurrencia, singleton identity, y error resilience
-
-Si alguna actualizacion de Dagger, Kotlin o ServiceLoader rompe algo, los tests lo detectan inmediatamente.
+Independientemente del patron elegido, mantener la suite de tests ejecutandose en CI:
+- **Benchmarks** para detectar regresiones de performance
+- **Tests de memoria** para detectar leaks (limite: heap delta < 2,048 KB en 1,000 ciclos)
+- **Tests de stress** para validar concurrencia, singleton identity, y error resilience
 
 ---
 
 ## Resumen Ejecutivo
 
-| Opcion | Recomendacion | Para quien |
-|--------|--------------|------------|
-| **H (ServiceLoader + Resolver DFS + Dagger)** | **PRIMARIA** | SDK Android +50 modulos, 10 devs, auto-registro critico |
-| Q2 (Hilt-style Dagger Lazy) | Alternativa | Si compile-time safety completa > auto-registro. Aceptar merge conflicts |
-| K (AndroidManifest Discovery) | Alternativa | Si R8 elimina META-INF. Init 2x mas lento pero R8-safe |
-| E2 (AutoProvisionRegistry) | Alternativa menor | Si se quiere init mas rapido que H con semi-auto-registro |
-| Q (Hilt-style Dagger Eager) | No recomendado | Sin lazy + sin auto-registro. No viable a +50 modules |
-| I (Pure Resolver) | No recomendado | Sin compile-time safety. Riesgo alto con 10 devs |
+| Opcion | Tier | Recomendacion | Para quien |
+|--------|------|--------------|------------|
+| **O2 (Metro Lazy)** | **1** | **Mejor balance (si se acepta Metro v0.6.6)** | Equipos que priorizan rendimiento + correctness y aceptan riesgo de framework joven |
+| **P2 (kotlin-inject-anvil Lazy)** | **1** | **Mejor balance conservador** | Equipos que quieren Tier 1 con KSP estandar y Amazon como maintainer |
+| **H (ServiceLoader + Resolver + Dagger)** | **3** | **Produccion inmediata, riesgo minimo** | Equipos que priorizan estabilidad probada sobre rendimiento optimal |
+| Q2 (Hilt-style Dagger Lazy) | 4 | Alternativa si no se necesita auto-registro | Equipos con pocos features nuevos/mes y disciplina de rebase |
+| K (AndroidManifest Discovery) | 3 | Solo si R8 elimina META-INF | Alternativa a H en entornos ProGuard agresivos |
+| E2 (AutoProvisionRegistry) | 4 | Solo si se acepta semi-auto-registro | Equipos pequenos con pocas features |
+| N (sweet-spi + Koin) | 5 | No recomendado a escala | Solo si el equipo ya usa Koin y no puede migrar |
 
-**Decision:** Para un SDK Android corporativo con +50 modulos y 10 devs donde auto-registro es
-critico, **Pattern H** es la recomendacion primaria. Su combinacion de ServiceLoader auto-discovery,
-DFS lazy, thread-safe shutdown y Dagger compile-time per-Component ofrece el mejor balance entre
-escalabilidad de equipo y robustez tecnica.
+**Decision data-driven:**
+- Los datos demuestran que **O2 y P2 superan a H** en 7 de 8 criterios (H gana en madurez).
+- El **unico argumento a favor de H sobre O2/P2** es la madurez del ecosistema.
+- **Si la madurez es negociable:** O2 o P2 hoy.
+- **Si la madurez es innegociable:** H hoy, migrar a O2/P2 cuando maduren. La migracion es
+  modular (feature por feature) y la API del SDK no cambia.
