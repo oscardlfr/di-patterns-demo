@@ -318,8 +318,8 @@ Impacto en benchmarks:
 
 ### Caracteristicas
 
-| Criterio | D | E2 | G | H | I | K | Q | Q2 |
-|----------|---|----|----|---|---|---|---|-----|
+| Criterio | D<br>*(Dagger when-block)* | E2<br>*(Registry DFS)* | G<br>*(Factory functions)* | H<br>*(Resolver+Dagger)* | I<br>*(Pure Resolver)* | K<br>*(Manifest Discovery)* | Q<br>*(Dagger @Module)* | Q2<br>*(Dagger Lazy)* |
+|----------|---|---|----|---|---|---|---|---|
 | **Framework DI** | Dagger | Dagger | Dagger | Dagger + SL | Ninguno | Dagger + Manifest | Dagger | Dagger |
 | **Wiring inmutable** | No | No | No | Si | Si | Si | Semi | Semi |
 | **Auto-descubrimiento** | No | No | No | ServiceLoader | ServiceLoader | Manifest | Compile-time | Compile-time |
@@ -330,8 +330,8 @@ Impacto en benchmarks:
 
 ### Benchmarks resumen (Samsung Galaxy S22 Ultra)
 
-| Operacion | D | E2 | G | H | I | K | Q | Q2 |
-|-----------|--:|---:|--:|--:|--:|--:|--:|---:|
+| Operacion | D<br>*(Dagger when-block)* | E2<br>*(Registry DFS)* | G<br>*(Factory functions)* | H<br>*(Resolver+Dagger)* | I<br>*(Pure Resolver)* | K<br>*(Manifest Discovery)* | Q<br>*(Dagger @Module)* | Q2<br>*(Dagger Lazy)* |
+|-----------|---:|---:|---:|---:|---:|---:|---:|---:|
 | Init Cold (ns) | 1,212 | 10,983 | 1,257 | 106,865 | 94,255 | 213,737 | 676 | 1,080 |
 | Resolve First (ns) | 346 | 199 | 345 | 202 | 203 | 203 | 257 | 306 |
 | Lazy noDeps (ns) | 255 | 1,049 | 260 | 1,278 | 1,112 | 2,996 | 1,735 | 236 |

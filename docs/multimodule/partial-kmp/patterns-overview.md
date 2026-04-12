@@ -322,8 +322,8 @@ ejecuta completamente en `init()` en ambos patrones.
 
 M es consistentemente el **peor performer** de los 3 patrones partial KMP:
 
-| Operacion | J | L | M |
-|-----------|--:|--:|--:|
+| Operacion | J<br>*(kotlin-inject)* | L<br>*(Koin eager)* | M<br>*(Koin loadModules)* |
+|-----------|---:|---:|---:|
 | Init Cold (ns) | 97,197 | 154,403 | 164,353 |
 | Resolve First (ns) | 202 | 5,664 | 6,160 |
 | Lazy noDeps (ns) | 1,493 | 5,473 | 13,784 |
@@ -362,7 +362,7 @@ Misma razon que J y L: `java.util.ServiceLoader`. Koin es 100% KMP-compatible.
 
 ### Caracteristicas
 
-| Criterio | J | L | M |
+| Criterio | J<br>*(kotlin-inject)* | L<br>*(Koin eager)* | M<br>*(Koin loadModules)* |
 |----------|---|---|---|
 | **Framework DI** | kotlin-inject | Koin | Koin |
 | **Discovery** | ServiceLoader | ServiceLoader | ServiceLoader |
@@ -374,8 +374,8 @@ Misma razon que J y L: `java.util.ServiceLoader`. Koin es 100% KMP-compatible.
 
 ### Benchmarks resumen (Samsung Galaxy S22 Ultra)
 
-| Operacion | J | L | M |
-|-----------|--:|--:|--:|
+| Operacion | J<br>*(kotlin-inject)* | L<br>*(Koin eager)* | M<br>*(Koin loadModules)* |
+|-----------|---:|---:|---:|
 | Init Cold (ns) | 97,197 | 154,403 | 164,353 |
 | Resolve First (ns) | 202 | 5,664 | 6,160 |
 | Lazy noDeps (ns) | 1,493 | 5,473 | 13,784 |

@@ -64,8 +64,8 @@ accesos posteriores retornan el valor cacheado sin lock.
 
 ### Samsung Galaxy S22 Ultra -- Todas las operaciones (ns)
 
-| Operacion | O | O2 | Factor | P | P2 | Factor | Q | Q2 | Factor |
-|-----------|--:|---:|-------:|--:|---:|-------:|--:|---:|-------:|
+| Operacion | O<br>*(Metro eager)* | O2<br>*(Metro Lazy)* | Factor | P<br>*(KI-anvil eager)* | P2<br>*(KI-anvil Lazy)* | Factor | Q<br>*(Dagger @Module)* | Q2<br>*(Dagger Lazy)* | Factor |
+|-----------|---:|---:|-------:|---:|---:|-------:|---:|---:|-------:|
 | Init Cold | 603 | 1,127 | 1.9x | 1,064 | 1,416 | 1.3x | 676 | 1,080 | 1.6x |
 | Resolve First | 288 | 315 | 1.1x | 336 | 335 | 1.0x | 257 | 306 | 1.2x |
 | Lazy noDeps | 2,098 | 238 | **8.8x** | 1,941 | 284 | **6.8x** | 1,735 | 236 | **7.3x** |

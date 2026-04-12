@@ -247,7 +247,7 @@ Comparacion directa de los 4 candidatos en los 10 criterios (S22 Ultra, 2026-04-
 
 ### Benchmarks de Rendimiento Detallados
 
-| Operacion | N (ns) | O2 (ns) | P2 (ns) | H (ns) |
+| Operacion | N<br>*(sweet-spi+Koin)* (ns) | O2<br>*(Metro Lazy)* (ns) | P2<br>*(KI-anvil Lazy)* (ns) | H<br>*(Resolver+Dagger)* (ns) |
 |-----------|--------|---------|---------|--------|
 | initCold | ~135,200 | ~891 | ~1,200 | 106,865 |
 | resolve cached | ~12,150 | ~45 | ~62 | 202 |

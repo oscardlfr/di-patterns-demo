@@ -490,8 +490,8 @@ object MultiModuleSdkP2 : MultiModuleSdkApi {
 
 ### Caracteristicas
 
-| Criterio | N | O | O2 | P | P2 |
-|----------|---|---|----|---|----|
+| Criterio | N<br>*(sweet-spi+Koin)* | O<br>*(Metro eager)* | O2<br>*(Metro Lazy)* | P<br>*(KI-anvil eager)* | P2<br>*(KI-anvil Lazy)* |
+|----------|---|---|---|---|---|
 | **Framework** | sweet-spi + Koin | Metro | Metro | kotlin-inject-anvil | kotlin-inject-anvil |
 | **Discovery** | sweet-spi (runtime) | Compile-time | Compile-time | Compile-time (KSP) | Compile-time (KSP) |
 | **Codegen** | KSP (sweet-spi) | Compiler plugin | Compiler plugin | KSP | KSP |
@@ -501,8 +501,8 @@ object MultiModuleSdkP2 : MultiModuleSdkApi {
 
 ### Benchmarks resumen (Samsung Galaxy S22 Ultra)
 
-| Operacion | N | O | O2 | P | P2 |
-|-----------|--:|--:|---:|--:|---:|
+| Operacion | N<br>*(sweet-spi+Koin)* | O<br>*(Metro eager)* | O2<br>*(Metro Lazy)* | P<br>*(KI-anvil eager)* | P2<br>*(KI-anvil Lazy)* |
+|-----------|---:|---:|---:|---:|---:|
 | Init Cold (ns) | 69,636 | 603 | 1,127 | 1,064 | 1,416 |
 | Resolve First (ns) | 5,855 | 288 | 315 | 336 | 335 |
 | Lazy noDeps (ns) | 20,018 | 2,098 | 238 | 1,941 | 284 |

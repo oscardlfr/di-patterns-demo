@@ -1010,7 +1010,7 @@ H supera a todos los patrones Koin por 60x en resolve porque Koin atraviesa su g
 
 H bate a los patrones Koin en la mayoria de operaciones:
 
-| Operacion | H (ns) | Koin promedio (ns) | Ventaja H |
+| Operacion | H<br>*(Resolver+Dagger)* (ns) | Koin promedio (ns) | Ventaja H |
 |-----------|--------|-------------------|-----------|
 | initCold | 106,865 | ~145,000 | 1.4x |
 | resolve cached | 202 | ~12,150 | 60x |

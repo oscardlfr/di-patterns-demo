@@ -362,8 +362,8 @@ de O2/P2/H supera el beneficio de eliminar el merge conflict risk.
 
 ### Todos los patrones comparados
 
-| Operacion | O2 | P2 | H | Q2 | Q | E2 | K | I | O | P | N |
-|-----------|---:|---:|--:|---:|--:|---:|--:|--:|--:|--:|--:|
+| Operacion | O2<br>*(Metro Lazy)* | P2<br>*(KI-anvil Lazy)* | H<br>*(Resolver+Dagger)* | Q2<br>*(Dagger Lazy)* | Q<br>*(Dagger @Module)* | E2<br>*(Registry DFS)* | K<br>*(Manifest Discovery)* | I<br>*(Pure Resolver)* | O<br>*(Metro eager)* | P<br>*(KI-anvil eager)* | N<br>*(sweet-spi+Koin)* |
+|-----------|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | Init Cold (ns) | 1,127 | 1,416 | 106,865 | 1,080 | 676 | 10,983 | 213,737 | 94,255 | 603 | 1,064 | 69,636 |
 | Resolve First (ns) | 315 | 335 | 202 | 306 | 257 | 199 | 203 | 203 | 288 | 336 | 5,855 |
 | Resolve All (ns) | 86 | 156 | 212 | 85 | 64 | 211 | 213 | 211 | 80 | 165 | 6,328 |
