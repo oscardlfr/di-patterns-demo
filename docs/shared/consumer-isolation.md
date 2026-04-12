@@ -149,7 +149,7 @@ entre ciclos init/shutdown).
 
 ## Provision Interfaces: Aislamiento a Nivel Gradle
 
-Las variantes multi-modulo (D, E2, G, H, I, J, K) usan **provision interfaces** para
+Las variantes multi-modulo (D, E2, G, H, I, J, K, L, M, N, O, P) usan **provision interfaces** para
 aislamiento a nivel Gradle:
 
 ```

@@ -1,6 +1,5 @@
 package com.grinwich.sdk.wiring.q2
 
-import android.annotation.SuppressLint
 import android.content.Context
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.contracts.LazyCreationTracker
@@ -33,6 +32,7 @@ import javax.inject.Singleton
     ],
 )
 interface SdkComponent {
+    fun context(): Context
     fun encryption(): dagger.Lazy<EncryptionApi>
     fun hash(): dagger.Lazy<HashApi>
     fun auth(): dagger.Lazy<AuthApi>
@@ -51,7 +51,6 @@ interface SdkComponent {
     }
 }
 
-@SuppressLint("StaticFieldLeak") // Only applicationContext stored — safe, nulled on shutdown()
 object MultiModuleSdkQ2 : MultiModuleSdkApi {
 
     private var _component: SdkComponent? = null
@@ -60,7 +59,6 @@ object MultiModuleSdkQ2 : MultiModuleSdkApi {
 
     // Persistent — survive shutdown/reinit cycles (intentional: ApplicationContext-level singleton)
     private var _logger: SdkLogger = AndroidSdkLogger()
-    private var _context: Context? = null
 
     override val isInitialized: Boolean get() = _initialized
 
@@ -75,9 +73,9 @@ object MultiModuleSdkQ2 : MultiModuleSdkApi {
         check(!_initialized) { "MultiModuleSdkQ2 already initialized. Call shutdown() first." }
 
         _tracker = LazyCreationTracker.activate()
-        _context = context.applicationContext
+        val appCtx = context.applicationContext
         _component = DaggerSdkComponent.factory().create(
-            context = _context!!,
+            context = appCtx,
             config = config,
             logger = _logger,
             storageBackend = config.storageBackend,
@@ -98,7 +96,7 @@ object MultiModuleSdkQ2 : MultiModuleSdkApi {
             AnalyticsApi::class.java -> component.analytics().get()
             SyncApi::class.java -> component.sync().get()
             SdkLogger::class.java -> _logger
-            Context::class.java -> _context!!
+            Context::class.java -> component.context()
             else -> error("No binding for ${clazz.simpleName} in SdkComponent")
         } as T
     }
@@ -111,7 +109,6 @@ object MultiModuleSdkQ2 : MultiModuleSdkApi {
         _component = null
         _tracker?.clear()
         _tracker = null
-        _context = null
         _initialized = false
     }
 }

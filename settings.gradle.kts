@@ -39,6 +39,7 @@ include(":features:feature-observability-impl")
 
 // ── DI Infrastructure ──
 include(":di-contracts")
+include(":di-contracts-koin")
 
 // ── SDK ──
 include(":sdk:api")
@@ -54,6 +55,15 @@ include(":sdk:wiring-h")
 include(":sdk:wiring-i")
 include(":sdk:wiring-j")
 include(":sdk:wiring-k")
+include(":sdk:wiring-l")
+include(":sdk:wiring-m")
+include(":sdk:wiring-n")
+include(":sdk:wiring-o")
+include(":sdk:wiring-p")
+include(":sdk:wiring-q")
+include(":sdk:wiring-o2")
+include(":sdk:wiring-p2")
+include(":sdk:wiring-q2")
 
 // ── Sample apps ──
 include(":sample-dagger-a")

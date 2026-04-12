@@ -12,13 +12,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Microbenchmarks comparing 6 lazy multi-module wiring patterns.
+ * Microbenchmarks comparing 16 lazy multi-module wiring patterns.
  *
  * All patterns implement [MultiModuleSdkApi] — same consumer surface:
  * init(config) → get<T>() → shutdown()
  *
  * Patterns: D (when-block), E2 (AutoRegistry DFS), G (factory),
- *           H (Dagger+ServiceLoader), I (Pure Resolver), J (kotlin-inject)
+ *           H (Dagger+ServiceLoader), I (Pure Resolver), J (kotlin-inject),
+ *           K (AndroidManifest), L, M, N, O, P, Q
  *
  * Run: ./gradlew :benchmark:connectedReleaseAndroidTest
  */
@@ -27,6 +28,9 @@ class MultiModuleBenchmark {
 
     @get:Rule
     val benchmarkRule = BenchmarkRule()
+
+    @get:Rule
+    val patternFilter = PatternFilterRule()
 
     private val config = SdkConfig(debug = false)
 
@@ -46,6 +50,15 @@ class MultiModuleBenchmark {
     @Test fun initCold_I() = initCold(ALL_LAZY_SDKS[4].second)
     @Test fun initCold_J() = initCold(ALL_LAZY_SDKS[5].second)
     @Test fun initCold_K() = initCold(ALL_LAZY_SDKS[6].second)
+    @Test fun initCold_L() = initCold(ALL_LAZY_SDKS[7].second)
+    @Test fun initCold_M() = initCold(ALL_LAZY_SDKS[8].second)
+    @Test fun initCold_N() = initCold(ALL_LAZY_SDKS[9].second)
+    @Test fun initCold_O() = initCold(ALL_LAZY_SDKS[10].second)
+    @Test fun initCold_P() = initCold(ALL_LAZY_SDKS[11].second)
+    @Test fun initCold_Q() = initCold(ALL_LAZY_SDKS[12].second)
+    @Test fun initCold_O2() = initCold(ALL_LAZY_SDKS[13].second)
+    @Test fun initCold_P2() = initCold(ALL_LAZY_SDKS[14].second)
+    @Test fun initCold_Q2() = initCold(ALL_LAZY_SDKS[15].second)
 
     private fun initCold(sdk: MultiModuleSdkApi) = benchmarkRule.measureRepeated {
         sdk.init(testContext, config)
@@ -69,6 +82,15 @@ class MultiModuleBenchmark {
     @Test fun resolveFirst_I() = resolveFirst(ALL_LAZY_SDKS[4].second)
     @Test fun resolveFirst_J() = resolveFirst(ALL_LAZY_SDKS[5].second)
     @Test fun resolveFirst_K() = resolveFirst(ALL_LAZY_SDKS[6].second)
+    @Test fun resolveFirst_L() = resolveFirst(ALL_LAZY_SDKS[7].second)
+    @Test fun resolveFirst_M() = resolveFirst(ALL_LAZY_SDKS[8].second)
+    @Test fun resolveFirst_N() = resolveFirst(ALL_LAZY_SDKS[9].second)
+    @Test fun resolveFirst_O() = resolveFirst(ALL_LAZY_SDKS[10].second)
+    @Test fun resolveFirst_P() = resolveFirst(ALL_LAZY_SDKS[11].second)
+    @Test fun resolveFirst_Q() = resolveFirst(ALL_LAZY_SDKS[12].second)
+    @Test fun resolveFirst_O2() = resolveFirst(ALL_LAZY_SDKS[13].second)
+    @Test fun resolveFirst_P2() = resolveFirst(ALL_LAZY_SDKS[14].second)
+    @Test fun resolveFirst_Q2() = resolveFirst(ALL_LAZY_SDKS[15].second)
 
     private fun resolveFirst(sdk: MultiModuleSdkApi) {
         sdk.init(testContext, config)
@@ -91,6 +113,15 @@ class MultiModuleBenchmark {
     @Test fun lazyInit_noDeps_I() = lazyInitNoDeps(ALL_LAZY_SDKS[4].second)
     @Test fun lazyInit_noDeps_J() = lazyInitNoDeps(ALL_LAZY_SDKS[5].second)
     @Test fun lazyInit_noDeps_K() = lazyInitNoDeps(ALL_LAZY_SDKS[6].second)
+    @Test fun lazyInit_noDeps_L() = lazyInitNoDeps(ALL_LAZY_SDKS[7].second)
+    @Test fun lazyInit_noDeps_M() = lazyInitNoDeps(ALL_LAZY_SDKS[8].second)
+    @Test fun lazyInit_noDeps_N() = lazyInitNoDeps(ALL_LAZY_SDKS[9].second)
+    @Test fun lazyInit_noDeps_O() = lazyInitNoDeps(ALL_LAZY_SDKS[10].second)
+    @Test fun lazyInit_noDeps_P() = lazyInitNoDeps(ALL_LAZY_SDKS[11].second)
+    @Test fun lazyInit_noDeps_Q() = lazyInitNoDeps(ALL_LAZY_SDKS[12].second)
+    @Test fun lazyInit_noDeps_O2() = lazyInitNoDeps(ALL_LAZY_SDKS[13].second)
+    @Test fun lazyInit_noDeps_P2() = lazyInitNoDeps(ALL_LAZY_SDKS[14].second)
+    @Test fun lazyInit_noDeps_Q2() = lazyInitNoDeps(ALL_LAZY_SDKS[15].second)
 
     private fun lazyInitNoDeps(sdk: MultiModuleSdkApi) = benchmarkRule.measureRepeated {
         runWithMeasurementDisabled {
@@ -112,6 +143,15 @@ class MultiModuleBenchmark {
     @Test fun lazyInit_cascade_I() = lazyInitCascade(ALL_LAZY_SDKS[4].second)
     @Test fun lazyInit_cascade_J() = lazyInitCascade(ALL_LAZY_SDKS[5].second)
     @Test fun lazyInit_cascade_K() = lazyInitCascade(ALL_LAZY_SDKS[6].second)
+    @Test fun lazyInit_cascade_L() = lazyInitCascade(ALL_LAZY_SDKS[7].second)
+    @Test fun lazyInit_cascade_M() = lazyInitCascade(ALL_LAZY_SDKS[8].second)
+    @Test fun lazyInit_cascade_N() = lazyInitCascade(ALL_LAZY_SDKS[9].second)
+    @Test fun lazyInit_cascade_O() = lazyInitCascade(ALL_LAZY_SDKS[10].second)
+    @Test fun lazyInit_cascade_P() = lazyInitCascade(ALL_LAZY_SDKS[11].second)
+    @Test fun lazyInit_cascade_Q() = lazyInitCascade(ALL_LAZY_SDKS[12].second)
+    @Test fun lazyInit_cascade_O2() = lazyInitCascade(ALL_LAZY_SDKS[13].second)
+    @Test fun lazyInit_cascade_P2() = lazyInitCascade(ALL_LAZY_SDKS[14].second)
+    @Test fun lazyInit_cascade_Q2() = lazyInitCascade(ALL_LAZY_SDKS[15].second)
 
     private fun lazyInitCascade(sdk: MultiModuleSdkApi) = benchmarkRule.measureRepeated {
         runWithMeasurementDisabled {
@@ -133,6 +173,15 @@ class MultiModuleBenchmark {
     @Test fun crossFeatureOp_I() = crossFeatureOp(ALL_LAZY_SDKS[4].second)
     @Test fun crossFeatureOp_J() = crossFeatureOp(ALL_LAZY_SDKS[5].second)
     @Test fun crossFeatureOp_K() = crossFeatureOp(ALL_LAZY_SDKS[6].second)
+    @Test fun crossFeatureOp_L() = crossFeatureOp(ALL_LAZY_SDKS[7].second)
+    @Test fun crossFeatureOp_M() = crossFeatureOp(ALL_LAZY_SDKS[8].second)
+    @Test fun crossFeatureOp_N() = crossFeatureOp(ALL_LAZY_SDKS[9].second)
+    @Test fun crossFeatureOp_O() = crossFeatureOp(ALL_LAZY_SDKS[10].second)
+    @Test fun crossFeatureOp_P() = crossFeatureOp(ALL_LAZY_SDKS[11].second)
+    @Test fun crossFeatureOp_Q() = crossFeatureOp(ALL_LAZY_SDKS[12].second)
+    @Test fun crossFeatureOp_O2() = crossFeatureOp(ALL_LAZY_SDKS[13].second)
+    @Test fun crossFeatureOp_P2() = crossFeatureOp(ALL_LAZY_SDKS[14].second)
+    @Test fun crossFeatureOp_Q2() = crossFeatureOp(ALL_LAZY_SDKS[15].second)
 
     private fun crossFeatureOp(sdk: MultiModuleSdkApi) {
         sdk.init(testContext, config)
@@ -155,6 +204,15 @@ class MultiModuleBenchmark {
     @Test fun stress_initShutdown_I() = stressInitShutdown(ALL_LAZY_SDKS[4].second)
     @Test fun stress_initShutdown_J() = stressInitShutdown(ALL_LAZY_SDKS[5].second)
     @Test fun stress_initShutdown_K() = stressInitShutdown(ALL_LAZY_SDKS[6].second)
+    @Test fun stress_initShutdown_L() = stressInitShutdown(ALL_LAZY_SDKS[7].second)
+    @Test fun stress_initShutdown_M() = stressInitShutdown(ALL_LAZY_SDKS[8].second)
+    @Test fun stress_initShutdown_N() = stressInitShutdown(ALL_LAZY_SDKS[9].second)
+    @Test fun stress_initShutdown_O() = stressInitShutdown(ALL_LAZY_SDKS[10].second)
+    @Test fun stress_initShutdown_P() = stressInitShutdown(ALL_LAZY_SDKS[11].second)
+    @Test fun stress_initShutdown_Q() = stressInitShutdown(ALL_LAZY_SDKS[12].second)
+    @Test fun stress_initShutdown_O2() = stressInitShutdown(ALL_LAZY_SDKS[13].second)
+    @Test fun stress_initShutdown_P2() = stressInitShutdown(ALL_LAZY_SDKS[14].second)
+    @Test fun stress_initShutdown_Q2() = stressInitShutdown(ALL_LAZY_SDKS[15].second)
 
     private fun stressInitShutdown(sdk: MultiModuleSdkApi) = benchmarkRule.measureRepeated {
         sdk.init(testContext, config)
@@ -173,6 +231,15 @@ class MultiModuleBenchmark {
     @Test fun stress_concurrent_I() = stressConcurrent(ALL_LAZY_SDKS[4].second)
     @Test fun stress_concurrent_J() = stressConcurrent(ALL_LAZY_SDKS[5].second)
     @Test fun stress_concurrent_K() = stressConcurrent(ALL_LAZY_SDKS[6].second)
+    @Test fun stress_concurrent_L() = stressConcurrent(ALL_LAZY_SDKS[7].second)
+    @Test fun stress_concurrent_M() = stressConcurrent(ALL_LAZY_SDKS[8].second)
+    @Test fun stress_concurrent_N() = stressConcurrent(ALL_LAZY_SDKS[9].second)
+    @Test fun stress_concurrent_O() = stressConcurrent(ALL_LAZY_SDKS[10].second)
+    @Test fun stress_concurrent_P() = stressConcurrent(ALL_LAZY_SDKS[11].second)
+    @Test fun stress_concurrent_Q() = stressConcurrent(ALL_LAZY_SDKS[12].second)
+    @Test fun stress_concurrent_O2() = stressConcurrent(ALL_LAZY_SDKS[13].second)
+    @Test fun stress_concurrent_P2() = stressConcurrent(ALL_LAZY_SDKS[14].second)
+    @Test fun stress_concurrent_Q2() = stressConcurrent(ALL_LAZY_SDKS[15].second)
 
     private fun stressConcurrent(sdk: MultiModuleSdkApi) {
         sdk.init(testContext, config)
@@ -202,6 +269,15 @@ class MultiModuleBenchmark {
     @Test fun stress_resolveAll_I() = stressResolveAll(ALL_LAZY_SDKS[4].second)
     @Test fun stress_resolveAll_J() = stressResolveAll(ALL_LAZY_SDKS[5].second)
     @Test fun stress_resolveAll_K() = stressResolveAll(ALL_LAZY_SDKS[6].second)
+    @Test fun stress_resolveAll_L() = stressResolveAll(ALL_LAZY_SDKS[7].second)
+    @Test fun stress_resolveAll_M() = stressResolveAll(ALL_LAZY_SDKS[8].second)
+    @Test fun stress_resolveAll_N() = stressResolveAll(ALL_LAZY_SDKS[9].second)
+    @Test fun stress_resolveAll_O() = stressResolveAll(ALL_LAZY_SDKS[10].second)
+    @Test fun stress_resolveAll_P() = stressResolveAll(ALL_LAZY_SDKS[11].second)
+    @Test fun stress_resolveAll_Q() = stressResolveAll(ALL_LAZY_SDKS[12].second)
+    @Test fun stress_resolveAll_O2() = stressResolveAll(ALL_LAZY_SDKS[13].second)
+    @Test fun stress_resolveAll_P2() = stressResolveAll(ALL_LAZY_SDKS[14].second)
+    @Test fun stress_resolveAll_Q2() = stressResolveAll(ALL_LAZY_SDKS[15].second)
 
     private fun stressResolveAll(sdk: MultiModuleSdkApi) {
         sdk.init(testContext, config)
@@ -229,6 +305,15 @@ class MultiModuleBenchmark {
     @Test fun stress_selective_I() = stressSelective(ALL_LAZY_SDKS[4].second)
     @Test fun stress_selective_J() = stressSelective(ALL_LAZY_SDKS[5].second)
     @Test fun stress_selective_K() = stressSelective(ALL_LAZY_SDKS[6].second)
+    @Test fun stress_selective_L() = stressSelective(ALL_LAZY_SDKS[7].second)
+    @Test fun stress_selective_M() = stressSelective(ALL_LAZY_SDKS[8].second)
+    @Test fun stress_selective_N() = stressSelective(ALL_LAZY_SDKS[9].second)
+    @Test fun stress_selective_O() = stressSelective(ALL_LAZY_SDKS[10].second)
+    @Test fun stress_selective_P() = stressSelective(ALL_LAZY_SDKS[11].second)
+    @Test fun stress_selective_Q() = stressSelective(ALL_LAZY_SDKS[12].second)
+    @Test fun stress_selective_O2() = stressSelective(ALL_LAZY_SDKS[13].second)
+    @Test fun stress_selective_P2() = stressSelective(ALL_LAZY_SDKS[14].second)
+    @Test fun stress_selective_Q2() = stressSelective(ALL_LAZY_SDKS[15].second)
 
     private fun stressSelective(sdk: MultiModuleSdkApi) = benchmarkRule.measureRepeated {
         sdk.init(testContext, config)
@@ -247,6 +332,15 @@ class MultiModuleBenchmark {
     @Test fun stress_reInit_I() = stressReInit(ALL_LAZY_SDKS[4].second)
     @Test fun stress_reInit_J() = stressReInit(ALL_LAZY_SDKS[5].second)
     @Test fun stress_reInit_K() = stressReInit(ALL_LAZY_SDKS[6].second)
+    @Test fun stress_reInit_L() = stressReInit(ALL_LAZY_SDKS[7].second)
+    @Test fun stress_reInit_M() = stressReInit(ALL_LAZY_SDKS[8].second)
+    @Test fun stress_reInit_N() = stressReInit(ALL_LAZY_SDKS[9].second)
+    @Test fun stress_reInit_O() = stressReInit(ALL_LAZY_SDKS[10].second)
+    @Test fun stress_reInit_P() = stressReInit(ALL_LAZY_SDKS[11].second)
+    @Test fun stress_reInit_Q() = stressReInit(ALL_LAZY_SDKS[12].second)
+    @Test fun stress_reInit_O2() = stressReInit(ALL_LAZY_SDKS[13].second)
+    @Test fun stress_reInit_P2() = stressReInit(ALL_LAZY_SDKS[14].second)
+    @Test fun stress_reInit_Q2() = stressReInit(ALL_LAZY_SDKS[15].second)
 
     private fun stressReInit(sdk: MultiModuleSdkApi) = benchmarkRule.measureRepeated {
         sdk.init(testContext, config)
@@ -270,6 +364,15 @@ class MultiModuleBenchmark {
     @Test fun stress_incremental_I() = stressIncremental(ALL_LAZY_SDKS[4].second)
     @Test fun stress_incremental_J() = stressIncremental(ALL_LAZY_SDKS[5].second)
     @Test fun stress_incremental_K() = stressIncremental(ALL_LAZY_SDKS[6].second)
+    @Test fun stress_incremental_L() = stressIncremental(ALL_LAZY_SDKS[7].second)
+    @Test fun stress_incremental_M() = stressIncremental(ALL_LAZY_SDKS[8].second)
+    @Test fun stress_incremental_N() = stressIncremental(ALL_LAZY_SDKS[9].second)
+    @Test fun stress_incremental_O() = stressIncremental(ALL_LAZY_SDKS[10].second)
+    @Test fun stress_incremental_P() = stressIncremental(ALL_LAZY_SDKS[11].second)
+    @Test fun stress_incremental_Q() = stressIncremental(ALL_LAZY_SDKS[12].second)
+    @Test fun stress_incremental_O2() = stressIncremental(ALL_LAZY_SDKS[13].second)
+    @Test fun stress_incremental_P2() = stressIncremental(ALL_LAZY_SDKS[14].second)
+    @Test fun stress_incremental_Q2() = stressIncremental(ALL_LAZY_SDKS[15].second)
 
     private fun stressIncremental(sdk: MultiModuleSdkApi) = benchmarkRule.measureRepeated {
         sdk.init(testContext, config)
@@ -295,6 +398,15 @@ class MultiModuleBenchmark {
     @Test fun e2eStartup_I() = e2eAppStartup(ALL_LAZY_SDKS[4].second)
     @Test fun e2eStartup_J() = e2eAppStartup(ALL_LAZY_SDKS[5].second)
     @Test fun e2eStartup_K() = e2eAppStartup(ALL_LAZY_SDKS[6].second)
+    @Test fun e2eStartup_L() = e2eAppStartup(ALL_LAZY_SDKS[7].second)
+    @Test fun e2eStartup_M() = e2eAppStartup(ALL_LAZY_SDKS[8].second)
+    @Test fun e2eStartup_N() = e2eAppStartup(ALL_LAZY_SDKS[9].second)
+    @Test fun e2eStartup_O() = e2eAppStartup(ALL_LAZY_SDKS[10].second)
+    @Test fun e2eStartup_P() = e2eAppStartup(ALL_LAZY_SDKS[11].second)
+    @Test fun e2eStartup_Q() = e2eAppStartup(ALL_LAZY_SDKS[12].second)
+    @Test fun e2eStartup_O2() = e2eAppStartup(ALL_LAZY_SDKS[13].second)
+    @Test fun e2eStartup_P2() = e2eAppStartup(ALL_LAZY_SDKS[14].second)
+    @Test fun e2eStartup_Q2() = e2eAppStartup(ALL_LAZY_SDKS[15].second)
 
     private fun e2eAppStartup(sdk: MultiModuleSdkApi) = benchmarkRule.measureRepeated {
         // Phase 1: SDK init (ServiceLoader / registration / Core build)
@@ -344,6 +456,60 @@ class MultiModuleBenchmark {
     @Test fun crossFeatureOp_K_fake() = crossFeatureOpWith(ALL_LAZY_SDKS[6].second, configFake)
     @Test fun crossFeatureOp_K_sharedprefs() = crossFeatureOpWith(ALL_LAZY_SDKS[6].second, configSharedPrefs)
     @Test fun crossFeatureOp_K_datastore() = crossFeatureOpWith(ALL_LAZY_SDKS[6].second, configDataStore)
+
+    // -- Pattern L --
+
+    @Test fun crossFeatureOp_L_fake() = crossFeatureOpWith(ALL_LAZY_SDKS[7].second, configFake)
+    @Test fun crossFeatureOp_L_sharedprefs() = crossFeatureOpWith(ALL_LAZY_SDKS[7].second, configSharedPrefs)
+    @Test fun crossFeatureOp_L_datastore() = crossFeatureOpWith(ALL_LAZY_SDKS[7].second, configDataStore)
+
+    // -- Pattern M --
+
+    @Test fun crossFeatureOp_M_fake() = crossFeatureOpWith(ALL_LAZY_SDKS[8].second, configFake)
+    @Test fun crossFeatureOp_M_sharedprefs() = crossFeatureOpWith(ALL_LAZY_SDKS[8].second, configSharedPrefs)
+    @Test fun crossFeatureOp_M_datastore() = crossFeatureOpWith(ALL_LAZY_SDKS[8].second, configDataStore)
+
+    // -- Pattern N --
+
+    @Test fun crossFeatureOp_N_fake() = crossFeatureOpWith(ALL_LAZY_SDKS[9].second, configFake)
+    @Test fun crossFeatureOp_N_sharedprefs() = crossFeatureOpWith(ALL_LAZY_SDKS[9].second, configSharedPrefs)
+    @Test fun crossFeatureOp_N_datastore() = crossFeatureOpWith(ALL_LAZY_SDKS[9].second, configDataStore)
+
+    // -- Pattern O --
+
+    @Test fun crossFeatureOp_O_fake() = crossFeatureOpWith(ALL_LAZY_SDKS[10].second, configFake)
+    @Test fun crossFeatureOp_O_sharedprefs() = crossFeatureOpWith(ALL_LAZY_SDKS[10].second, configSharedPrefs)
+    @Test fun crossFeatureOp_O_datastore() = crossFeatureOpWith(ALL_LAZY_SDKS[10].second, configDataStore)
+
+    // -- Pattern P --
+
+    @Test fun crossFeatureOp_P_fake() = crossFeatureOpWith(ALL_LAZY_SDKS[11].second, configFake)
+    @Test fun crossFeatureOp_P_sharedprefs() = crossFeatureOpWith(ALL_LAZY_SDKS[11].second, configSharedPrefs)
+    @Test fun crossFeatureOp_P_datastore() = crossFeatureOpWith(ALL_LAZY_SDKS[11].second, configDataStore)
+
+    // -- Pattern Q --
+
+    @Test fun crossFeatureOp_Q_fake() = crossFeatureOpWith(ALL_LAZY_SDKS[12].second, configFake)
+    @Test fun crossFeatureOp_Q_sharedprefs() = crossFeatureOpWith(ALL_LAZY_SDKS[12].second, configSharedPrefs)
+    @Test fun crossFeatureOp_Q_datastore() = crossFeatureOpWith(ALL_LAZY_SDKS[12].second, configDataStore)
+
+    // -- Pattern O2 --
+
+    @Test fun crossFeatureOp_O2_fake() = crossFeatureOpWith(ALL_LAZY_SDKS[13].second, configFake)
+    @Test fun crossFeatureOp_O2_sharedprefs() = crossFeatureOpWith(ALL_LAZY_SDKS[13].second, configSharedPrefs)
+    @Test fun crossFeatureOp_O2_datastore() = crossFeatureOpWith(ALL_LAZY_SDKS[13].second, configDataStore)
+
+    // -- Pattern P2 --
+
+    @Test fun crossFeatureOp_P2_fake() = crossFeatureOpWith(ALL_LAZY_SDKS[14].second, configFake)
+    @Test fun crossFeatureOp_P2_sharedprefs() = crossFeatureOpWith(ALL_LAZY_SDKS[14].second, configSharedPrefs)
+    @Test fun crossFeatureOp_P2_datastore() = crossFeatureOpWith(ALL_LAZY_SDKS[14].second, configDataStore)
+
+    // -- Pattern Q2 --
+
+    @Test fun crossFeatureOp_Q2_fake() = crossFeatureOpWith(ALL_LAZY_SDKS[15].second, configFake)
+    @Test fun crossFeatureOp_Q2_sharedprefs() = crossFeatureOpWith(ALL_LAZY_SDKS[15].second, configSharedPrefs)
+    @Test fun crossFeatureOp_Q2_datastore() = crossFeatureOpWith(ALL_LAZY_SDKS[15].second, configDataStore)
 
     private fun crossFeatureOpWith(sdk: MultiModuleSdkApi, cfg: SdkConfig) {
         sdk.init(testContext, cfg)

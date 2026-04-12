@@ -363,7 +363,7 @@ En 1,000 ciclos el delta seria enorme y el test fallaria.
 
 **heapFootprint_H** | Criterio: ninguno (informativo) | Resultado: datos emitidos via logcat
 ```
-Para cada patron (D, E2, G, H, I, J, K):
+Para cada patron (D, E2, G, H, I, J, K, L, M, N, O, P):
 1. System.gc()
 2. heapBefore = usedHeapKb()
 3. sdk.init(context, config)
@@ -376,7 +376,7 @@ Para cada patron (D, E2, G, H, I, J, K):
 10. Log.d("HEAP_COMPARE", "$name | init: +${afterInit - before} KB (${provisions} prov) | full: +${afterFull - before} KB")
 11. sdk.shutdown()
 ```
-Mide heap antes/despues de init y fullGraph para los 7 patrones. GC forzado entre mediciones.
+Mide heap antes/despues de init y fullGraph para los 12 patrones. GC forzado entre mediciones.
 Este test NO tiene assert -- no falla nunca. Solo emite datos via logcat
 para comparar el footprint de memoria de cada patron. El output tiene este formato:
 ```
@@ -423,7 +423,7 @@ Verifica que el patron singleton del Resolver es estable: una vez construida la 
 
 **crossPatternIsolation_H** | Criterio: 21 pares `assertNotSame`, shutdown aislado | Resultado: aislamiento total
 ```
-1. Inicializar los 7 patrones simultaneamente: D, E2, G, H, I, J, K
+1. Inicializar los 12 patrones simultaneamente: D, E2, G, H, I, J, K, L, M, N, O, P
 2. Para cada patron: enc = sdk.get(EncryptionApi)
 3. Comparar todos los pares (21 combinaciones):
    assertNotSame(enc_H, enc_D)
@@ -433,7 +433,7 @@ Verifica que el patron singleton del Resolver es estable: una vez construida la 
 5. assertEquals(0, sdkD.builtProvisionCount)
 6. Para los otros 6: assertTrue(sdk.builtProvisionCount > 0)  -- no afectados
 ```
-Inicializa los 7 patrones simultaneamente. Obtiene EncryptionApi de cada uno. assertNotSame
+Inicializa los 12 patrones simultaneamente. Obtiene EncryptionApi de cada uno. assertNotSame
 entre las 21 combinaciones de pares. Hace shutdown de un patron y verifica que los otros 6
 sobreviven. Cada patron tiene su propio Resolver con sus propias instancias. Ningun patron
 comparte estado con otro.
@@ -575,7 +575,7 @@ reinicializaciones, las operaciones reales fallarian.
 
 **coldCascadeTiming_H** | Criterio: ninguno (informativo) | Resultado: tiempos capturados
 ```
-Para cada patron (D, E2, G, H, I, J, K):
+Para cada patron (D, E2, G, H, I, J, K, L, M, N, O, P):
 1. t0 = System.nanoTime()
 2. sdk.init(context, config)
 3. t1 = System.nanoTime()         -- tiempo de init
@@ -586,7 +586,7 @@ Para cada patron (D, E2, G, H, I, J, K):
 8. Log tabla formateada con init, build, cached por patron
 9. sdk.shutdown()
 ```
-Mide init, build (Sync+Ana) y 1,000x cached resolution para cada uno de los 7 patrones.
+Mide init, build (Sync+Ana) y 1,000x cached resolution para cada uno de los 12 patrones.
 Emite una tabla formateada via logcat comparando tiempos reales (no Jetpack Benchmark).
 No tiene asserts -- puramente informativo.
 
@@ -614,14 +614,14 @@ No tiene asserts -- puramente informativo.
 **alternatingPatterns_H** | Criterio: 700 ciclos sin contaminacion | Resultado: OK
 ```
 Repetir 100 veces:
-  Para cada patron (D, E2, G, H, I, J, K):
+  Para cada patron (D, E2, G, H, I, J, K, L, M, N, O, P):
     1. sdk.init(context, config)
     2. enc = sdk.get(EncryptionApi)
     3. assertNotNull(enc)
     4. sdk.shutdown()
     5. assertEquals(0, builtProvisionCount)
 ```
-100 rondas alternando entre los 7 patrones. Cada ronda: init, get(Enc), assertNotNull,
+100 rondas alternando entre los 12 patrones. Cada ronda: init, get(Enc), assertNotNull,
 shutdown, assertEquals(0, builtProvisionCount). Total 700 ciclos. Verifica que alternar
 rapidamente entre patrones no causa contaminacion cruzada. Cada patron tiene su propio
 Resolver (objeto separado), asi que no deberian interferir.

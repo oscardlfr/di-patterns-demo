@@ -10,12 +10,21 @@ import com.grinwich.sdk.wiring.h.MultiModuleSdkH
 import com.grinwich.sdk.wiring.i.MultiModuleSdkI
 import com.grinwich.sdk.wiring.j.MultiModuleSdkJ
 import com.grinwich.sdk.wiring.k.MultiModuleSdkK
+import com.grinwich.sdk.wiring.l.MultiModuleSdkL
+import com.grinwich.sdk.wiring.m.MultiModuleSdkM
+import com.grinwich.sdk.wiring.n.MultiModuleSdkN
+import com.grinwich.sdk.wiring.o.MultiModuleSdkO
+import com.grinwich.sdk.wiring.o2.MultiModuleSdkO2
+import com.grinwich.sdk.wiring.p.MultiModuleSdkP
+import com.grinwich.sdk.wiring.p2.MultiModuleSdkP2
+import com.grinwich.sdk.wiring.q.MultiModuleSdkQ
+import com.grinwich.sdk.wiring.q2.MultiModuleSdkQ2
 
 /** Application context for instrumented tests. */
 val testContext: Context get() =
     InstrumentationRegistry.getInstrumentation().targetContext.applicationContext
 
-/** All 7 lazy multi-module SDK patterns for parameterized testing. */
+/** All 16 lazy multi-module SDK patterns for parameterized testing. */
 val ALL_LAZY_SDKS: List<Pair<String, MultiModuleSdkApi>> = listOf(
     "D" to MultiModuleSdk,
     "E2" to MultiModuleSdkE2,
@@ -24,6 +33,15 @@ val ALL_LAZY_SDKS: List<Pair<String, MultiModuleSdkApi>> = listOf(
     "I" to MultiModuleSdkI,
     "J" to MultiModuleSdkJ,
     "K" to MultiModuleSdkK,
+    "L" to MultiModuleSdkL,
+    "M" to MultiModuleSdkM,
+    "N" to MultiModuleSdkN,
+    "O" to MultiModuleSdkO,
+    "P" to MultiModuleSdkP,
+    "Q" to MultiModuleSdkQ,
+    "O2" to MultiModuleSdkO2,
+    "P2" to MultiModuleSdkP2,
+    "Q2" to MultiModuleSdkQ2,
 )
 
 /** Expected provision counts per pattern — used by MemoryBehaviorTest. */
@@ -54,4 +72,13 @@ val EXPECTED_COUNTS: Map<String, SdkExpectedCounts> = mapOf(
     "I"  to SdkExpectedCounts(afterInit = 0, afterEnc = 1, afterAna = 1, afterSync = 5, fullGraph = 6),
     "J"  to SdkExpectedCounts(afterInit = 0, afterEnc = 1, afterAna = 1, afterSync = 5, fullGraph = 6),
     "K"  to SdkExpectedCounts(afterInit = 0, afterEnc = 2, afterAna = 2, afterSync = 5, fullGraph = 6),
+    "L"  to SdkExpectedCounts(afterInit = 0, afterEnc = 1, afterAna = 1, afterSync = 4, fullGraph = 5),
+    "M"  to SdkExpectedCounts(afterInit = 0, afterEnc = 1, afterAna = 1, afterSync = 4, fullGraph = 5),
+    "N"  to SdkExpectedCounts(afterInit = 0, afterEnc = 1, afterAna = 1, afterSync = 4, fullGraph = 5),
+    "O"  to SdkExpectedCounts(afterInit = 5, afterEnc = 5, afterAna = 5, afterSync = 5, fullGraph = 5),
+    "P"  to SdkExpectedCounts(afterInit = 5, afterEnc = 5, afterAna = 5, afterSync = 5, fullGraph = 5),
+    "Q"  to SdkExpectedCounts(afterInit = 5, afterEnc = 5, afterAna = 5, afterSync = 5, fullGraph = 5),
+    "O2" to SdkExpectedCounts(afterInit = 0, afterEnc = 1, afterAna = 1, afterSync = 4, fullGraph = 5),
+    "P2" to SdkExpectedCounts(afterInit = 0, afterEnc = 1, afterAna = 1, afterSync = 4, fullGraph = 5),
+    "Q2" to SdkExpectedCounts(afterInit = 0, afterEnc = 1, afterAna = 1, afterSync = 4, fullGraph = 5),
 )

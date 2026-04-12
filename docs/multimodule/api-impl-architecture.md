@@ -10,7 +10,7 @@ donde las features se organizan en módulos `api`, `impl` e `integration`.
 - `feature-*-api/` — interfaces públicas per-feature (módulos top-level)
 - `sdk/di-contracts/` — Provisions + Scopes + RegistryInfra + FeatureProvider + PureFeatureProvider + KIFeatureProvider + Resolver
 - `feature-*-impl/` — Dagger Components + Default*Service + buildXxxProvisions() + XxxProvider (módulos top-level)
-- 8 variantes de wiring: `sdk/sdk-wiring/` (D), `sdk/wiring-e/` (E), `sdk/wiring-e2/` (E2), `sdk/wiring-g/` (G), `sdk/wiring-h/` (H), `sdk/wiring-i/` (I), `sdk/wiring-j/` (J), `sdk/wiring-k/` (K)
+- 17 variantes de wiring: `sdk/sdk-wiring/` (D), `sdk/wiring-e/` (E), `sdk/wiring-e2/` (E2), `sdk/wiring-g/` (G), `sdk/wiring-h/` (H), `sdk/wiring-i/` (I), `sdk/wiring-j/` (J), `sdk/wiring-k/` (K), `sdk/wiring-l/` (L), `sdk/wiring-m/` (M), `sdk/wiring-n/` (N), `sdk/wiring-o/` (O), `sdk/wiring-o2/` (O2), `sdk/wiring-p/` (P), `sdk/wiring-p2/` (P2), `sdk/wiring-q/` (Q), `sdk/wiring-q2/` (Q2)
 - `sample-multimodule/` — app consumidora que solo depende de `sdk/wiring-h` (Pattern H)
 
 Para implementaciones Dagger, ver [patterns-overview.md](../multimodule/patterns-overview.md).
@@ -51,6 +51,15 @@ sdk/
   wiring-i/                  → Pattern I: PureFeatureProviders (direct constructor injection, zero DI framework)
   wiring-j/                  → Pattern J: KIFeatureProviders (kotlin-inject Components, KSP)
   wiring-k/                  → Pattern K: AndroidManifest metadata discovery (Firebase-style, same FeatureProviders as H)
+  wiring-l/                  → Pattern L: Koin + ServiceLoader (Partial KMP)
+  wiring-m/                  → Pattern M: Koin Manual Wiring (Partial KMP)
+  wiring-n/                  → Pattern N: sweet-spi + Koin (Full KMP)
+  wiring-o/                  → Pattern O: Koin DSL Modules (Full KMP)
+  wiring-o2/                 → Pattern O2: Koin DSL + Auto-Discovery (Full KMP)
+  wiring-p/                  → Pattern P: Koin Annotations (Full KMP)
+  wiring-p2/                 → Pattern P2: Koin Annotations + Auto-Discovery (Full KMP)
+  wiring-q/                  → Pattern Q: Hilt-style Dagger (Android-only)
+  wiring-q2/                 → Pattern Q2: Hilt-style Dagger Simplified (Android-only)
 
 sample-multimodule/          → App consumidora que solo depende de sdk/wiring-h (Pattern H)
 ```
@@ -1004,6 +1013,15 @@ y un `@Component` bridge conecta servicios del SDK al grafo Dagger de la app.
 | **I** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ |
 | **J** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **K** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ |
+| **L** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
+| **M** | 🟢 Alta | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ❌ | ✅ |
+| **N** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
+| **O** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
+| **O2** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
+| **P** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ |
+| **P2** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ |
+| **Q** | 🟡 Media-alta | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ |
+| **Q2** | 🟡 Media-alta | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ |
 | **Koin** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
 | **Hybrid** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ |
 
@@ -1026,24 +1044,33 @@ y un `@Component` bridge conecta servicios del SDK al grafo Dagger de la app.
 | **I** | Nada — wiring inmutable | `wiring-i` | Zero edición central |
 | **J** | Nada — wiring inmutable | `wiring-j` | Zero edición central |
 | **K** | Nada — wiring inmutable | `wiring-k` | Zero edición central |
+| **L** | Nada — wiring inmutable | `wiring-l` | Zero edición central (ServiceLoader + Koin) |
+| **M** | `sdkModules()` list | `wiring-m` | 1 línea por feature — manejable (Koin manual) |
+| **N** | Nada — wiring inmutable | `wiring-n` | Zero edición central (sweet-spi + Koin) |
+| **O** | Nada — wiring inmutable | `wiring-o` | Zero edición central (Koin DSL) |
+| **O2** | Nada — wiring inmutable | `wiring-o2` | Zero edición central (Koin DSL auto) |
+| **P** | Nada — wiring inmutable | `wiring-p` | Zero edición central (Koin Annotations) |
+| **P2** | Nada — wiring inmutable | `wiring-p2` | Zero edición central (Koin Annotations auto) |
+| **Q** | Lista `modules=[...]` en @Component | `wiring-q` | Anotación crece con cada feature |
+| **Q2** | Lista `modules=[...]` en @Component | `wiring-q2` | Anotación crece con cada feature |
 | **Koin** | `sdkModules()` list | `sdk-wiring` | 1 línea por feature — manejable |
 | **Hybrid** | = Koin + bridge @Provides | `sdk-wiring` + app bridge | Bridge crece 1 línea/servicio |
 
 ### ¿Qué rompe la arquitectura a escala?
 
 ```
-                     ┌──────────────────────────────────┐
-                     │  ESCALA SIN PROBLEMAS (50+)      │
-                     │                                   │
-                     │  E2  H  I  J  K  Koin  Hybrid     │
-                     └──────────────────────────────────┘
+                     ┌───────────────────────────────────────────────────────┐
+                     │  ESCALA SIN PROBLEMAS (50+)                           │
+                     │                                                       │
+                     │  E2  H  I  J  K  L  N  O  O2  P  P2  Koin  Hybrid    │
+                     └───────────────────────────────────────────────────────┘
 
-    ┌───────────────────────────────────┐
-    │  FUNCIONA HASTA ~30 FEATURES      │
-    │                                    │
-    │  D    E    G                       │
-    │  (when blocks, enum maintenance)   │
-    └───────────────────────────────────┘
+    ┌───────────────────────────────────────────────┐
+    │  FUNCIONA HASTA ~30 FEATURES                  │
+    │                                                │
+    │  D    E    G    M    Q    Q2                    │
+    │  (when blocks, enum, manual modules, @Component)│
+    └───────────────────────────────────────────────┘
 
  ┌──────────────────────────────────────────┐
  │  RIESGOSO A > 15 FEATURES               │
@@ -1062,7 +1089,7 @@ y un `@Component` bridge conecta servicios del SDK al grafo Dagger de la app.
 
 ## Visibilidad de Components: El Detalle Gradle
 
-**Implementado en:** `feature-*-impl/`, `sdk/sdk-wiring/` (D), `sdk/wiring-e/` (E), `sdk/wiring-e2/` (E2), `sdk/wiring-g/` (G), `sdk/wiring-h/` (H), `sdk/wiring-i/` (I), `sdk/wiring-j/` (J), `sdk/wiring-k/` (K), `sample-multimodule/`
+**Implementado en:** `feature-*-impl/`, `sdk/sdk-wiring/` (D), `sdk/wiring-e/` (E), `sdk/wiring-e2/` (E2), `sdk/wiring-g/` (G), `sdk/wiring-h/` (H), `sdk/wiring-i/` (I), `sdk/wiring-j/` (J), `sdk/wiring-k/` (K), `sdk/wiring-l/` (L), `sdk/wiring-m/` (M), `sdk/wiring-n/` (N), `sdk/wiring-o/` (O), `sdk/wiring-o2/` (O2), `sdk/wiring-p/` (P), `sdk/wiring-p2/` (P2), `sdk/wiring-q/` (Q), `sdk/wiring-q2/` (Q2), `sample-multimodule/`
 
 En la arquitectura api/impl, `sdk-wiring` necesita construir `DaggerAuthComponent`.
 ¿El Component de `feature-auth-impl` debe ser público?
@@ -1239,30 +1266,40 @@ compilador Dagger valida que esas provision interfaces tengan los metodos requer
 
 Para la arquitectura **api / impl / integration** con visibilidad estricta:
 
-1. **Koin, E2, H, I, J y K son los approaches que mejor escalan** sin comprometer los requisitos.
-   - **Koin:** si el equipo acepta resolución runtime (mitigable con `checkModules()` en tests).
+1. **Los 16 patrones multi-modulo se organizan en 3 categorias:**
+   - **Android-only (D, E2, G, H, I, K, Q, Q2):** dependen de APIs JVM/Android (Dagger, ServiceLoader, PackageManager).
+   - **KMP-compatible (N, O, O2, P, P2):** funcionan en todos los targets KMP (JVM, iOS, macOS, WASM). Usan sweet-spi o Koin nativo.
+   - **Partial KMP (J, L, M):** el framework DI es KMP, pero el discovery usa ServiceLoader (JVM-only). Convertirlos a Full KMP es trivial (reemplazar ServiceLoader por sweet-spi).
+
+2. **Los approaches que mejor escalan** sin comprometer los requisitos son: Koin, E2, H, I, J, K, L, N, O, O2, P y P2.
+   - **Koin (monolitico):** si el equipo acepta resolucion runtime (mitigable con `checkModules()` en tests).
    - **E2:** si compile-time safety es requisito duro (Dagger valida cada Component).
-   - **H:** si zero edición central es prioritario y se acepta ~79x overhead en init vs G (imperceptible en produccion: < 1 ms).
+   - **H:** si zero edicion central es prioritario y se acepta ~79x overhead en init vs G (imperceptible en produccion: < 1 ms).
    - **I:** si se quiere eliminar toda dependencia de framework DI (zero codegen, zero anotaciones).
    - **J:** si se necesita compile-time safety + KMP support (kotlin-inject via KSP).
    - **K:** si se prefiere manifest metadata sobre ServiceLoader (Firebase-style, Android-only).
+   - **L, N:** Koin + auto-discovery (ServiceLoader o sweet-spi). N es Full KMP.
+   - **O, O2, P, P2:** Koin DSL o Koin Annotations, Full KMP, zero ServiceLoader.
 
-2. **D y G son sólidos hasta ~30 features.**
+3. **D y G son sólidos hasta ~30 features.**
    G es D con factory functions (Components `internal`). En ambos, el wiring manual
    en el facade es el cuello de botella a escala.
 
-3. **E mejora sobre D/G** eliminando `when` blocks, pero el Feature enum expuesto
+4. **E mejora sobre D/G** eliminando `when` blocks, pero el Feature enum expuesto
    al consumidor y su crecimiento lineal lo limitan.
 
-4. **B y C son para features independientes.** Si las features tienen cross-deps
+5. **Q y Q2 (Hilt-style)** ofrecen compile-time safety completa via @Component monolitico,
+   pero no tienen lean binary ni escalabilidad a 50+ features (= A con modules per-feature).
+
+6. **B y C son para features independientes.** Si las features tienen cross-deps
    significativas, estos approaches no escalan.
 
-5. **A no es adecuado** para esta arquitectura — la separación Gradle pierde sentido
+7. **A no es adecuado** para esta arquitectura — la separación Gradle pierde sentido
    si todo se compila en un `@Component` monolítico.
 
-6. **Hybrid** es la respuesta cuando el SDK es KMP pero la app consumidora es Dagger.
+8. **Hybrid** es la respuesta cuando el SDK es KMP pero la app consumidora es Dagger.
 
-7. **Provision interfaces son el enabler** para D, E, E2, G, H, I, J y K en multi-módulo.
+9. **Provision interfaces son el enabler** para D, E, E2, G, H, I, J, K, L, M, N, O, O2, P, P2, Q y Q2 en multi-módulo.
    Sin ellas, los features dependerían de `@Component` classes (implementaciones)
    de otros features — violando la regla de "features solo conocen apis".
    Dagger acepta cualquier interfaz en `dependencies=[...]`, no requiere `@Component`.

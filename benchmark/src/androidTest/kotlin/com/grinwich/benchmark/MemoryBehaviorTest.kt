@@ -5,17 +5,21 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.grinwich.sdk.api.*
 import org.junit.After
 import org.junit.Assert.*
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Memory behavior tests — proves lazy instantiation across all 6 lazy patterns.
+ * Memory behavior tests — proves lazy instantiation across all 16 lazy patterns.
  *
  * Deterministic assertion tests (not benchmarks). Each test category is written
  * ONCE and executed for all patterns via [MultiModuleSdkApi].
  */
 @RunWith(AndroidJUnit4::class)
 class MemoryBehaviorTest {
+
+    @get:Rule
+    val patternFilter = PatternFilterRule()
 
     private val config = SdkConfig(debug = false)
 
@@ -35,6 +39,15 @@ class MemoryBehaviorTest {
     @Test fun initOnly_I() = assertInitOnly("I")
     @Test fun initOnly_J() = assertInitOnly("J")
     @Test fun initOnly_K() = assertInitOnly("K")
+    @Test fun initOnly_L() = assertInitOnly("L")
+    @Test fun initOnly_M() = assertInitOnly("M")
+    @Test fun initOnly_N() = assertInitOnly("N")
+    @Test fun initOnly_O() = assertInitOnly("O")
+    @Test fun initOnly_P() = assertInitOnly("P")
+    @Test fun initOnly_Q() = assertInitOnly("Q")
+    @Test fun initOnly_O2() = assertInitOnly("O2")
+    @Test fun initOnly_P2() = assertInitOnly("P2")
+    @Test fun initOnly_Q2() = assertInitOnly("Q2")
 
     private fun assertInitOnly(name: String) {
         val sdk = sdkByName(name)
@@ -54,6 +67,15 @@ class MemoryBehaviorTest {
     @Test fun getEnc_I() = assertGetEnc("I")
     @Test fun getEnc_J() = assertGetEnc("J")
     @Test fun getEnc_K() = assertGetEnc("K")
+    @Test fun getEnc_L() = assertGetEnc("L")
+    @Test fun getEnc_M() = assertGetEnc("M")
+    @Test fun getEnc_N() = assertGetEnc("N")
+    @Test fun getEnc_O() = assertGetEnc("O")
+    @Test fun getEnc_P() = assertGetEnc("P")
+    @Test fun getEnc_Q() = assertGetEnc("Q")
+    @Test fun getEnc_O2() = assertGetEnc("O2")
+    @Test fun getEnc_P2() = assertGetEnc("P2")
+    @Test fun getEnc_Q2() = assertGetEnc("Q2")
 
     private fun assertGetEnc(name: String) {
         val sdk = sdkByName(name)
@@ -74,6 +96,15 @@ class MemoryBehaviorTest {
     @Test fun getAna_I() = assertGetAna("I")
     @Test fun getAna_J() = assertGetAna("J")
     @Test fun getAna_K() = assertGetAna("K")
+    @Test fun getAna_L() = assertGetAna("L")
+    @Test fun getAna_M() = assertGetAna("M")
+    @Test fun getAna_N() = assertGetAna("N")
+    @Test fun getAna_O() = assertGetAna("O")
+    @Test fun getAna_P() = assertGetAna("P")
+    @Test fun getAna_Q() = assertGetAna("Q")
+    @Test fun getAna_O2() = assertGetAna("O2")
+    @Test fun getAna_P2() = assertGetAna("P2")
+    @Test fun getAna_Q2() = assertGetAna("Q2")
 
     private fun assertGetAna(name: String) {
         val sdk = sdkByName(name)
@@ -94,6 +125,15 @@ class MemoryBehaviorTest {
     @Test fun getSync_I() = assertGetSync("I")
     @Test fun getSync_J() = assertGetSync("J")
     @Test fun getSync_K() = assertGetSync("K")
+    @Test fun getSync_L() = assertGetSync("L")
+    @Test fun getSync_M() = assertGetSync("M")
+    @Test fun getSync_N() = assertGetSync("N")
+    @Test fun getSync_O() = assertGetSync("O")
+    @Test fun getSync_P() = assertGetSync("P")
+    @Test fun getSync_Q() = assertGetSync("Q")
+    @Test fun getSync_O2() = assertGetSync("O2")
+    @Test fun getSync_P2() = assertGetSync("P2")
+    @Test fun getSync_Q2() = assertGetSync("Q2")
 
     private fun assertGetSync(name: String) {
         val sdk = sdkByName(name)
@@ -114,6 +154,15 @@ class MemoryBehaviorTest {
     @Test fun fullGraph_I() = assertFullGraph("I")
     @Test fun fullGraph_J() = assertFullGraph("J")
     @Test fun fullGraph_K() = assertFullGraph("K")
+    @Test fun fullGraph_L() = assertFullGraph("L")
+    @Test fun fullGraph_M() = assertFullGraph("M")
+    @Test fun fullGraph_N() = assertFullGraph("N")
+    @Test fun fullGraph_O() = assertFullGraph("O")
+    @Test fun fullGraph_P() = assertFullGraph("P")
+    @Test fun fullGraph_Q() = assertFullGraph("Q")
+    @Test fun fullGraph_O2() = assertFullGraph("O2")
+    @Test fun fullGraph_P2() = assertFullGraph("P2")
+    @Test fun fullGraph_Q2() = assertFullGraph("Q2")
 
     private fun assertFullGraph(name: String) {
         val sdk = sdkByName(name)
@@ -135,6 +184,15 @@ class MemoryBehaviorTest {
     @Test fun shutdown_I() = assertShutdown("I")
     @Test fun shutdown_J() = assertShutdown("J")
     @Test fun shutdown_K() = assertShutdown("K")
+    @Test fun shutdown_L() = assertShutdown("L")
+    @Test fun shutdown_M() = assertShutdown("M")
+    @Test fun shutdown_N() = assertShutdown("N")
+    @Test fun shutdown_O() = assertShutdown("O")
+    @Test fun shutdown_P() = assertShutdown("P")
+    @Test fun shutdown_Q() = assertShutdown("Q")
+    @Test fun shutdown_O2() = assertShutdown("O2")
+    @Test fun shutdown_P2() = assertShutdown("P2")
+    @Test fun shutdown_Q2() = assertShutdown("Q2")
 
     private fun assertShutdown(name: String) {
         val sdk = sdkByName(name)
@@ -155,6 +213,15 @@ class MemoryBehaviorTest {
     @Test fun freshInstances_I() = assertFreshInstances("I")
     @Test fun freshInstances_J() = assertFreshInstances("J")
     @Test fun freshInstances_K() = assertFreshInstances("K")
+    @Test fun freshInstances_L() = assertFreshInstances("L")
+    @Test fun freshInstances_M() = assertFreshInstances("M")
+    @Test fun freshInstances_N() = assertFreshInstances("N")
+    @Test fun freshInstances_O() = assertFreshInstances("O")
+    @Test fun freshInstances_P() = assertFreshInstances("P")
+    @Test fun freshInstances_Q() = assertFreshInstances("Q")
+    @Test fun freshInstances_O2() = assertFreshInstances("O2")
+    @Test fun freshInstances_P2() = assertFreshInstances("P2")
+    @Test fun freshInstances_Q2() = assertFreshInstances("Q2")
 
     private fun assertFreshInstances(name: String) {
         val sdk = sdkByName(name)
@@ -178,6 +245,15 @@ class MemoryBehaviorTest {
     @Test fun leakDetection_I() = assertNoLeak("I")
     @Test fun leakDetection_J() = assertNoLeak("J")
     @Test fun leakDetection_K() = assertNoLeak("K")
+    @Test fun leakDetection_L() = assertNoLeak("L")
+    @Test fun leakDetection_M() = assertNoLeak("M")
+    @Test fun leakDetection_N() = assertNoLeak("N")
+    @Test fun leakDetection_O() = assertNoLeak("O")
+    @Test fun leakDetection_P() = assertNoLeak("P")
+    @Test fun leakDetection_Q() = assertNoLeak("Q")
+    @Test fun leakDetection_O2() = assertNoLeak("O2")
+    @Test fun leakDetection_P2() = assertNoLeak("P2")
+    @Test fun leakDetection_Q2() = assertNoLeak("Q2")
 
     private fun assertNoLeak(name: String) {
         val sdk = sdkByName(name)

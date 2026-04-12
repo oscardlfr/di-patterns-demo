@@ -37,6 +37,9 @@ class DiBenchmark {
     @get:Rule
     val benchmarkRule = BenchmarkRule()
 
+    @get:Rule
+    val patternFilter = PatternFilterRule()
+
     private val config = SdkConfig(debug = false)
 
     @After

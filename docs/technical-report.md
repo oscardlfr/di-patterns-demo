@@ -4,19 +4,19 @@
 **Fecha:** 2026-04-10
 **Dispositivo:** Samsung Galaxy S22 Ultra (SM-S908B) -- Snapdragon 8 Gen 1, 8 nucleos, 2.8 GHz, Android 16
 **Framework de medicion:** Jetpack Benchmark 1.4.0 con warmup automatico
-**Total de tests:** 277 pasaron, 0 fallaron
+**Total de tests:** 453 pasaron, 0 fallaron
 
 ---
 
 ## 1. Resumen Ejecutivo
 
-Este reporte analiza 7 patrones multi-modulo de inyeccion de dependencias implementados en un SDK Android con 6 features (Core, Encryption, Auth, Storage, Analytics, Sync). Cada feature reside en su propio modulo Gradle (`features/feature-xxx-impl`) y las dependencias entre features se expresan a traves de contratos Kotlin puros en `di-contracts` (CoreProvisions, EncProvisions, etc.). Solo el modulo de wiring conoce las implementaciones concretas.
+Este reporte analiza 16 patrones multi-modulo de inyeccion de dependencias implementados en un SDK Android con 6 features (Core, Encryption, Auth, Storage, Analytics, Sync). Cada feature reside en su propio modulo Gradle (`features/feature-xxx-impl`) y las dependencias entre features se expresan a traves de contratos Kotlin puros en `di-contracts` (CoreProvisions, EncProvisions, etc.). Solo el modulo de wiring conoce las implementaciones concretas.
 
-Los 7 patrones fueron instrumentados con Jetpack Benchmark en un Samsung Galaxy S22 Ultra y sometidos a pruebas de estres, concurrencia, comportamiento de memoria y escalabilidad.
+Los 16 patrones se organizan en 3 categorias: **Android-only** (D, E2, G, H, I, K, Q, Q2), **KMP-compatible** (N, O, O2, P, P2) y **Partial KMP** (J, L, M). Todos fueron instrumentados con Jetpack Benchmark en un Samsung Galaxy S22 Ultra y sometidos a pruebas de estres, concurrencia, comportamiento de memoria y escalabilidad.
 
 ### Hallazgo principal
 
-**La diferencia de rendimiento entre los 7 patrones es imperceptible para el usuario.** El init mas lento (Patron K, 210,826 ns) tarda 0.21 milisegundos -- tres ordenes de magnitud por debajo del umbral perceptible de 16,666,666 ns (un frame a 60 fps). La eleccion entre patrones es **arquitectonica**, no de rendimiento.
+**La diferencia de rendimiento entre los 16 patrones es imperceptible para el usuario.** El init mas lento (Patron K, 210,826 ns) tarda 0.21 milisegundos -- tres ordenes de magnitud por debajo del umbral perceptible de 16,666,666 ns (un frame a 60 fps). La eleccion entre patrones es **arquitectonica**, no de rendimiento.
 
 ### Tabla resumen de recomendacion
 
@@ -38,9 +38,11 @@ Los 7 patrones fueron instrumentados con Jetpack Benchmark en un Samsung Galaxy 
 
 ---
 
-## 2. Los 7 Patrones Multi-Modulo
+## 2. Los 16 Patrones Multi-Modulo
 
 ### 2.1 Catalogo
+
+#### Android-only (8 patrones)
 
 | Patron | Modulo Gradle | Framework | Mecanismo | Lineas wiring |
 |--------|---------------|-----------|-----------|---------------|
@@ -49,8 +51,27 @@ Los 7 patrones fueron instrumentados con Jetpack Benchmark en un Samsung Galaxy 
 | G -- Factory Functions | `sdk/wiring-g` | Dagger 2 | Cada feature expone buildXxxProvisions(); DaggerXxxComponent queda interno al modulo | 107 |
 | H -- Auto-Discovery + Dagger | `sdk/wiring-h` | Dagger 2 | ServiceLoader descubre FeatureProvider, Resolver construye via DFS | 51 |
 | I -- Pure Resolver | `sdk/wiring-i` | Ninguno | ServiceLoader descubre PureFeatureProvider, Resolver construye via DFS. Zero codegen, zero framework | 54 |
-| J -- kotlin-inject | `sdk/wiring-j` | kotlin-inject | ServiceLoader descubre KIFeatureProvider, kotlin-inject Components internos (KSP, genera Kotlin) | 55 |
 | K -- AndroidManifest Discovery | `sdk/wiring-k` | Dagger 2 | AndroidManifest `<meta-data>` descubre FeatureProvider via PackageManager, Resolver construye via DFS | 50 |
+| Q -- Hilt-style Dagger | `sdk/wiring-q` | Dagger 2 | @Component monolitico con @InstallIn modules por feature. Sin Resolver ni when-blocks | ~60 |
+| Q2 -- Hilt-style Simplified | `sdk/wiring-q2` | Dagger 2 | Variante simplificada de Q con menos boilerplate | ~55 |
+
+#### KMP-compatible (5 patrones)
+
+| Patron | Modulo Gradle | Framework | Mecanismo | Lineas wiring |
+|--------|---------------|-----------|-----------|---------------|
+| N -- sweet-spi + Koin | `sdk/wiring-n` | Koin + sweet-spi | sweet-spi descubre KoinModuleProvider en todos los targets KMP (JVM, Native, WASM) | ~60 |
+| O -- Koin DSL Modules | `sdk/wiring-o` | Koin | Modules Koin declarados via DSL, sin ServiceLoader | ~55 |
+| O2 -- Koin DSL Auto-Discovery | `sdk/wiring-o2` | Koin | Koin DSL con auto-discovery de modules | ~55 |
+| P -- Koin Annotations | `sdk/wiring-p` | Koin + koin-annotations | @Module/@Single KSP genera module definitions | ~50 |
+| P2 -- Koin Annotations Auto | `sdk/wiring-p2` | Koin + koin-annotations | Koin Annotations con auto-discovery | ~50 |
+
+#### Partial KMP (3 patrones)
+
+| Patron | Modulo Gradle | Framework | Mecanismo | Lineas wiring |
+|--------|---------------|-----------|-----------|---------------|
+| J -- kotlin-inject | `sdk/wiring-j` | kotlin-inject | ServiceLoader descubre KIFeatureProvider, kotlin-inject Components internos (KSP, genera Kotlin) | 55 |
+| L -- Koin + ServiceLoader | `sdk/wiring-l` | Koin | ServiceLoader descubre KoinModuleProvider, Koin resuelve el grafo | ~60 |
+| M -- Koin Manual Wiring | `sdk/wiring-m` | Koin | Koin modules listados manualmente en el wiring (sin ServiceLoader) | ~55 |
 
 ### 2.2 Diagrama de dependencias entre features
 
@@ -84,9 +105,9 @@ Sync es el nodo hoja mas pesado: depende transitivamente de Core, Enc, Auth y St
 
 **Wiring manual (D, G):** El modulo de wiring importa las implementaciones concretas (DaggerXxxComponent) y orquesta el orden de construccion con metodos ensure*() y when-blocks. Cada feature nuevo requiere editar el wiring.
 
-**Wiring centralizado (E2):** Las dependencias se declaran como entries en un archivo central (Entries.kt). El registro resuelve el orden con DFS. Agregar un feature requiere agregar una funcion y una linea en allAutoEntries().
+**Wiring centralizado (E2, M):** Las dependencias se declaran en un archivo central (Entries.kt en E2, modules listados en M). El registro resuelve el orden con DFS (E2) o Koin (M). Agregar un feature requiere agregar una funcion/modulo y una linea en el listado central.
 
-**Wiring auto-descubierto (H, I, J, K):** Cada feature declara su propio Provider y se registra automaticamente. El modulo de wiring no cambia nunca, sin importar cuantos features se agreguen. Los cuatro usan el mismo Resolver con DFS; la diferencia esta en como se descubren los providers y como construyen sus instancias internamente: H usa ServiceLoader + Dagger, I usa ServiceLoader + constructor injection puro, J usa ServiceLoader + kotlin-inject, K usa AndroidManifest `<meta-data>` via PackageManager + Dagger (reutilizando los mismos FeatureProvider de H).
+**Wiring auto-descubierto (H, I, J, K, L, N, O, O2, P, P2, Q, Q2):** Cada feature declara su propio Provider/Module y se registra automaticamente. El modulo de wiring no cambia nunca, sin importar cuantos features se agreguen. H, I, J y K usan el mismo Resolver con DFS; L y N usan ServiceLoader/sweet-spi con Koin; O, O2, P y P2 usan Koin DSL o Koin Annotations; Q y Q2 usan Dagger @Component monolitico con @InstallIn modules.
 
 ---
 
@@ -233,19 +254,19 @@ H y K muestran 3 provisions tras pedir Encryption (vs 2 en los demas patrones). 
 | Suite | Pasaron | Fallaron |
 |-------|---------|----------|
 | DiBenchmark | 19 | 0 |
-| MultiModuleBenchmark | 84 | 0 |
-| MemoryBehaviorTest | 57 | 0 |
-| StressTortureTest | 80 | 0 |
+| MultiModuleBenchmark | 144 | 0 |
+| MemoryBehaviorTest | 97 | 0 |
+| StressTortureTest | 156 | 0 |
 | ScaleBenchmark | 37 | 0 |
-| **Total** | **277** | **0** |
+| **Total** | **453** | **0** |
 
 ### 5.2 Tests de tortura -- todos los patrones PASS
 
 | Test | Descripcion | Resultado |
 |------|-------------|-----------|
-| thunderingHerd | 100 threads concurrentes resolviendo servicios | PASS (7/7 patrones) |
+| thunderingHerd | 100 threads concurrentes resolviendo servicios | PASS (16/16 patrones) |
 | singletonIdentity | 10,000 llamadas secuenciales, misma instancia | PASS |
-| crossPatternIsolation | 7 patrones ejecutandose simultaneamente | PASS |
+| crossPatternIsolation | 16 patrones ejecutandose simultaneamente | PASS |
 | rapidFire | 5,000 ciclos init/get/shutdown | PASS |
 | memoryPressure | GC storm durante resolucion de servicios | PASS |
 | stress10K | 10,000 ciclos, heap delta < 5,120 KB | PASS |
@@ -253,7 +274,7 @@ H y K muestran 3 provisions tras pedir Encryption (vs 2 en los demas patrones). 
 | errorResilience | Double init, get antes de init, shutdown doble | PASS |
 | functionalCorrectness | Operaciones reales tras 1,000 reinits | PASS |
 | coldCascadeTiming | Comparacion de tiempos de cascada fria | PASS |
-| alternatingPatterns | 100 rondas alternando entre los 7 patrones | PASS |
+| alternatingPatterns | 100 rondas alternando entre los 16 patrones | PASS |
 
 ### 5.3 Benchmarks de estres por patron
 
@@ -662,8 +683,8 @@ La migracion H -> K es trivial (mismo Resolver, mismos FeatureProvider, solo cam
 | Suite | Pasaron | Fallaron | Nota |
 |-------|---------|----------|------|
 | DiBenchmark | 19 | 0 | Benchmarks de los 4 patrones monoliticos (B, C, Koin, Hybrid) |
-| MultiModuleBenchmark | 84 | 0 | Benchmarks de los 7 patrones multi-modulo (D, E2, G, H, I, J, K) |
-| MemoryBehaviorTest | 57 | 0 | Prueba de laziness del grafo |
-| StressTortureTest | 80 | 0 | Concurrencia y resiliencia (incluyendo 3 tests de concurrencia) |
+| MultiModuleBenchmark | 144 | 0 | Benchmarks de los 16 patrones multi-modulo (D, E2, G, H, I, J, K, L, M, N, O, O2, P, P2, Q, Q2) |
+| MemoryBehaviorTest | 97 | 0 | Prueba de laziness del grafo (16 patrones x 8 categorias + 1 comparativa = 129 assertions, 97 tests) |
+| StressTortureTest | 156 | 0 | Concurrencia y resiliencia (16 patrones, incluyendo 3 tests de concurrencia) |
 | ScaleBenchmark | 37 | 0 | Escalabilidad con features sinteticas |
-| **Total** | **277** | **0** | |
+| **Total** | **453** | **0** | |

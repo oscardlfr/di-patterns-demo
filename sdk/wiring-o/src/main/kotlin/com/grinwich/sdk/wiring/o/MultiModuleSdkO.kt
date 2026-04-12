@@ -1,6 +1,5 @@
 package com.grinwich.sdk.wiring.o
 
-import android.annotation.SuppressLint
 import android.content.Context
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.feature.observability.AndroidSdkLogger
@@ -21,6 +20,7 @@ import dev.zacsweers.metro.createGraphFactory
  */
 @DependencyGraph(AppScope::class)
 interface SdkGraph {
+    val context: Context
     val encryption: EncryptionApi
     val hashApi: HashApi
     val auth: AuthApi
@@ -39,7 +39,6 @@ interface SdkGraph {
     }
 }
 
-@SuppressLint("StaticFieldLeak") // Only applicationContext stored — safe, nulled on shutdown()
 object MultiModuleSdkO : MultiModuleSdkApi {
 
     private var _graph: SdkGraph? = null
@@ -47,7 +46,6 @@ object MultiModuleSdkO : MultiModuleSdkApi {
 
     // Persistent — survive shutdown/reinit cycles (intentional: ApplicationContext-level singleton)
     private var _logger: SdkLogger = AndroidSdkLogger()
-    private var _context: Context? = null
 
     override val isInitialized: Boolean get() = _initialized
 
@@ -61,9 +59,9 @@ object MultiModuleSdkO : MultiModuleSdkApi {
     override fun init(context: Context, config: SdkConfig) {
         check(!_initialized) { "MultiModuleSdkO already initialized. Call shutdown() first." }
 
-        _context = context.applicationContext
+        val appCtx = context.applicationContext
         _graph = createGraphFactory<SdkGraph.Factory>().create(
-            context = _context!!,
+            context = appCtx,
             config = config,
             logger = _logger,
             storageBackend = config.storageBackend,
@@ -84,7 +82,7 @@ object MultiModuleSdkO : MultiModuleSdkApi {
             AnalyticsApi::class.java -> graph.analytics
             SyncApi::class.java -> graph.sync
             SdkLogger::class.java -> _logger
-            Context::class.java -> _context!!
+            Context::class.java -> graph.context
             else -> error("No binding for ${clazz.simpleName} in SdkGraph")
         } as T
     }
@@ -94,7 +92,6 @@ object MultiModuleSdkO : MultiModuleSdkApi {
     override fun shutdown() {
         if (!_initialized) return
         _graph = null
-        _context = null
         _initialized = false
     }
 }

@@ -197,27 +197,29 @@ No todos tienen el mismo peso -- depende del contexto del proyecto.
 
 ## Resumen de Cumplimiento
 
-| Requisito | B | C | Koin | Hybrid | D | E2 | G | H | I | J | K |
-|-----------|---|---|------|--------|---|----|----|---|---|---|---|
-| 1. Selectiva | OK | OK | OK | OK | OK | ~ | OK | ~ | ~ | ~ | ~ |
-| 2. Aislamiento | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK |
-| 3. Singletons | ~ | ~ | OK | OK | OK | OK | OK | OK | OK | OK | OK |
-| 4. Lazy | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK |
-| 5. Core indep. | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK |
-| 6. Auto-registro | NO | OK | OK | OK | NO | OK | NO | OK | OK | OK | OK |
-| 7. Binario lean | NO | NO | OK | OK | OK | OK | OK | OK | OK | OK | OK |
-| 8. Cross-deps | ~ | ~ | OK | OK | OK | OK | OK | OK | OK | OK | OK |
-| 9. Compile-time | ~ | ~ | NO | ~ | OK | OK | OK | ~ | NO | ~ | ~ |
-| 10. KMP | NO | NO | OK | OK | NO | NO | NO | NO | ~ | ~ | NO |
-| **Total OK** | **4** | **5** | **9** | **9** | **8** | **8** | **8** | **8** | **8** | **8** | **8** |
+| Requisito | B | C | Koin | Hybrid | D | E2 | G | H | I | J | K | L | M | N | O | O2 | P | P2 | Q | Q2 |
+|-----------|---|---|------|--------|---|----|----|---|---|---|---|---|---|---|---|----|----|----|----|-----|
+| 1. Selectiva | OK | OK | OK | OK | OK | ~ | OK | ~ | ~ | ~ | ~ | ~ | ~ | ~ | ~ | ~ | ~ | ~ | ~ | ~ |
+| 2. Aislamiento | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK |
+| 3. Singletons | ~ | ~ | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK |
+| 4. Lazy | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK |
+| 5. Core indep. | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK |
+| 6. Auto-registro | NO | OK | OK | OK | NO | OK | NO | OK | OK | OK | OK | OK | NO | OK | OK | OK | OK | OK | NO | NO |
+| 7. Binario lean | NO | NO | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | NO | NO |
+| 8. Cross-deps | ~ | ~ | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK | OK |
+| 9. Compile-time | ~ | ~ | NO | ~ | OK | OK | OK | ~ | NO | ~ | ~ | NO | NO | NO | NO | NO | ~ | ~ | OK | OK |
+| 10. KMP | NO | NO | OK | OK | NO | NO | NO | NO | ~ | ~ | NO | ~ | ~ | OK | OK | OK | OK | OK | NO | NO |
+| **Total OK** | **4** | **5** | **9** | **9** | **8** | **8** | **8** | **8** | **8** | **8** | **8** | **8** | **7** | **8** | **8** | **8** | **8** | **8** | **7** | **7** |
 
 **Leyenda:** OK = cumple, ~ = cumple parcialmente, NO = no cumple
 
 **Notas clave:**
-- D, E2, G, H, I, J, K son exclusivamente multi-modulo (provision interfaces en modulos Gradle separados)
+- Los 16 patrones multi-modulo se organizan en 3 categorias:
+  - **Android-only (8):** D, E2, G, H, I, K, Q, Q2 -- dependen de APIs JVM/Android (Dagger, ServiceLoader, PackageManager)
+  - **KMP-compatible (5):** N, O, O2, P, P2 -- funcionan en todos los targets KMP (JVM, iOS, macOS, WASM)
+  - **Partial KMP (3):** J, L, M -- el framework DI es KMP, pero el discovery usa ServiceLoader (JVM-only)
 - B y C son patrones monoliticos
-- I y J aportan la misma arquitectura que H pero con diferente framework DI interno:
-  - I: zero DI framework (constructor injection puro)
-  - J: kotlin-inject (KSP, pero genera Kotlin en vez de Java)
-- Koin e Hybrid son los unicos con soporte KMP completo
-- I y J tienen potencial KMP: I usa constructor injection puro; J usa kotlin-inject (KMP-compatible). Solo ServiceLoader es JVM-only
+- L, M, N, O, O2, P, P2 satisfacen los mismos requisitos core que D-K (provision interfaces en modulos Gradle separados)
+- Q y Q2 (Hilt-style) ofrecen compile-time safety completa pero sin lean binary ni auto-registro
+- Koin, Hybrid, N, O, O2, P y P2 tienen soporte KMP completo
+- J y L tienen potencial KMP completo: basta con reemplazar ServiceLoader por sweet-spi (como hace Pattern N)

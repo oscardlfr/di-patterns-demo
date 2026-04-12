@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.metro)
 }
 
 android {
@@ -20,9 +21,18 @@ dependencies {
     implementation(project(":features:observability-api"))  // SdkLogger
 
     implementation(libs.dagger)
+    implementation(libs.hilt.android)
     ksp(libs.dagger.compiler)
     implementation(libs.javax.inject)
 
     implementation(libs.kotlin.inject.runtime)
     ksp(libs.kotlin.inject.compiler)
+
+    implementation(project(":di-contracts-koin"))  // KoinFeatureProvider, CreationTracker
+    implementation(libs.koin.core)
+    implementation(libs.sweet.spi.runtime)
+    ksp(libs.sweet.spi.processor)
+    implementation(libs.kotlin.inject.anvil.runtime)
+    implementation(libs.kotlin.inject.anvil.runtime.optional)
+    ksp(libs.kotlin.inject.anvil.compiler)
 }

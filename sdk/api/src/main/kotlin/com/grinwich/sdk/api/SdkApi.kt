@@ -15,7 +15,7 @@ interface CoreApis {
 /**
  * Uniform consumer API for all lazy multi-module SDK patterns.
  *
- * Every lazy pattern (D, E2, G, H, I, J, K) implements this interface.
+ * Every lazy pattern (D, E2, G, H, I, J, K, L, M, N, O, P) implements this interface.
  * Eager patterns (E, Koin) do NOT — they require explicit module selection at init.
  *
  * Consumer usage: init(context, config) → get<T>() → shutdown()

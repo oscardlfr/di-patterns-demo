@@ -11,6 +11,7 @@ Usage:
 If no path given, searches the default output directory.
 """
 import json
+import re
 import sys
 import os
 import glob
@@ -46,13 +47,15 @@ def classify_benchmark(name):
     """Extract (operation, pattern) from benchmark name."""
     name = name.replace("EMULATOR_", "")
 
-    # Multi-module patterns (suffix order: _E2 before _E to avoid partial match)
-    for suffix, label in [("_E2", "MM-E2"), ("_D", "MM-D"), ("_G", "MM-G"),
-                          ("_H", "MM-H"), ("_I", "MM-I"), ("_J", "MM-J"),
-                          ("_K", "MM-K")]:
-        if name.endswith(suffix):
-            op = name[: -len(suffix)]
-            return op, label
+    # Multi-module patterns: _PATTERN at end or _PATTERN_ for storage backend variants
+    for pattern in ["E2", "O2", "P2", "Q2", "D", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q"]:
+        m = re.match(rf"(.+)_{pattern}(?:_(.+))?$", name)
+        if m:
+            op = m.group(1)
+            backend = m.group(2)
+            if backend:
+                op = f"{op}_{backend}"
+            return op, f"MM-{pattern}"
 
     # Scale benchmarks (ScaleBenchmark class — no per-pattern suffix)
     for prefix in ["resolver_", "registry_"]:
@@ -137,7 +140,7 @@ def main():
 
     # Order patterns: monolithic first, then multi-module, then scale engines
     mono_order = ["Dagger-A", "Dagger-B", "Dagger-C", "Dagger-D", "Dagger-E", "Dagger-E2", "Dagger-F", "Koin", "Hybrid"]
-    mm_order = ["MM-D", "MM-E", "MM-E2", "MM-G", "MM-H", "MM-I", "MM-J", "MM-K"]
+    mm_order = ["MM-D", "MM-E", "MM-E2", "MM-G", "MM-H", "MM-I", "MM-J", "MM-K", "MM-L", "MM-M", "MM-N", "MM-O", "MM-P", "MM-Q", "MM-O2", "MM-P2", "MM-Q2"]
     scale_order = ["Resolver (H/I/J)", "Registry (E2)"]
     pattern_order = [p for p in mono_order + mm_order + scale_order if p in all_patterns]
 
@@ -303,6 +306,71 @@ def main():
         else:
             print(f"  J is {ratio:.1f}x H ({format_time(mm_j_init)} vs {format_time(mm_h_init)})")
         print(f"  J advantage: modern KSP tooling, less boilerplate than Dagger")
+
+    # L vs H (Koin eager modules vs Resolver+Dagger)
+    mm_l_init = mm_init.get("MM-L")
+    if mm_l_init and mm_h_init:
+        print(f"\nL vs H (multi-module):")
+        ratio = mm_l_init / mm_h_init
+        if ratio < 1.05 and ratio > 0.95:
+            print(f"  Identical performance ({format_time(mm_l_init)} vs {format_time(mm_h_init)})")
+        elif ratio < 1:
+            print(f"  L is {1/ratio:.1f}x FASTER than H ({format_time(mm_l_init)} vs {format_time(mm_h_init)})")
+        else:
+            print(f"  L is {ratio:.1f}x H ({format_time(mm_l_init)} vs {format_time(mm_h_init)})")
+        print(f"  L advantage: Koin eager modules vs Resolver+Dagger")
+
+    # M vs L (lazy loadModules vs eager)
+    mm_m_init = mm_init.get("MM-M")
+    if mm_m_init and mm_l_init:
+        print(f"\nM vs L (multi-module):")
+        ratio = mm_m_init / mm_l_init
+        if ratio < 1.05 and ratio > 0.95:
+            print(f"  Identical performance ({format_time(mm_m_init)} vs {format_time(mm_l_init)})")
+        elif ratio < 1:
+            print(f"  M is {1/ratio:.1f}x FASTER than L ({format_time(mm_m_init)} vs {format_time(mm_l_init)})")
+        else:
+            print(f"  M is {ratio:.1f}x L ({format_time(mm_m_init)} vs {format_time(mm_l_init)})")
+        print(f"  M advantage: lazy loadModules vs eager")
+
+    # N vs L (sweet-spi vs java.util.ServiceLoader)
+    mm_n_init = mm_init.get("MM-N")
+    if mm_n_init and mm_l_init:
+        print(f"\nN vs L (multi-module):")
+        ratio = mm_n_init / mm_l_init
+        if ratio < 1.05 and ratio > 0.95:
+            print(f"  Identical performance ({format_time(mm_n_init)} vs {format_time(mm_l_init)})")
+        elif ratio < 1:
+            print(f"  N is {1/ratio:.1f}x FASTER than L ({format_time(mm_n_init)} vs {format_time(mm_l_init)})")
+        else:
+            print(f"  N is {ratio:.1f}x L ({format_time(mm_n_init)} vs {format_time(mm_l_init)})")
+        print(f"  N advantage: sweet-spi vs java.util.ServiceLoader")
+
+    # O vs H (Metro compile-time vs runtime DI)
+    mm_o_init = mm_init.get("MM-O")
+    if mm_o_init and mm_h_init:
+        print(f"\nO vs H (multi-module):")
+        ratio = mm_o_init / mm_h_init
+        if ratio < 1.05 and ratio > 0.95:
+            print(f"  Identical performance ({format_time(mm_o_init)} vs {format_time(mm_h_init)})")
+        elif ratio < 1:
+            print(f"  O is {1/ratio:.1f}x FASTER than H ({format_time(mm_o_init)} vs {format_time(mm_h_init)})")
+        else:
+            print(f"  O is {ratio:.1f}x H ({format_time(mm_o_init)} vs {format_time(mm_h_init)})")
+        print(f"  O advantage: Metro compile-time vs runtime DI")
+
+    # P vs J (kotlin-inject-anvil vs kotlin-inject+Resolver)
+    mm_p_init = mm_init.get("MM-P")
+    if mm_p_init and mm_j_init:
+        print(f"\nP vs J (multi-module):")
+        ratio = mm_p_init / mm_j_init
+        if ratio < 1.05 and ratio > 0.95:
+            print(f"  Identical performance ({format_time(mm_p_init)} vs {format_time(mm_j_init)})")
+        elif ratio < 1:
+            print(f"  P is {1/ratio:.1f}x FASTER than J ({format_time(mm_p_init)} vs {format_time(mm_j_init)})")
+        else:
+            print(f"  P is {ratio:.1f}x J ({format_time(mm_p_init)} vs {format_time(mm_j_init)})")
+        print(f"  P advantage: kotlin-inject-anvil vs kotlin-inject+Resolver")
 
     print()
 

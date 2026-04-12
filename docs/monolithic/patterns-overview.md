@@ -5,7 +5,7 @@ Guia completa de los cinco patrones monoliticos implementados en el proyecto
 donde el consumidor elige cuales activar -- pero con distinto nivel de acoplamiento,
 escalabilidad y seguridad en compilacion.
 
-Para patrones multi-modulo (D, E2, G, H, I, J, K), ver `docs/multimodule/`.
+Para patrones multi-modulo (D, E2, G, H, I, J, K, L, M, N, O, P), ver `docs/multimodule/`.
 Para el analisis de rendimiento, ver [benchmark-results.md](benchmark-results.md).
 
 ---

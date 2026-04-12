@@ -36,6 +36,15 @@ sdk/
   wiring-i/               -> Pattern I multi-modulo: Pure Resolver (zero DI framework)
   wiring-j/               -> Pattern J multi-modulo: kotlin-inject (KSP, genera Kotlin)
   wiring-k/               -> Pattern K multi-modulo: AndroidManifest Discovery (Firebase-style)
+  wiring-l/               -> Pattern L multi-modulo: Koin + ServiceLoader (Partial KMP)
+  wiring-m/               -> Pattern M multi-modulo: Koin Manual Wiring (Partial KMP)
+  wiring-n/               -> Pattern N multi-modulo: sweet-spi + Koin (Full KMP)
+  wiring-o/               -> Pattern O multi-modulo: Koin DSL Modules (Full KMP)
+  wiring-o2/              -> Pattern O2 multi-modulo: Koin DSL + Auto-Discovery (Full KMP)
+  wiring-p/               -> Pattern P multi-modulo: Koin Annotations (Full KMP)
+  wiring-p2/              -> Pattern P2 multi-modulo: Koin Annotations + Auto-Discovery (Full KMP)
+  wiring-q/               -> Pattern Q multi-modulo: Hilt-style Dagger (Android-only)
+  wiring-q2/              -> Pattern Q2 multi-modulo: Hilt-style Dagger Simplified (Android-only)
   impl-common-d-c/        -> Implementaciones compartidas (solo patrones monoliticos)
   impl-koin/              -> KoinSdk (koinApplication aislado, loadModules, auto-discovery)
   impl-dagger-b/          -> DaggerBSdk (Per-Feature Components + CoreApis)
@@ -47,11 +56,14 @@ sample-dagger-c/    -> Consumidor de DaggerCSdk
 sample-hybrid/      -> KoinSdk + puente Dagger 2
 sample-multimodule/ -> Consumidor de MultiModuleSdkH (Pattern H, provision interfaces)
 
-benchmark/          -> 277 tests (19 monoliticos + 84 multi-modulo + 37 scale + 57 memory + 80 stress)
+benchmark/          -> 453 tests (19 monoliticos + 144 multi-modulo + 37 scale + 97 memory + 156 stress)
 
 docs/               -> Documentacion tecnica (espanol)
   monolithic/       -> Patrones monoliticos (A, B, C, Koin, Hybrid)
-  multimodule/      -> Patrones multi-modulo (D, E2, G, H, I, J, K)
+  multimodule/      -> Patrones multi-modulo (16 patrones)
+    android/        -> Android-only (D, E2, G, H, I, K, Q, Q2)
+    kmp/            -> KMP-compatible (N, O, O2, P, P2)
+    partial-kmp/    -> Partial KMP (J, L, M)
   shared/           -> Conceptos compartidos (requisitos, configuracion, cross-deps)
   technical-report.md -> Reporte analitico con benchmarks S22 Ultra
 ```
@@ -89,7 +101,7 @@ MultiModuleSdk.init(context, SdkConfig(debug = true))
 val auth: AuthApi = MultiModuleSdk.get()    // builds: Core -> Enc -> Auth
 val sync: SyncApi = MultiModuleSdk.get()    // builds: Stor + Syn (rest cached)
 
-// La app SOLO depende de :sdk:sdk-wiring (o wiring-e2/wiring-g/wiring-h/wiring-i/wiring-j/wiring-k). Zero imports de feature-impl.
+// La app SOLO depende de :sdk:sdk-wiring (o wiring-e2/wiring-g/wiring-h/wiring-i/wiring-j/wiring-k/wiring-l/wiring-m/wiring-n/wiring-o/wiring-o2/wiring-p/wiring-p2/wiring-q/wiring-q2). Zero imports de feature-impl.
 MultiModuleSdk.shutdown()
 ```
 
@@ -221,15 +233,18 @@ Resultados en `benchmark/build/outputs/connected_android_test_additional_output/
 | [Patrones monoliticos](docs/monolithic/patterns-overview.md) | A (educativo), B, C, Koin, Hybrid — codigo, pros/contras |
 | [Benchmarks monoliticos](docs/monolithic/benchmark-results.md) | DiBenchmark: 19 tests en S22 Ultra |
 | **Multi-modulo** | |
-| [Patrones multi-modulo](docs/multimodule/patterns-overview.md) | D, E2, G, H, I, J, K — codigo, pros/contras |
-| [Benchmarks multi-modulo](docs/multimodule/benchmark-results.md) | 84 benchmarks + 137 stress/memory tests en S22 Ultra |
-| [Arquitectura api/impl](docs/multimodule/api-impl-architecture.md) | Separacion Gradle, provision interfaces (D/E2/G/H/I/J/K) |
+| [Patrones multi-modulo](docs/multimodule/patterns-overview.md) | 16 patrones multi-modulo — codigo, pros/contras |
+| [Android-only](docs/multimodule/android/patterns-overview.md) | D, E2, G, H, I, K, Q, Q2 — Dagger/ServiceLoader/Manifest |
+| [KMP-compatible](docs/multimodule/kmp/patterns-overview.md) | N, O, O2, P, P2 — sweet-spi/Koin DSL/Koin Annotations |
+| [Partial KMP](docs/multimodule/partial-kmp/patterns-overview.md) | J, L, M — kotlin-inject/Koin + ServiceLoader |
+| [Benchmarks multi-modulo](docs/multimodule/benchmark-results.md) | 144 benchmarks + 253 stress/memory tests en S22 Ultra |
+| [Arquitectura api/impl](docs/multimodule/api-impl-architecture.md) | Separacion Gradle, provision interfaces (17 variantes de wiring) |
 | **Compartidos** | |
 | [Requisitos](docs/shared/requirements.md) | 10 requisitos, cumplimiento por patron |
 | [Conceptos DI](docs/shared/consumer-isolation.md) | DI vs Service Locator, niveles de aislamiento |
 | [Dependencias cruzadas](docs/shared/cross-feature-deps.md) | Como resuelve cada approach las cross-deps |
-| [Configuracion benchmarks](docs/shared/benchmark-configuration.md) | Guia para ejecutar los 277 tests |
+| [Configuracion benchmarks](docs/shared/benchmark-configuration.md) | Guia para ejecutar los 453 tests |
 
 ## Stack
 
-Kotlin 2.0.21 | AGP 9.0.1 | Dagger 2.59.2 | Koin 4.1.1 | KSP | Jetpack Benchmark 1.4.0
+Kotlin 2.2.21 | AGP 9.0.1 | Dagger 2.59.2 | Koin 4.1.1 | KSP | Jetpack Benchmark 1.4.0

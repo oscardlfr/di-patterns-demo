@@ -1,6 +1,5 @@
 package com.grinwich.sdk.wiring.p2
 
-import android.annotation.SuppressLint
 import android.content.Context
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.contracts.LazyCreationTracker
@@ -34,7 +33,6 @@ abstract class SdkComponent(
     abstract val sync: SyncApi
 }
 
-@SuppressLint("StaticFieldLeak") // Only applicationContext stored — safe, nulled on shutdown()
 object MultiModuleSdkP2 : MultiModuleSdkApi {
 
     private var _component: SdkComponent? = null
@@ -43,7 +41,6 @@ object MultiModuleSdkP2 : MultiModuleSdkApi {
 
     // Persistent — survive shutdown/reinit cycles (intentional: ApplicationContext-level singleton)
     private var _logger: SdkLogger = AndroidSdkLogger()
-    private var _context: Context? = null
 
     override val isInitialized: Boolean get() = _initialized
 
@@ -53,10 +50,10 @@ object MultiModuleSdkP2 : MultiModuleSdkApi {
     override fun init(context: Context, config: SdkConfig) {
         check(!_initialized) { "MultiModuleSdkP2 already initialized. Call shutdown() first." }
 
-        _context = context.applicationContext
+        val appCtx = context.applicationContext
         _tracker = LazyCreationTracker.activate()
         _component = SdkComponent::class.create(
-            contextDelegate = _context!!,
+            contextDelegate = appCtx,
             configDelegate = config,
             loggerDelegate = _logger,
             storageBackendDelegate = config.storageBackend,
@@ -77,7 +74,7 @@ object MultiModuleSdkP2 : MultiModuleSdkApi {
             AnalyticsApi::class.java -> component.analytics
             SyncApi::class.java -> component.sync
             SdkLogger::class.java -> _logger
-            Context::class.java -> _context!!
+            Context::class.java -> component.context
             else -> error("No binding for ${clazz.simpleName} in SdkComponent")
         } as T
     }
@@ -90,7 +87,6 @@ object MultiModuleSdkP2 : MultiModuleSdkApi {
         _component = null
         _tracker?.clear()
         _tracker = null
-        _context = null
         _initialized = false
     }
 }

@@ -25,7 +25,7 @@ por constructor.
 
 ## Grafo Unico: Resolucion Automatica
 
-**Funciona en:** Koin, Hybrid, D, E, E2, G, H, I, J, K
+**Funciona en:** Koin, Hybrid, D, E, E2, G, H, I, J, K, L, M, N, O, O2, P, P2, Q, Q2
 
 Todos los servicios estan en UN contenedor (o registry/resolver). Cualquier servicio puede pedir cualquier otro.
 
@@ -196,7 +196,7 @@ todo el SDK -- es un God Object que anula el aislamiento per-feature.
 
 ## Provision Interfaces (Multi-Modulo)
 
-En las variantes multi-modulo (D, E2, G, H, I, J, K), las dependencias cruzadas se resuelven
+En las variantes multi-modulo (D, E2, G, H, I, J, K, L, M, N, O, O2, P, P2, Q, Q2), las dependencias cruzadas se resuelven
 mediante **provision interfaces** -- contratos Kotlin planos que exponen servicios sin acoplar
 al `@Component` concreto:
 
@@ -218,6 +218,12 @@ expone cada feature. El modulo de wiring es el **unico lugar** que conecta todo:
 | I | `EncPureProvider.build(resolver)` via constructor directo + DFS resolver |
 | J | `EncKIProvider.build(resolver)` via kotlin-inject Component + DFS resolver |
 | K | `EncProvider.build(resolver)` via Dagger (mismos providers que H, descubiertos via AndroidManifest) |
+| L | Koin `get()` resuelve provision interfaces via ServiceLoader-discovered modules |
+| M | Koin `get()` resuelve provision interfaces via modules listados manualmente |
+| N | Koin `get()` resuelve via sweet-spi-discovered modules (Full KMP) |
+| O/O2 | Koin DSL modules con `get()` automatico |
+| P/P2 | Koin Annotations (@Single/@Module) con `get()` automatico |
+| Q/Q2 | Dagger @Component monolitico -- `dependencies=[...]` resuelve todo en compilacion |
 
 ---
 
@@ -232,12 +238,18 @@ expone cada feature. El modulo de wiring es el **unico lugar** que conecta todo:
 | **I** (multi) | Automatico | PureFeatureProviders + DFS resolver | Zero compile-time safety |
 | **J** (multi) | Automatico | KIFeatureProviders + DFS resolver | KSP overhead, = H |
 | **K** (multi) | Automatico | FeatureProviders via AndroidManifest + DFS resolver | IPC overhead (PackageManager), = H |
+| **L** (multi) | Automatico | Koin modules via ServiceLoader + `get()` | ServiceLoader es JVM-only |
+| **M** (multi) | Automatico | Koin modules listados manualmente + `get()` | Modulos crecen linealmente |
+| **N** (multi) | Automatico | Koin modules via sweet-spi + `get()` | Full KMP, resolucion runtime |
+| **O/O2** (multi) | Automatico | Koin DSL modules + `get()` | Full KMP, resolucion runtime |
+| **P/P2** (multi) | Automatico | Koin Annotations (@Single) + `get()` | Full KMP, KSP overhead |
+| **Q/Q2** (multi) | Automatico | Dagger @Component monolitico | Sin lean binary, @Component crece |
 | **Koin** | Automatico | `get()` desde el mismo grafo | Resolucion runtime |
 | **Hybrid** | Automatico | Koin `get()` + bridge Dagger | Puente unidireccional |
 | **B** (mono) | Manual | CoreApis extendido | God Object a escala |
 | **C** (mono) | Manual | ServiceResolver runtime | God Object + JVM only |
 
-**Conclusion:** Si las features dependen unas de otras, un grafo unico (D, E2, G, H, I, J, K, Koin)
+**Conclusion:** Si las features dependen unas de otras, un grafo unico (D, E2, G, H, I, J, K, L, M, N, O, O2, P, P2, Q, Q2, Koin)
 resuelve todo automaticamente. Per-feature monolitico (B, C) funciona cuando las features son
 verdaderamente independientes.
 

@@ -7,6 +7,7 @@ import com.grinwich.sdk.api.*
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.*
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.concurrent.CyclicBarrier
@@ -17,10 +18,13 @@ import java.util.concurrent.atomic.AtomicInteger
 /**
  * Torture tests — pushes every lazy wiring pattern to its absolute limits.
  *
- * All test logic written ONCE, executed across 6 patterns via [MultiModuleSdkApi].
+ * All test logic written ONCE, executed across 16 patterns via [MultiModuleSdkApi].
  */
 @RunWith(AndroidJUnit4::class)
 class StressTortureTest {
+
+    @get:Rule
+    val patternFilter = PatternFilterRule()
 
     private val config = SdkConfig(debug = false)
     private val tag = "TORTURE"
@@ -41,6 +45,15 @@ class StressTortureTest {
     @Test fun thunderingHerd_I() = thunderingHerd("I")
     @Test fun thunderingHerd_J() = thunderingHerd("J")
     @Test fun thunderingHerd_K() = thunderingHerd("K")
+    @Test fun thunderingHerd_L() = thunderingHerd("L")
+    @Test fun thunderingHerd_M() = thunderingHerd("M")
+    @Test fun thunderingHerd_N() = thunderingHerd("N")
+    @Test fun thunderingHerd_O() = thunderingHerd("O")
+    @Test fun thunderingHerd_P() = thunderingHerd("P")
+    @Test fun thunderingHerd_Q() = thunderingHerd("Q")
+    @Test fun thunderingHerd_O2() = thunderingHerd("O2")
+    @Test fun thunderingHerd_P2() = thunderingHerd("P2")
+    @Test fun thunderingHerd_Q2() = thunderingHerd("Q2")
 
     /**
      * THUNDERING HERD: 100 threads llaman get<EncryptionApi>() al MISMO instante.
@@ -107,6 +120,15 @@ class StressTortureTest {
     @Test fun singleton_I() = singletonIdentity("I")
     @Test fun singleton_J() = singletonIdentity("J")
     @Test fun singleton_K() = singletonIdentity("K")
+    @Test fun singleton_L() = singletonIdentity("L")
+    @Test fun singleton_M() = singletonIdentity("M")
+    @Test fun singleton_N() = singletonIdentity("N")
+    @Test fun singleton_O() = singletonIdentity("O")
+    @Test fun singleton_P() = singletonIdentity("P")
+    @Test fun singleton_Q() = singletonIdentity("Q")
+    @Test fun singleton_O2() = singletonIdentity("O2")
+    @Test fun singleton_P2() = singletonIdentity("P2")
+    @Test fun singleton_Q2() = singletonIdentity("Q2")
 
     private fun singletonIdentity(name: String) {
         val sdk = sdkByName(name)
@@ -159,6 +181,15 @@ class StressTortureTest {
     @Test fun rapidFire_I() = rapidFire("I")
     @Test fun rapidFire_J() = rapidFire("J")
     @Test fun rapidFire_K() = rapidFire("K")
+    @Test fun rapidFire_L() = rapidFire("L")
+    @Test fun rapidFire_M() = rapidFire("M")
+    @Test fun rapidFire_N() = rapidFire("N")
+    @Test fun rapidFire_O() = rapidFire("O")
+    @Test fun rapidFire_P() = rapidFire("P")
+    @Test fun rapidFire_Q() = rapidFire("Q")
+    @Test fun rapidFire_O2() = rapidFire("O2")
+    @Test fun rapidFire_P2() = rapidFire("P2")
+    @Test fun rapidFire_Q2() = rapidFire("Q2")
 
     private fun rapidFire(name: String) {
         val sdk = sdkByName(name)
@@ -184,6 +215,15 @@ class StressTortureTest {
     @Test fun memoryPressure_I() = memoryPressure("I")
     @Test fun memoryPressure_J() = memoryPressure("J")
     @Test fun memoryPressure_K() = memoryPressure("K")
+    @Test fun memoryPressure_L() = memoryPressure("L")
+    @Test fun memoryPressure_M() = memoryPressure("M")
+    @Test fun memoryPressure_N() = memoryPressure("N")
+    @Test fun memoryPressure_O() = memoryPressure("O")
+    @Test fun memoryPressure_P() = memoryPressure("P")
+    @Test fun memoryPressure_Q() = memoryPressure("Q")
+    @Test fun memoryPressure_O2() = memoryPressure("O2")
+    @Test fun memoryPressure_P2() = memoryPressure("P2")
+    @Test fun memoryPressure_Q2() = memoryPressure("Q2")
 
     /**
      * MEMORY PRESSURE: verifica que las provisions sobreviven un GC storm.
@@ -237,6 +277,15 @@ class StressTortureTest {
     @Test fun stress10K_I() = stress10K("I")
     @Test fun stress10K_J() = stress10K("J")
     @Test fun stress10K_K() = stress10K("K")
+    @Test fun stress10K_L() = stress10K("L")
+    @Test fun stress10K_M() = stress10K("M")
+    @Test fun stress10K_N() = stress10K("N")
+    @Test fun stress10K_O() = stress10K("O")
+    @Test fun stress10K_P() = stress10K("P")
+    @Test fun stress10K_Q() = stress10K("Q")
+    @Test fun stress10K_O2() = stress10K("O2")
+    @Test fun stress10K_P2() = stress10K("P2")
+    @Test fun stress10K_Q2() = stress10K("Q2")
 
     private fun stress10K(name: String) {
         val sdk = sdkByName(name)
@@ -277,6 +326,15 @@ class StressTortureTest {
     @Test fun freshness_I() = instanceFreshness("I")
     @Test fun freshness_J() = instanceFreshness("J")
     @Test fun freshness_K() = instanceFreshness("K")
+    @Test fun freshness_L() = instanceFreshness("L")
+    @Test fun freshness_M() = instanceFreshness("M")
+    @Test fun freshness_N() = instanceFreshness("N")
+    @Test fun freshness_O() = instanceFreshness("O")
+    @Test fun freshness_P() = instanceFreshness("P")
+    @Test fun freshness_Q() = instanceFreshness("Q")
+    @Test fun freshness_O2() = instanceFreshness("O2")
+    @Test fun freshness_P2() = instanceFreshness("P2")
+    @Test fun freshness_Q2() = instanceFreshness("Q2")
 
     private fun instanceFreshness(name: String) {
         val sdk = sdkByName(name)
@@ -303,6 +361,15 @@ class StressTortureTest {
     @Test fun errorResilience_I() = errorResilience("I")
     @Test fun errorResilience_J() = errorResilience("J")
     @Test fun errorResilience_K() = errorResilience("K")
+    @Test fun errorResilience_L() = errorResilience("L")
+    @Test fun errorResilience_M() = errorResilience("M")
+    @Test fun errorResilience_N() = errorResilience("N")
+    @Test fun errorResilience_O() = errorResilience("O")
+    @Test fun errorResilience_P() = errorResilience("P")
+    @Test fun errorResilience_Q() = errorResilience("Q")
+    @Test fun errorResilience_O2() = errorResilience("O2")
+    @Test fun errorResilience_P2() = errorResilience("P2")
+    @Test fun errorResilience_Q2() = errorResilience("Q2")
 
     private fun errorResilience(name: String) {
         val sdk = sdkByName(name)
@@ -343,6 +410,15 @@ class StressTortureTest {
     @Test fun functional_I() = functionalCorrectness("I")
     @Test fun functional_J() = functionalCorrectness("J")
     @Test fun functional_K() = functionalCorrectness("K")
+    @Test fun functional_L() = functionalCorrectness("L")
+    @Test fun functional_M() = functionalCorrectness("M")
+    @Test fun functional_N() = functionalCorrectness("N")
+    @Test fun functional_O() = functionalCorrectness("O")
+    @Test fun functional_P() = functionalCorrectness("P")
+    @Test fun functional_Q() = functionalCorrectness("Q")
+    @Test fun functional_O2() = functionalCorrectness("O2")
+    @Test fun functional_P2() = functionalCorrectness("P2")
+    @Test fun functional_Q2() = functionalCorrectness("Q2")
 
     private fun functionalCorrectness(name: String) {
         val sdk = sdkByName(name)
@@ -404,6 +480,15 @@ class StressTortureTest {
     @Test fun concurrentBuild_I() = concurrentBuild("I")
     @Test fun concurrentBuild_J() = concurrentBuild("J")
     @Test fun concurrentBuild_K() = concurrentBuild("K")
+    @Test fun concurrentBuild_L() = concurrentBuild("L")
+    @Test fun concurrentBuild_M() = concurrentBuild("M")
+    @Test fun concurrentBuild_N() = concurrentBuild("N")
+    @Test fun concurrentBuild_O() = concurrentBuild("O")
+    @Test fun concurrentBuild_P() = concurrentBuild("P")
+    @Test fun concurrentBuild_Q() = concurrentBuild("Q")
+    @Test fun concurrentBuild_O2() = concurrentBuild("O2")
+    @Test fun concurrentBuild_P2() = concurrentBuild("P2")
+    @Test fun concurrentBuild_Q2() = concurrentBuild("Q2")
 
     private fun concurrentBuild(name: String) {
         val sdk = sdkByName(name)
@@ -456,6 +541,15 @@ class StressTortureTest {
     @Test fun concurrentSelective_I() = concurrentSelective("I")
     @Test fun concurrentSelective_J() = concurrentSelective("J")
     @Test fun concurrentSelective_K() = concurrentSelective("K")
+    @Test fun concurrentSelective_L() = concurrentSelective("L")
+    @Test fun concurrentSelective_M() = concurrentSelective("M")
+    @Test fun concurrentSelective_N() = concurrentSelective("N")
+    @Test fun concurrentSelective_O() = concurrentSelective("O")
+    @Test fun concurrentSelective_P() = concurrentSelective("P")
+    @Test fun concurrentSelective_Q() = concurrentSelective("Q")
+    @Test fun concurrentSelective_O2() = concurrentSelective("O2")
+    @Test fun concurrentSelective_P2() = concurrentSelective("P2")
+    @Test fun concurrentSelective_Q2() = concurrentSelective("Q2")
 
     private fun concurrentSelective(name: String) {
         val sdk = sdkByName(name)
@@ -509,6 +603,15 @@ class StressTortureTest {
     @Test fun concurrentShutdown_I() = concurrentShutdown("I")
     @Test fun concurrentShutdown_J() = concurrentShutdown("J")
     @Test fun concurrentShutdown_K() = concurrentShutdown("K")
+    @Test fun concurrentShutdown_L() = concurrentShutdown("L")
+    @Test fun concurrentShutdown_M() = concurrentShutdown("M")
+    @Test fun concurrentShutdown_N() = concurrentShutdown("N")
+    @Test fun concurrentShutdown_O() = concurrentShutdown("O")
+    @Test fun concurrentShutdown_P() = concurrentShutdown("P")
+    @Test fun concurrentShutdown_Q() = concurrentShutdown("Q")
+    @Test fun concurrentShutdown_O2() = concurrentShutdown("O2")
+    @Test fun concurrentShutdown_P2() = concurrentShutdown("P2")
+    @Test fun concurrentShutdown_Q2() = concurrentShutdown("Q2")
 
     private fun concurrentShutdown(name: String) {
         val sdk = sdkByName(name)
@@ -576,6 +679,15 @@ class StressTortureTest {
     @Test fun loggerPersistence_I() = loggerPersistence("I")
     @Test fun loggerPersistence_J() = loggerPersistence("J")
     @Test fun loggerPersistence_K() = loggerPersistence("K")
+    @Test fun loggerPersistence_L() = loggerPersistence("L")
+    @Test fun loggerPersistence_M() = loggerPersistence("M")
+    @Test fun loggerPersistence_N() = loggerPersistence("N")
+    @Test fun loggerPersistence_O() = loggerPersistence("O")
+    @Test fun loggerPersistence_P() = loggerPersistence("P")
+    @Test fun loggerPersistence_Q() = loggerPersistence("Q")
+    @Test fun loggerPersistence_O2() = loggerPersistence("O2")
+    @Test fun loggerPersistence_P2() = loggerPersistence("P2")
+    @Test fun loggerPersistence_Q2() = loggerPersistence("Q2")
 
     /**
      * Verifica que el logger (ObservabilityProvisions) sobrevive shutdown/reinit.
@@ -608,6 +720,15 @@ class StressTortureTest {
     @Test fun contextPersistence_I() = contextPersistence("I")
     @Test fun contextPersistence_J() = contextPersistence("J")
     @Test fun contextPersistence_K() = contextPersistence("K")
+    @Test fun contextPersistence_L() = contextPersistence("L")
+    @Test fun contextPersistence_M() = contextPersistence("M")
+    @Test fun contextPersistence_N() = contextPersistence("N")
+    @Test fun contextPersistence_O() = contextPersistence("O")
+    @Test fun contextPersistence_P() = contextPersistence("P")
+    @Test fun contextPersistence_Q() = contextPersistence("Q")
+    @Test fun contextPersistence_O2() = contextPersistence("O2")
+    @Test fun contextPersistence_P2() = contextPersistence("P2")
+    @Test fun contextPersistence_Q2() = contextPersistence("Q2")
 
     /**
      * Verifica que el Context (ContextProvisions) sobrevive shutdown/reinit.

@@ -1,6 +1,5 @@
 package com.grinwich.sdk.wiring.o2
 
-import android.annotation.SuppressLint
 import android.content.Context
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.contracts.LazyCreationTracker
@@ -19,6 +18,7 @@ import dev.zacsweers.metro.createGraphFactory
  */
 @DependencyGraph(AppScope::class)
 interface SdkGraph {
+    val context: Context
     val encryption: Lazy<EncryptionApi>
     val hashApi: Lazy<HashApi>
     val auth: Lazy<AuthApi>
@@ -37,7 +37,6 @@ interface SdkGraph {
     }
 }
 
-@SuppressLint("StaticFieldLeak") // Only applicationContext stored — safe, nulled on shutdown()
 object MultiModuleSdkO2 : MultiModuleSdkApi {
 
     private var _graph: SdkGraph? = null
@@ -46,7 +45,6 @@ object MultiModuleSdkO2 : MultiModuleSdkApi {
 
     // Persistent — survive shutdown/reinit cycles (intentional: ApplicationContext-level singleton)
     private var _logger: SdkLogger = AndroidSdkLogger()
-    private var _context: Context? = null
 
     override val isInitialized: Boolean get() = _initialized
 
@@ -61,9 +59,9 @@ object MultiModuleSdkO2 : MultiModuleSdkApi {
         check(!_initialized) { "MultiModuleSdkO2 already initialized. Call shutdown() first." }
 
         _tracker = LazyCreationTracker.activate()
-        _context = context.applicationContext
+        val appCtx = context.applicationContext
         _graph = createGraphFactory<SdkGraph.Factory>().create(
-            context = _context!!,
+            context = appCtx,
             config = config,
             logger = _logger,
             storageBackend = config.storageBackend,
@@ -84,7 +82,7 @@ object MultiModuleSdkO2 : MultiModuleSdkApi {
             AnalyticsApi::class.java -> graph.analytics.value
             SyncApi::class.java -> graph.sync.value
             SdkLogger::class.java -> _logger
-            Context::class.java -> _context!!
+            Context::class.java -> graph.context
             else -> error("No binding for ${clazz.simpleName} in SdkGraph")
         } as T
     }
@@ -97,7 +95,6 @@ object MultiModuleSdkO2 : MultiModuleSdkApi {
         _graph = null
         _tracker?.clear()
         _tracker = null
-        _context = null
         _initialized = false
     }
 }

@@ -1,6 +1,5 @@
 package com.grinwich.sdk.wiring.q
 
-import android.annotation.SuppressLint
 import android.content.Context
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.feature.ana.HiltAnaModule
@@ -36,6 +35,7 @@ import javax.inject.Singleton
     ],
 )
 interface SdkComponent {
+    fun context(): Context
     fun encryption(): EncryptionApi
     fun hash(): HashApi
     fun auth(): AuthApi
@@ -54,7 +54,6 @@ interface SdkComponent {
     }
 }
 
-@SuppressLint("StaticFieldLeak") // Only applicationContext stored — safe, nulled on shutdown()
 object MultiModuleSdkQ : MultiModuleSdkApi {
 
     private var _component: SdkComponent? = null
@@ -62,7 +61,6 @@ object MultiModuleSdkQ : MultiModuleSdkApi {
 
     // Persistent — survive shutdown/reinit cycles (intentional: ApplicationContext-level singleton)
     private var _logger: SdkLogger = AndroidSdkLogger()
-    private var _context: Context? = null
 
     override val isInitialized: Boolean get() = _initialized
 
@@ -76,9 +74,9 @@ object MultiModuleSdkQ : MultiModuleSdkApi {
     override fun init(context: Context, config: SdkConfig) {
         check(!_initialized) { "MultiModuleSdkQ already initialized. Call shutdown() first." }
 
-        _context = context.applicationContext
+        val appCtx = context.applicationContext
         _component = DaggerSdkComponent.factory().create(
-            context = _context!!,
+            context = appCtx,
             config = config,
             logger = _logger,
             storageBackend = config.storageBackend,
@@ -99,7 +97,7 @@ object MultiModuleSdkQ : MultiModuleSdkApi {
             AnalyticsApi::class.java -> component.analytics()
             SyncApi::class.java -> component.sync()
             SdkLogger::class.java -> _logger
-            Context::class.java -> _context!!
+            Context::class.java -> component.context()
             else -> error("No binding for ${clazz.simpleName} in SdkComponent")
         } as T
     }
@@ -109,7 +107,6 @@ object MultiModuleSdkQ : MultiModuleSdkApi {
     override fun shutdown() {
         if (!_initialized) return
         _component = null
-        _context = null
         _initialized = false
     }
 }

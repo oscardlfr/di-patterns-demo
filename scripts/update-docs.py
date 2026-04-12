@@ -116,13 +116,16 @@ def classify_result(full_name):
     """
     if full_name.startswith("MultiModuleBenchmark."):
         test = full_name.replace("MultiModuleBenchmark.", "")
-        # Extract pattern suffix: _D, _E2, _G, _H, _I, _J, _K
-        for suffix, label in [("_E2", "E2"), ("_D", "D"), ("_G", "G"),
-                              ("_H", "H"), ("_I", "I"), ("_J", "J"),
-                              ("_K", "K")]:
-            if test.endswith(suffix):
-                op = test[: -len(suffix)]
-                return "multimodule", op, label
+        # Extract pattern suffix: _E2, _D, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P
+        # Match _PATTERN at end OR _PATTERN_ in middle (storage backend variants)
+        for pattern in ["E2", "O2", "P2", "Q2", "D", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q"]:
+            m = re.match(rf"(.+)_{pattern}(?:_(.+))?$", test)
+            if m:
+                op = m.group(1)
+                backend = m.group(2)
+                if backend:
+                    op = f"{op}_{backend}"
+                return "multimodule", op, pattern
     elif full_name.startswith("DiBenchmark."):
         test = full_name.replace("DiBenchmark.", "")
         # Monolithic patterns
@@ -156,8 +159,8 @@ def generate_summary_txt(mm_data, mono_data, project_root):
     today = date.today().strftime("%Y-%m-%d")
     lines = []
     lines.append(f"BENCHMARK RESULTS SUMMARY -- Samsung Galaxy S22 Ultra (SM-S908B) -- {today}")
-    lines.append("Total benchmarks: 277 (DiBenchmark 19 + MultiModuleBenchmark 84 + ScaleBenchmark 37 + MemoryBehaviorTest 57 + StressTortureTest 80)")
-    lines.append("All tests: 277/277 PASSED, 0 FAILED")
+    lines.append("Total benchmarks: 453 (DiBenchmark 19 + MultiModuleBenchmark 144 + ScaleBenchmark 37 + MemoryBehaviorTest 97 + StressTortureTest 156)")
+    lines.append("All tests: 453/453 PASSED, 0 FAILED")
     lines.append("ScaleBenchmark: 37/37 PASSED")
     lines.append("Storage: DataStore (real disk I/O via suspend + runBlocking)")
     lines.append("")
@@ -180,7 +183,7 @@ def generate_summary_txt(mm_data, mono_data, project_root):
     ]
 
     lines.append("")
-    lines.append("  MULTI-MODULE BENCHMARKS (7 patrones: D, E2, G, H, I, J, K)")
+    lines.append("  MULTI-MODULE BENCHMARKS (16 patrones: D, E2, G, H, I, J, K, L, M, N, O, P, Q, O2, P2, Q2)")
 
     for title, op_key in mm_ops:
         if op_key not in mm_data:
@@ -273,6 +276,27 @@ def generate_summary_txt(mm_data, mono_data, project_root):
         if "H" in vals and "K" in vals:
             r = vals["K"] / vals["H"]
             lines.append(f"K vs H: {r:.1f}x (K advantage: R8/ProGuard robustness via AndroidManifest metadata)")
+        if "L" in vals and "H" in vals:
+            r = vals["L"] / vals["H"]
+            lines.append(f"L vs H: {r:.1f}x (L advantage: Koin eager modules vs Resolver+Dagger)")
+        if "M" in vals and "L" in vals:
+            r = vals["M"] / vals["L"]
+            lines.append(f"M vs L: {r:.1f}x (M advantage: lazy loadModules vs eager)")
+        if "N" in vals and "L" in vals:
+            r = vals["N"] / vals["L"]
+            lines.append(f"N vs L: {r:.1f}x (N advantage: sweet-spi vs java.util.ServiceLoader)")
+        if "O" in vals and "H" in vals:
+            r = vals["O"] / vals["H"]
+            lines.append(f"O vs H: {r:.1f}x (O advantage: Metro compile-time vs runtime DI)")
+        if "P" in vals and "J" in vals:
+            r = vals["P"] / vals["J"]
+            lines.append(f"P vs J: {r:.1f}x (P advantage: kotlin-inject-anvil vs kotlin-inject+Resolver)")
+        if "Q" in vals and "H" in vals:
+            r = vals["Q"] / vals["H"]
+            lines.append(f"Q vs H: {r:.1f}x (Q advantage: Hilt-style Dagger @Module vs Resolver+Dagger @Component)")
+        if "Q" in vals and "O" in vals:
+            r = vals["Q"] / vals["O"]
+            lines.append(f"Q vs O: {r:.1f}x (Q=Dagger vs O=Metro — same compile-time approach, different codegen)")
 
     lines.append("")
     lines.append("CrossFeatureOp note: values ~1.1-1.7M ns for multi-module due to Storage using")
@@ -311,7 +335,7 @@ def print_fresh_values(mm_data, mono_data):
         "stress_resolveAll", "stress_selective", "stress_reInit",
         "stress_incremental", "e2eStartup",
     ]
-    patterns = ["D", "E2", "G", "H", "I", "J", "K"]
+    patterns = ["D", "E2", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "O2", "P2", "Q2"]
     for op in mm_ops_order:
         if op not in mm_data:
             continue

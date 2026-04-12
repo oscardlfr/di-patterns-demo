@@ -32,11 +32,11 @@ El flag `profiling.mode=None` desactiva method tracing. Recomendado en emulador 
 | Clase | Tests | Tipo | Patrones | Output |
 |-------|-------|------|----------|--------|
 | **DiBenchmark** | 19 | Jetpack Benchmark | Monoliticos: B, C, Koin, Hybrid | benchmarkData.json |
-| **MultiModuleBenchmark** | 84 | Jetpack Benchmark | Multi-modulo: D, E2, G, H, I, J, K | benchmarkData.json |
+| **MultiModuleBenchmark** | 144 | Jetpack Benchmark | Multi-modulo: D, E2, G, H, I, J, K, L, M, N, O, O2, P, P2, Q, Q2 (16 patrones) | benchmarkData.json |
 | **ScaleBenchmark** | 37 | Jetpack Benchmark | Resolver (H/I/J) vs Registry (E2) | benchmarkData.json |
-| **MemoryBehaviorTest** | 57 | JUnit assertions | Multi-modulo: D, E2, G, H, I, J, K | pass/fail + logcat |
-| **StressTortureTest** | 80 | JUnit assertions | Multi-modulo: D, E2, G, H, I, J, K | pass/fail + logcat |
-| **Total** | **277** | | | |
+| **MemoryBehaviorTest** | 97 | JUnit assertions | Multi-modulo: D, E2, G, H, I, J, K, L, M, N, O, O2, P, P2, Q, Q2 (16 patrones) | pass/fail + logcat |
+| **StressTortureTest** | 156 | JUnit assertions | Multi-modulo: D, E2, G, H, I, J, K, L, M, N, O, O2, P, P2, Q, Q2 (16 patrones) | pass/fail + logcat |
+| **Total** | **453** | | | |
 
 ### DiBenchmark (19 tests)
 
@@ -50,9 +50,9 @@ Microbenchmarks de patrones monoliticos usando facades reales.
 | lazyInit cascade | 4 | B, C, Koin, Hybrid |
 | crossFeatureOp | 3 | B, C, Koin |
 
-### MultiModuleBenchmark (84 tests)
+### MultiModuleBenchmark (144 tests)
 
-Microbenchmarks de 7 patrones multi-modulo (12 categorias x 7 patrones).
+Microbenchmarks de 16 patrones multi-modulo (9 categorias x 16 patrones).
 
 | Categoria | Que mide |
 |-----------|----------|
@@ -83,13 +83,13 @@ Este benchmark demuestra por que los patrones de registry/resolver son necesario
 
 Tambien incluye tests de fullGraph (resolver todos los N features) y selective (resolver 1 de N).
 
-### MemoryBehaviorTest (57 tests)
+### MemoryBehaviorTest (97 tests)
 
-Tests deterministas (assertions, no benchmarks) que verifican laziness y memoria:
+Tests deterministas (assertions, no benchmarks) que verifican laziness y memoria para los 16 patrones multi-modulo:
 
 | Categoria | Que verifica |
 |-----------|-------------|
-| initOnly | Provisions minimas tras init (D/G = 1, E2/H/I/J = 0) |
+| initOnly | Provisions minimas tras init (D/G/Q/Q2 = 1+, E2/H/I/J/L/M/N/O/O2/P/P2 = 0) |
 | getEnc | Solo Encryption + deps construido |
 | getAna | Analytics independiente, sin cascada |
 | getSync | Cascada completa (Auth+Stor+Enc+Sync) |
@@ -97,9 +97,9 @@ Tests deterministas (assertions, no benchmarks) que verifican laziness y memoria
 | shutdown | Todas las provisions liberadas |
 | freshInstances | Reinit produce instancias nuevas |
 | leakDetection | 1000 ciclos, delta heap < 2048 KB |
-| heapFootprint | Comparativa de heap entre los 7 patrones |
+| heapFootprint | Comparativa de heap entre los 16 patrones |
 
-### StressTortureTest (80 tests)
+### StressTortureTest (156 tests)
 
 Tests de stress extremo (incluyendo 3 tests de concurrencia: concurrentBuild,
 concurrentSelective, concurrentShutdown) que verifican correctness bajo presion:
@@ -108,14 +108,14 @@ concurrentSelective, concurrentShutdown) que verifican correctness bajo presion:
 |-----------|---------|
 | thunderingHerd | 100 threads concurrentes en barrera |
 | singletonIdentity | 10,000 get() devuelven misma instancia |
-| crossPatternIsolation | 7 patrones simultaneos, zero contaminacion |
+| crossPatternIsolation | 16 patrones simultaneos, zero contaminacion |
 | rapidFire | 5,000 ciclos init/get/shutdown |
 | memoryPressure | GC storm durante resolucion |
 | stress10K | 10,000 ciclos con heap delta < 5120 KB |
 | instanceFreshness | 50 reinits, todas instancias unicas |
 | errorResilience | Double init, get antes de init, etc. |
 | functionalCorrectness | Operaciones reales tras 1000 reinits |
-| coldCascadeTiming | Comparativa de timing entre los 7 patrones |
+| coldCascadeTiming | Comparativa de timing entre los 16 patrones |
 | alternatingPatterns | 100 rondas alternando entre patrones |
 
 ---
@@ -126,7 +126,7 @@ Los tests de asercion emiten tablas comparativas via `Log.d()`:
 
 ```bash
 # Capturar durante la ejecucion
-adb logcat -s HEAP_COMPARE:D TORTURE:D LEAK_D:D LEAK_E2:D LEAK_G:D LEAK_H:D LEAK_I:D LEAK_J:D
+adb logcat -s HEAP_COMPARE:D TORTURE:D LEAK_D:D LEAK_E2:D LEAK_G:D LEAK_H:D LEAK_I:D LEAK_J:D LEAK_K:D LEAK_L:D LEAK_M:D LEAK_N:D LEAK_O:D LEAK_O2:D LEAK_P:D LEAK_P2:D LEAK_Q:D LEAK_Q2:D
 ```
 
 ---
@@ -161,7 +161,7 @@ python3 scripts/benchmark-summary.py path/to/benchmarkData.json
 ```
 
 Genera tablas agrupadas por operacion con ranking y comparativa.
-Soporta patrones: B, C, Koin, Hybrid (monoliticos) + D, E2, G, H, I, J, K (multi-modulo).
+Soporta patrones: B, C, Koin, Hybrid (monoliticos) + D, E2, G, H, I, J, K, L, M, N, O, O2, P, P2, Q, Q2 (16 multi-modulo).
 Incluye seccion de scale benchmarks (Resolver vs Registry).
 
 ---
