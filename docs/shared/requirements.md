@@ -193,6 +193,141 @@ No todos tienen el mismo peso -- depende del contexto del proyecto.
 | 9 | Seguridad en compilacion | PARCIAL | Dagger valida cada Component, pero provider faltante es error runtime (= H) |
 | 10 | KMP | NO | AndroidManifest + PackageManager son Android-only |
 
+#### L -- Koin + ServiceLoader Eager (wiring-l)
+
+| # | Requisito | Estado | Notas |
+|---|-----------|--------|-------|
+| 1 | Inicializacion selectiva | PARCIAL | Todos los modulos registrados; construye solo lo pedido via `get<T>()` |
+| 2 | Aislamiento del consumidor | OK | Consumer importa solo `KoinSdkL`. Modulos internos |
+| 3 | Singletons compartidos | OK | Un `koinApplication`, un scope. `single {}` garantiza unicidad |
+| 4 | Instanciacion lazy | OK | `get<T>()` dispara construccion on-demand |
+| 5 | Independencia del core | OK | Cada feature-impl compila independientemente |
+| 6 | Auto-registro | OK | ServiceLoader descubre `KoinFeatureModule`. Zero edicion central |
+| 7 | Binario eficiente | OK | Solo los feature-impl incluidos en Gradle |
+| 8 | Dependencias cruzadas | OK | Un grafo Koin -- `get()` resuelve cualquier servicio registrado |
+| 9 | Seguridad en compilacion | NO | Koin resuelve en runtime. Binding faltante = crash en ejecucion |
+| 10 | KMP | PARCIAL | Koin es KMP, pero ServiceLoader es JVM-only. Requiere sustituir por sweet-spi para KMP completo |
+
+#### M -- Koin + ServiceLoader Lazy loadModules (wiring-m)
+
+| # | Requisito | Estado | Notas |
+|---|-----------|--------|-------|
+| 1 | Inicializacion selectiva | PARCIAL | Todos los modulos descubiertos; `loadModules()` registra on-demand |
+| 2 | Aislamiento del consumidor | OK | Consumer importa solo `KoinSdkM`. Modulos internos |
+| 3 | Singletons compartidos | OK | Un `koinApplication`, un scope. `single {}` garantiza unicidad |
+| 4 | Instanciacion lazy | OK | `loadModules()` + `get<T>()` on-demand. Mas lazy que L |
+| 5 | Independencia del core | OK | Cada feature-impl compila independientemente |
+| 6 | Auto-registro | NO | Requiere llamada explicita `loadModules()` en cascada. No es zero-touch |
+| 7 | Binario eficiente | OK | Solo los feature-impl incluidos en Gradle |
+| 8 | Dependencias cruzadas | OK | Un grafo Koin -- `get()` resuelve cualquier servicio registrado |
+| 9 | Seguridad en compilacion | NO | Koin resuelve en runtime. Binding faltante = crash en ejecucion |
+| 10 | KMP | PARCIAL | Koin es KMP, pero ServiceLoader es JVM-only. Requiere sustituir por sweet-spi para KMP completo |
+
+#### N -- sweet-spi + Koin (wiring-n)
+
+| # | Requisito | Estado | Notas |
+|---|-----------|--------|-------|
+| 1 | Inicializacion selectiva | PARCIAL | Todos los modulos registrados; construye solo lo pedido via `get<T>()` |
+| 2 | Aislamiento del consumidor | OK | Consumer importa solo `SweetSpiKoinSdk`. Modulos internos |
+| 3 | Singletons compartidos | OK | Un `koinApplication`, un scope. `single {}` garantiza unicidad |
+| 4 | Instanciacion lazy | OK | `get<T>()` dispara construccion on-demand |
+| 5 | Independencia del core | OK | Cada feature-impl compila independientemente |
+| 6 | Auto-registro | OK | `@ServiceProvider` de sweet-spi genera expect/actual. Zero edicion central |
+| 7 | Binario eficiente | OK | Solo los feature-impl incluidos en Gradle |
+| 8 | Dependencias cruzadas | OK | Un grafo Koin -- `get()` resuelve cualquier servicio registrado |
+| 9 | Seguridad en compilacion | NO | Koin resuelve en runtime. Binding faltante = crash en ejecucion |
+| 10 | KMP | OK | sweet-spi genera expect/actual para cada target. Koin es full KMP |
+
+#### O -- Metro Eager (wiring-o)
+
+| # | Requisito | Estado | Notas |
+|---|-----------|--------|-------|
+| 1 | Inicializacion selectiva | PARCIAL | Todos los singletons construidos en init (eager). Seleccion implicita via scope |
+| 2 | Aislamiento del consumidor | OK | Consumer importa solo entry point Metro. Components internos |
+| 3 | Singletons compartidos | OK | `@SingleIn(AppScope)` garantiza unicidad en el scope |
+| 4 | Instanciacion lazy | NO | Eager: todos los singletons se construyen al crear el grafo |
+| 5 | Independencia del core | OK | Cada feature-impl compila independientemente |
+| 6 | Auto-registro | OK | `@ContributesTo(AppScope)` agrega al grafo. Zero edicion central |
+| 7 | Binario eficiente | OK | Solo los feature-impl incluidos en Gradle |
+| 8 | Dependencias cruzadas | OK | Metro resuelve automaticamente via grafo de compilacion |
+| 9 | Seguridad en compilacion | OK | Compiler plugin valida grafo completo. Binding faltante = error de compilacion |
+| 10 | KMP | OK | Compiler plugin genera codigo para cada target KMP |
+
+#### O2 -- Metro Lazy (wiring-o2)
+
+| # | Requisito | Estado | Notas |
+|---|-----------|--------|-------|
+| 1 | Inicializacion selectiva | PARCIAL | Todos los bindings registrados; singletons se construyen on-demand |
+| 2 | Aislamiento del consumidor | OK | Consumer importa solo entry point Metro. Components internos |
+| 3 | Singletons compartidos | OK | `@SingleIn(AppScope)` con lazy tracking garantiza unicidad |
+| 4 | Instanciacion lazy | OK | Singletons lazy por defecto. Se construyen en primer `get()` |
+| 5 | Independencia del core | OK | Cada feature-impl compila independientemente |
+| 6 | Auto-registro | OK | `@ContributesTo(AppScope)` agrega al grafo. Zero edicion central |
+| 7 | Binario eficiente | OK | Solo los feature-impl incluidos en Gradle |
+| 8 | Dependencias cruzadas | OK | Metro resuelve automaticamente via grafo de compilacion |
+| 9 | Seguridad en compilacion | OK | Compiler plugin valida grafo completo. Binding faltante = error de compilacion |
+| 10 | KMP | OK | Compiler plugin genera codigo para cada target KMP |
+
+#### P -- kotlin-inject-anvil Eager (wiring-p)
+
+| # | Requisito | Estado | Notas |
+|---|-----------|--------|-------|
+| 1 | Inicializacion selectiva | PARCIAL | Todos los singletons construidos en init (eager). Seleccion implicita |
+| 2 | Aislamiento del consumidor | OK | Consumer importa solo entry point. Components internos |
+| 3 | Singletons compartidos | OK | `@SingleIn(AppScope)` garantiza unicidad en el scope |
+| 4 | Instanciacion lazy | NO | Eager: todos los singletons se construyen al crear el Component |
+| 5 | Independencia del core | OK | Cada feature-impl compila independientemente |
+| 6 | Auto-registro | OK | `@ContributesTo(AppScope)` via KSP merge. Zero edicion central |
+| 7 | Binario eficiente | OK | Solo los feature-impl incluidos en Gradle |
+| 8 | Dependencias cruzadas | OK | KSP merge resuelve automaticamente via grafo de compilacion |
+| 9 | Seguridad en compilacion | PARCIAL | KSP valida cada Component, pero merge graph puede tener gaps detectados en link |
+| 10 | KMP | OK | kotlin-inject es full KMP. KSP genera per-target |
+
+#### P2 -- kotlin-inject-anvil Lazy (wiring-p2)
+
+| # | Requisito | Estado | Notas |
+|---|-----------|--------|-------|
+| 1 | Inicializacion selectiva | PARCIAL | Todos los bindings registrados; singletons se construyen on-demand |
+| 2 | Aislamiento del consumidor | OK | Consumer importa solo entry point. Components internos |
+| 3 | Singletons compartidos | OK | `@SingleIn(AppScope)` con lazy tracking garantiza unicidad |
+| 4 | Instanciacion lazy | OK | `@SingleIn` con lazy singletons. Se construyen en primer acceso |
+| 5 | Independencia del core | OK | Cada feature-impl compila independientemente |
+| 6 | Auto-registro | OK | `@ContributesTo(AppScope)` via KSP merge. Zero edicion central |
+| 7 | Binario eficiente | OK | Solo los feature-impl incluidos en Gradle |
+| 8 | Dependencias cruzadas | OK | KSP merge resuelve automaticamente via grafo de compilacion |
+| 9 | Seguridad en compilacion | PARCIAL | KSP valida cada Component, pero merge graph puede tener gaps detectados en link |
+| 10 | KMP | OK | kotlin-inject es full KMP. KSP genera per-target |
+
+#### Q -- Hilt-style Dagger Eager (wiring-q)
+
+| # | Requisito | Estado | Notas |
+|---|-----------|--------|-------|
+| 1 | Inicializacion selectiva | PARCIAL | Modulos listados explicitamente. Todos construidos en init (eager) |
+| 2 | Aislamiento del consumidor | OK | Consumer importa solo `HiltSdkQ`. Components internos |
+| 3 | Singletons compartidos | OK | `@Singleton` en Dagger garantiza unicidad en el Component |
+| 4 | Instanciacion lazy | NO | Eager: Dagger construye todos los singletons al crear el Component |
+| 5 | Independencia del core | OK | Cada feature-impl compila independientemente via `@Module` + `@InstallIn` |
+| 6 | Auto-registro | NO | Modulos listados explicitamente en `@Component(modules=[...])`. Edicion central requerida |
+| 7 | Binario eficiente | NO | Todos los modulos compilados en el Component raiz |
+| 8 | Dependencias cruzadas | OK | Dagger resuelve automaticamente via grafo de compilacion |
+| 9 | Seguridad en compilacion | OK | Dagger valida grafo completo. Binding faltante = error de compilacion |
+| 10 | KMP | NO | Dagger es JVM-only. No soporta iOS, macOS ni Desktop nativos |
+
+#### Q2 -- Hilt-style Dagger Lazy (wiring-q2)
+
+| # | Requisito | Estado | Notas |
+|---|-----------|--------|-------|
+| 1 | Inicializacion selectiva | PARCIAL | Modulos listados explicitamente. `dagger.Lazy<T>` difiere construccion |
+| 2 | Aislamiento del consumidor | OK | Consumer importa solo `HiltSdkQ2`. Components internos |
+| 3 | Singletons compartidos | OK | `@Singleton` en Dagger garantiza unicidad en el Component |
+| 4 | Instanciacion lazy | OK | `dagger.Lazy<T>` difiere construccion hasta primer `.get()` |
+| 5 | Independencia del core | OK | Cada feature-impl compila independientemente via `@Module` + `@InstallIn` |
+| 6 | Auto-registro | NO | Modulos listados explicitamente en `@Component(modules=[...])`. Edicion central requerida |
+| 7 | Binario eficiente | NO | Todos los modulos compilados en el Component raiz |
+| 8 | Dependencias cruzadas | OK | Dagger resuelve automaticamente via grafo de compilacion |
+| 9 | Seguridad en compilacion | OK | Dagger valida grafo completo. Binding faltante = error de compilacion |
+| 10 | KMP | NO | Dagger es JVM-only. No soporta iOS, macOS ni Desktop nativos |
+
 ---
 
 ## Resumen de Cumplimiento
