@@ -1,9 +1,9 @@
 # DI Patterns Demo
 
-Proyecto de demostracion que implementa multiples approaches de inyeccion de dependencias
-para SDKs modulares Android (monoliticos y multi-modulo). Incluye benchmarks con Jetpack
-Benchmark en dispositivo real (Samsung Galaxy S22 Ultra, Android 16) y documentacion
-analitica neutral en espanol.
+21 patrones de inyeccion de dependencias para SDKs modulares: 5 monoliticos + 16 multi-modulo
+(Android-only y KMP-compatible). Frameworks: Dagger, Koin, Metro, kotlin-inject-anvil, sweet-spi.
+500+ tests con benchmarks Jetpack Benchmark en Samsung Galaxy S22 Ultra (Android 16).
+Documentacion analitica en espanol.
 
 ## Estructura
 
@@ -36,15 +36,15 @@ sdk/
   wiring-i/               -> Pattern I multi-modulo: Pure Resolver (zero DI framework)
   wiring-j/               -> Pattern J multi-modulo: kotlin-inject (KSP, genera Kotlin)
   wiring-k/               -> Pattern K multi-modulo: AndroidManifest Discovery (Firebase-style)
-  wiring-l/               -> Pattern L multi-modulo: Koin + ServiceLoader (Partial KMP)
-  wiring-m/               -> Pattern M multi-modulo: Koin Manual Wiring (Partial KMP)
-  wiring-n/               -> Pattern N multi-modulo: sweet-spi + Koin (Full KMP)
-  wiring-o/               -> Pattern O multi-modulo: Koin DSL Modules (Full KMP)
-  wiring-o2/              -> Pattern O2 multi-modulo: Koin DSL + Auto-Discovery (Full KMP)
-  wiring-p/               -> Pattern P multi-modulo: Koin Annotations (Full KMP)
-  wiring-p2/              -> Pattern P2 multi-modulo: Koin Annotations + Auto-Discovery (Full KMP)
-  wiring-q/               -> Pattern Q multi-modulo: Hilt-style Dagger (Android-only)
-  wiring-q2/              -> Pattern Q2 multi-modulo: Hilt-style Dagger Simplified (Android-only)
+  wiring-l/               -> Pattern L: Koin eager + ServiceLoader (Partial KMP)
+  wiring-m/               -> Pattern M: Koin lazy loadModules + ServiceLoader (Partial KMP)
+  wiring-n/               -> Pattern N: sweet-spi + Koin (Full KMP — 24 targets)
+  wiring-o/               -> Pattern O: Metro eager — compiler plugin @ContributesTo (Full KMP)
+  wiring-o2/              -> Pattern O2: Metro Lazy<T> — singletons on-demand (Full KMP)
+  wiring-p/               -> Pattern P: kotlin-inject-anvil eager — KSP @MergeComponent (Full KMP)
+  wiring-p2/              -> Pattern P2: kotlin-inject-anvil lazy — @SingleIn tracking (Full KMP)
+  wiring-q/               -> Pattern Q: Hilt-style Dagger @Module @InstallIn eager (Android-only)
+  wiring-q2/              -> Pattern Q2: Hilt-style Dagger + dagger.Lazy<T> (Android-only)
   impl-common-d-c/        -> Implementaciones compartidas (solo patrones monoliticos)
   impl-koin/              -> KoinSdk (koinApplication aislado, loadModules, auto-discovery)
   impl-dagger-b/          -> DaggerBSdk (Per-Feature Components + CoreApis)
@@ -235,7 +235,7 @@ Resultados en `benchmark/build/outputs/connected_android_test_additional_output/
 | **Multi-modulo** | |
 | [Patrones multi-modulo](docs/multimodule/patterns-overview.md) | 16 patrones multi-modulo — codigo, pros/contras |
 | [Android-only](docs/multimodule/android/patterns-overview.md) | D, E2, G, H, I, K, Q, Q2 — Dagger/ServiceLoader/Manifest |
-| [KMP-compatible](docs/multimodule/kmp/patterns-overview.md) | N, O, O2, P, P2 — sweet-spi/Koin DSL/Koin Annotations |
+| [KMP-compatible](docs/multimodule/kmp/patterns-overview.md) | N, O, O2, P, P2 — sweet-spi+Koin/Metro/kotlin-inject-anvil |
 | [Partial KMP](docs/multimodule/partial-kmp/patterns-overview.md) | J, L, M — kotlin-inject/Koin + ServiceLoader |
 | [Benchmarks multi-modulo](docs/multimodule/benchmark-results.md) | 144 benchmarks + 253 stress/memory tests en S22 Ultra |
 | [Arquitectura api/impl](docs/multimodule/api-impl-architecture.md) | Separacion Gradle, provision interfaces (17 variantes de wiring) |
@@ -247,4 +247,4 @@ Resultados en `benchmark/build/outputs/connected_android_test_additional_output/
 
 ## Stack
 
-Kotlin 2.2.21 | AGP 9.0.1 | Dagger 2.59.2 | Koin 4.1.1 | KSP | Jetpack Benchmark 1.4.0
+Kotlin 2.2.21 | AGP 9.0.1 | Dagger 2.59.2 | Koin 4.1.1 | Metro 0.6.6 | kotlin-inject 0.9.0 | kotlin-inject-anvil 0.1.7 | sweet-spi 0.1.3 | KSP 2.3.6 | Jetpack Benchmark 1.4.0
