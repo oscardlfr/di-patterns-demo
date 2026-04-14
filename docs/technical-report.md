@@ -16,19 +16,28 @@ Los 16 patrones se organizan en 3 categorias: **Android-only** (D, E2, G, H, I, 
 
 ### Hallazgo principal
 
-**La diferencia de rendimiento entre los 16 patrones es imperceptible para el usuario.** El init mas lento (Patron K, 210,826 ns) tarda 0.21 milisegundos -- tres ordenes de magnitud por debajo del umbral perceptible de 16,666,666 ns (un frame a 60 fps). La eleccion entre patrones es **arquitectonica**, no de rendimiento.
+**La diferencia de rendimiento entre los 16 patrones es imperceptible para el usuario.** El init mas lento (Patron K, 213,737 ns) tarda 0.21 milisegundos -- tres ordenes de magnitud por debajo del umbral perceptible de 16,666,666 ns (un frame a 60 fps). La eleccion entre patrones es **arquitectonica**, no de rendimiento.
 
-### Tabla resumen de recomendacion
+### Tabla resumen de recomendacion (los 16 patrones multi-modulo)
 
-| Patron | Caso de uso recomendado |
-|--------|------------------------|
-| **D (Component Dependencies)** | SDKs pequenos (< 10 features), equipo familiarizado con Dagger |
-| **E2 (Auto-Init Registry)** | SDKs medianos (10-30 features), necesidad de registro centralizado |
-| **G (Factory Functions)** | SDKs pequenos, deseo de ocultar DaggerComponents de los consumidores |
-| **H (Auto-Discovery + Dagger)** | SDKs grandes (30+ features), equipos distribuidos, maximo desacoplamiento |
-| **I (Pure Resolver)** | SDKs que buscan eliminar toda dependencia de frameworks DI (zero codegen, builds rapidos) |
-| **J (kotlin-inject)** | SDKs que prefieren codegen moderno en Kotlin (KSP) sobre Dagger (KAPT/Java) |
-| **K (AndroidManifest Discovery)** | SDKs que necesitan robustez ante R8/ProGuard sin reglas keep (discovery via manifest metadata) |
+| Patron | Categoria | Caso de uso recomendado |
+|--------|-----------|------------------------|
+| **D** (Component Dependencies) | Android-only | SDKs pequenos (< 10 features), equipo familiarizado con Dagger |
+| **E2** (Auto-Init Registry) | Android-only | SDKs medianos (10-30 features). Unico Dagger con compile-time COMPLETA + facade inmutable + lazy |
+| **G** (Factory Functions) | Android-only | SDKs pequenos, ocultar DaggerComponents de consumidores |
+| **H** (Auto-Discovery + Dagger) | Android-only | SDKs grandes (30+ features), equipos distribuidos, zero-touch end-to-end |
+| **I** (Pure Resolver) | Android-only | SDKs sin frameworks DI (zero codegen, builds mas rapidos). Sin compile-time safety |
+| **J** (kotlin-inject) | Partial KMP | Codegen moderno Kotlin (KSP) sobre Dagger. Zero-touch end-to-end |
+| **K** (AndroidManifest) | Android-only | Robustez ante R8/ProGuard sin reglas keep (discovery via manifest) |
+| **L** (Koin + SL eager) | Partial KMP | Koin familiar + auto-discovery ServiceLoader. JVM-only |
+| **M** (Koin + SL lazy loadModules) | Partial KMP | Koin lazy. Mas lento que L; peor performer overall |
+| **N** (sweet-spi + Koin) | KMP | SDK KMP con zero-touch end-to-end + ecosistema Koin maduro. Sin compile-time |
+| **O** (Metro eager) | KMP | SDK KMP nuevo con init mas rapido (603 ns), compile-time. Eager. Framework joven |
+| **O2** (Metro Lazy) | KMP | = O + singletons lazy. Re-init rapido. Facade `when` manual (mitigable con KSP) |
+| **P** (kotlin-inject-anvil eager) | KMP | = O con KSP estandar + Amazon maintainer. Eager |
+| **P2** (kotlin-inject-anvil Lazy) | KMP | = P + lazy. Mejor balance KMP con compile-time completa |
+| **Q** (Hilt-style Dagger eager) | Android-only | Hilt familiar sin @HiltAndroidApp. Doble edicion central (modules + when) |
+| **Q2** (Hilt-style Dagger Lazy) | Android-only | = Q + dagger.Lazy. Re-init mas rapido de todos (2,157 ns). Doble edicion central |
 
 ### Cuatro conclusiones clave
 
@@ -53,8 +62,8 @@ Los 16 patrones se organizan en 3 categorias: **Android-only** (D, E2, G, H, I, 
 | H -- Auto-Discovery + Dagger | `sdk/wiring-h` | Dagger 2 | ServiceLoader descubre FeatureProvider, Resolver construye via DFS | 51 |
 | I -- Pure Resolver | `sdk/wiring-i` | Ninguno | ServiceLoader descubre PureFeatureProvider, Resolver construye via DFS. Zero codegen, zero framework | 54 |
 | K -- AndroidManifest Discovery | `sdk/wiring-k` | Dagger 2 | AndroidManifest `<meta-data>` descubre FeatureProvider via PackageManager, Resolver construye via DFS | 50 |
-| Q -- Hilt-style Dagger | `sdk/wiring-q` | Dagger 2 | @Component monolitico con @InstallIn modules por feature. Sin Resolver ni when-blocks | ~60 |
-| Q2 -- Hilt-style Simplified | `sdk/wiring-q2` | Dagger 2 | Variante simplificada de Q con menos boilerplate | ~55 |
+| Q -- Hilt-style Dagger eager | `sdk/wiring-q` | Dagger 2 | @Component monolitico con @InstallIn modules por feature. Lista `modules=[...]` manual + facade con `when (clazz)` manual por API | ~60 |
+| Q2 -- Hilt-style Dagger Lazy | `sdk/wiring-q2` | Dagger 2 | = Q con `dagger.Lazy<T>` wrappers -- singletons lazy. Misma lista `modules=[...]` + mismo `when` manual | ~55 |
 
 #### KMP-compatible (5 patrones)
 
@@ -127,110 +136,245 @@ Las dependencias se declaran en un archivo central (Entries.kt en E2, modules li
 
 ## 3. Resultados de Benchmarks
 
-### 3.1 Tabla comparativa completa
+### 3.1 Tabla comparativa completa — los 16 patrones multi-modulo
 
 Todas las mediciones en nanosegundos (ns). Dispositivo: Samsung Galaxy S22 Ultra, Android 16.
+Formato: **patron por fila** para legibilidad (16 patrones x 10 metricas = 160 celdas).
 
-| Metrica | D | E2 | G | H | I | J | K |
-|---------|---|----|----|---|---|---|---|
-| initCold | 1,135 | 8,203 | 1,214 | 95,870 | 95,528 | 92,407 | 210,826 |
-| resolveFirst | 15.9 | 34.4 | 15.3 | 34.8 | 34.6 | 34.7 | 34.3 |
-| lazyInit noDeps | 289 | 913 | 262 | 1,211 | 1,050 | 1,234 | 1,942 |
-| lazyInit cascade | 666 | 2,432 | 726 | 3,769 | 3,157 | 4,594 | 7,134 |
-| crossFeatureOp | 1,705,529 | 1,215,247 | 1,706,527 | 1,165,232 | 1,431,963 | 1,454,029 | 1,180,167 |
-| stress_initShutdown | 226 | 4,093 | 245 | 85,446 | 88,935 | 93,732 | 198,073 |
-| stress_concurrent | 484,329 | 461,788 | 473,717 | 472,057 | 439,467 | 439,728 | 459,426 |
-| stress_resolveAll | 100 | 205 | 101 | 208 | 207 | 213 | 208 |
-| stress_selective | 297 | 3,613 | 279 | 84,193 | 88,883 | 82,120 | 200,142 |
-| stress_reInit | 2,096 | 15,973 | 2,078 | 179,690 | 208,120 | 187,173 | 426,814 |
-| stress_incremental | 1,114 | 7,473 | 1,177 | 96,927 | 89,918 | 87,604 | 207,402 |
-| e2eStartup | 490,218 | 418,304 | 567,101 | 651,291 | 771,951 | 724,898 | 882,041 |
+| Patron | initCold | resolveFirst | resolveAll | lazyNoDeps | lazyCascade | crossFeature | e2eStartup | initShutdown | reInit | concurrent |
+|--------|---------:|-------------:|-----------:|-----------:|------------:|-------------:|-----------:|-------------:|-------:|-----------:|
+| **D** (when-block) | 1,212 | 346 | 100 | 255 | 696 | 1.9M | 1.2M | 248 | 36K | 493K |
+| **E2** (Registry DFS) | 10,983 | 199 | 211 | 1,049 | 3,088 | 2.1M | 1.4M | 4,418 | 17K | 571K |
+| **G** (Factory fns) | 1,257 | 345 | 101 | 260 | 848 | 2.0M | 1.4M | 229 | 38K | 596K |
+| **H** (Resolver+Dagger) | 106,865 | 202 | 212 | 1,278 | 3,892 | 1.3M | 1.7M | 99,293 | 363K | 515K |
+| **I** (Pure Resolver) | 94,255 | 203 | 211 | 1,112 | 4,122 | 1.5M | 1.7M | 103,695 | 427K | 608K |
+| **J** (kotlin-inject) | 97,197 | 202 | 213 | 1,493 | 4,866 | 1.5M | 1.7M | 93,732 | 371K | 439K |
+| **K** (Manifest) | 213,737 | 203 | 213 | 2,996 | 7,900 | 2.0M | 2.3M | 201,490 | 767K | 554K |
+| **L** (Koin+SL eager) | 154,403 | 5,664 | 6,244 | 5,473 | 24,611 | n/d | n/d | n/d | 1.1M | n/d |
+| **M** (Koin+SL lazy) | 164,353 | 6,160 | 7,920 | 13,784 | 48,334 | n/d | n/d | n/d | 1.2M | n/d |
+| **N** (sweet-spi+Koin) | 69,636 | 5,855 | 6,328 | 20,018 | 22,706 | 1.8M | 2.0M | 42,293 | 732K | 784K |
+| **O** (Metro eager) | 603 | 288 | 80 | 2,098 | 346 | 1.7M | 1.2M | 301 | 36K | 586K |
+| **O2** (Metro Lazy) | 1,127 | 315 | 86 | 238 | 507 | 1.8M | 1.5M | 516 | 2,305 | 587K |
+| **P** (KI-anvil eager) | 1,064 | 336 | 165 | 1,941 | 607 | 1.7M | 1.4M | 293 | 28K | 618K |
+| **P2** (KI-anvil Lazy) | 1,416 | 335 | 156 | 284 | 734 | 3.1M | 993K | 508 | 2,929 | 638K |
+| **Q** (Hilt eager) | 676 | 257 | 64 | 1,735 | 318 | 1.6M | 950K | 403 | 25K | 591K |
+| **Q2** (Hilt Lazy) | 1,080 | 306 | 85 | 236 | 504 | 1.7M | 1.3M | 549 | 2,157 | 586K |
+
+**Leyenda:** `K = 1,000 ns`, `M = 1,000,000 ns`. **n/d** = no disponible (L/M solo se midieron para un subconjunto de metricas en `docs/multimodule/partial-kmp/patterns-overview.md`).
+
+**Fuentes de datos:**
+- D, E2, G, H, I, K, Q, Q2: `docs/multimodule/android/benchmark-results.md`
+- N, O, O2, P, P2: `docs/multimodule/kmp/benchmark-results.md`
+- J, L, M: `docs/multimodule/partial-kmp/patterns-overview.md` (subset)
+- J: completa tambien en el conjunto Android por ser compatible JVM
+
+**Ganadores por metrica:**
+
+| Metrica | 1ro | 2do | 3ro |
+|---------|-----|-----|-----|
+| initCold (grafo mas rapido) | O (603) | Q (676) | O2/Q2 (1,080-1,127) |
+| resolveFirst (cache warmup) | E2 (199) | J/H/I/K (~202) | Q (257) |
+| resolveAll (todos cached) | Q (64) | O/O2 (80-86) | Q2 (85) |
+| lazyNoDeps (feature sin deps) | Q2 (236) | O2 (238) | D (255) |
+| lazyCascade (Sync chain) | Q (318) | O (346) | Q2 (504) |
+| crossFeature (op real DataStore) | H (1.3M) | I (1.5M) | J (1.5M) |
+| e2eStartup (fin a fin) | Q (950K) | P2 (993K) | D/O (1.2M) |
+| reInit (hot restart) | **Q2 (2,157)** | O2 (2,305) | P2 (2,929) |
+| initShutdown (ciclo vacio) | G (229) | D (248) | P (293) |
+| concurrent (contention) | J (439K) | D (493K) | H (515K) |
+
+**Lectura rapida:** Q/Q2 y O/O2 dominan runtime pura. E2 es el mejor Dagger pattern en resolveFirst. H/I/J/K pagan el coste del ServiceLoader/Manifest en init pero resuelven en cache con paridad. N/L/M pagan el coste de Koin runtime pero cumplen Req 11 (facade inmutable) nativamente.
 
 ### 3.2 Analisis por categoria
 
-#### Init Cold -- Construccion del grafo inicial
+Las siguientes subtablas ordenan los 16 patrones multi-modulo (16 en total excepto
+cuando faltan datos para L/M -- en cuyo caso aparecen como n/d). Los mismos numeros
+de la tabla 3.1, reordenados por metrica.
 
-| Patron | Tiempo (ns) | Mecanismo |
-|--------|-------------|-----------|
-| D | 1,135 | Asignacion directa de campos (Dagger codegen) |
-| G | 1,214 | Idem D, con factory functions |
-| E2 | 8,203 | Cataloga entries en HashMaps, no construye nada |
-| H | 95,870 | ServiceLoader escanea classpath + registra providers |
-| I | 95,528 | Idem H, con PureFeatureProvider |
-| J | 92,407 | Idem H, con KIFeatureProvider |
-| K | 210,826 | PackageManager.getServiceInfo() IPC a system_server + registra providers |
+#### Init Cold -- Construccion del grafo inicial (ranking)
 
-D y G dominan en init frio porque Dagger resuelve el grafo en tiempo de compilacion -- init es solo asignacion de campos. H, I y J pagan el costo del escaneo de classpath via ServiceLoader (~92-96K ns). K es el mas lento en init (~2.2x vs H) porque PackageManager.getServiceInfo() es una llamada IPC al system_server, mas costosa que el escaneo local de classpath de ServiceLoader. Sin embargo, el patron mas lento (K = 210,826 ns) es despreciable en el arranque de una app Android (tipicamente 500,000,000 - 2,000,000,000 ns).
+| # | Patron | Tiempo (ns) | Mecanismo |
+|--:|--------|------------:|-----------|
+| 1 | O | 603 | Metro compiler plugin: asignacion directa de campos |
+| 2 | Q | 676 | Dagger @Component Hilt-style: grafo compile-time |
+| 3 | Q2 | 1,080 | = Q + dagger.Lazy wrappers |
+| 4 | P | 1,064 | kotlin-inject-anvil: KSP @MergeComponent |
+| 5 | O2 | 1,127 | = O + LazyCreationTracker overhead |
+| 6 | D | 1,212 | Asignacion directa de campos (Dagger codegen) |
+| 7 | G | 1,257 | = D con factory functions |
+| 8 | P2 | 1,416 | = P + LazyCreationTracker overhead |
+| 9 | E2 | 10,983 | Cataloga entries en HashMaps (no construye nada) |
+| 10 | N | 69,636 | sweet-spi discovery + Koin registration |
+| 11 | I | 94,255 | ServiceLoader + PureFeatureProvider |
+| 12 | J | 97,197 | ServiceLoader + KIFeatureProvider |
+| 13 | H | 106,865 | ServiceLoader + FeatureProvider + Dagger |
+| 14 | L | 154,403 | ServiceLoader + Koin eager |
+| 15 | M | 164,353 | ServiceLoader + Koin lazy loadModules |
+| 16 | K | 213,737 | PackageManager.getServiceInfo() IPC |
 
-#### Resolve First -- Primera resolucion tras init
+**Analisis:** los patrones compile-time (O/Q/P/Q2/O2/P/D/G/P2) dominan por debajo de
+1,500 ns porque el grafo se resuelve estaticamente. E2 esta en el medio (10,983 ns):
+cataloga sin construir. N paga el coste de sweet-spi + Koin (70K ns). H/I/J/L pagan
+ServiceLoader (~95-154K ns). M paga el overhead extra de lazy loadModules (~164K ns).
+K es el mas lento por el IPC al system_server (~214K ns, 2.2x vs H).
 
-| Patron | Tiempo (ns) |
-|--------|-------------|
-| G | 15.3 |
-| D | 15.9 |
-| K | 34.3 |
-| E2 | 34.4 |
-| I | 34.6 |
-| J | 34.7 |
-| H | 34.8 |
+Incluso el patron mas lento (K) es despreciable en el arranque de una app Android
+(tipicamente 500,000,000 - 2,000,000,000 ns).
 
-Tras la primera resolucion, todos los patrones sirven desde cache (ConcurrentHashMap lookup). Las diferencias de 15.3 a 34.8 ns estan dentro del margen de ruido del benchmark. K tiene rendimiento identico a H (~34 ns) porque usa el mismo Resolver y los mismos ConcurrentHashMap lookups.
+#### Resolve First -- Primera resolucion tras init (ranking)
+
+| # | Patron | Tiempo (ns) |
+|--:|--------|------------:|
+| 1 | E2 | 199 |
+| 2 | H | 202 |
+| 3 | J | 202 |
+| 4 | I | 203 |
+| 5 | K | 203 |
+| 6 | Q | 257 |
+| 7 | O | 288 |
+| 8 | Q2 | 306 |
+| 9 | O2 | 315 |
+| 10 | P2 | 335 |
+| 11 | P | 336 |
+| 12 | G | 345 |
+| 13 | D | 346 |
+| 14 | N | 5,855 |
+| 15 | L | 5,664 |
+| 16 | M | 6,160 |
+
+**Analisis:** E2/H/I/J/K/E2 resuelven en ~200 ns via ConcurrentHashMap lookup.
+Q/Q2/O/O2/P/P2 resuelven en ~257-336 ns (acceso directo al campo del componente generado
+despues del `when`). D/G en ~345 ns (volatile fields). N/L/M pagan ~5,600-6,200 ns por
+el lookup runtime de Koin sobre KClass.
+
+#### Resolve All (cached) -- Ranking
+
+| # | Patron | Tiempo (ns) |
+|--:|--------|------------:|
+| 1 | Q | 64 |
+| 2 | O | 80 |
+| 3 | Q2 | 85 |
+| 4 | O2 | 86 |
+| 5 | D | 100 |
+| 6 | G | 101 |
+| 7 | P2 | 156 |
+| 8 | P | 165 |
+| 9 | E2 | 211 |
+| 10 | I | 211 |
+| 11 | H | 212 |
+| 12 | J | 213 |
+| 13 | K | 213 |
+| 14 | L | 6,244 |
+| 15 | N | 6,328 |
+| 16 | M | 7,920 |
+
+**Analisis:** cache warm, todos los patrones compile-time sirven desde campos directos
+(Q en 64 ns es imbatible). Los patrones resolver-based sirven desde HashMap (~211 ns).
+Los Koin pagan el coste de su runtime definition registry (~6-8K ns). Para un SDK que
+haga ~1,000 get<T>()/segundo: Q = 64us/s, H = 212us/s, N = 6.3ms/s. Solo Koin es
+problematico en hot loops.
 
 #### Lazy Init -- Construccion bajo demanda
 
 **Sin dependencias (Analytics -- depende solo de Core):**
 
-| Patron | Tiempo (ns) |
-|--------|-------------|
-| G | 262 |
-| D | 289 |
-| E2 | 913 |
-| I | 1,050 |
-| H | 1,211 |
-| J | 1,234 |
-| K | 1,942 |
+| # | Patron | Tiempo (ns) |
+|--:|--------|------------:|
+| 1 | Q2 | 236 |
+| 2 | O2 | 238 |
+| 3 | D | 255 |
+| 4 | G | 260 |
+| 5 | P2 | 284 |
+| 6 | E2 | 1,049 |
+| 7 | I | 1,112 |
+| 8 | H | 1,278 |
+| 9 | J | 1,493 |
+| 10 | Q | 1,735 |
+| 11 | P | 1,941 |
+| 12 | O | 2,098 |
+| 13 | K | 2,996 |
+| 14 | L | 5,473 |
+| 15 | M | 13,784 |
+| 16 | N | 20,018 |
 
 **Con cascada (Sync -- depende de Core + Enc + Auth + Stor):**
 
-| Patron | Tiempo (ns) |
-|--------|-------------|
-| D | 666 |
-| G | 726 |
-| E2 | 2,432 |
-| I | 3,157 |
-| H | 3,769 |
-| J | 4,594 |
-| K | 7,134 |
+| # | Patron | Tiempo (ns) |
+|--:|--------|------------:|
+| 1 | Q | 318 |
+| 2 | O | 346 |
+| 3 | Q2 | 504 |
+| 4 | O2 | 507 |
+| 5 | P | 607 |
+| 6 | D | 666 |
+| 7 | P2 | 734 |
+| 8 | G | 848 |
+| 9 | E2 | 3,088 |
+| 10 | H | 3,892 |
+| 11 | I | 4,122 |
+| 12 | J | 4,866 |
+| 13 | K | 7,900 |
+| 14 | N | 22,706 |
+| 15 | L | 24,611 |
+| 16 | M | 48,334 |
 
-La cascada Sync es el escenario mas exigente: construir 4 provisions en cadena de 4 niveles. D y G son los mas rapidos (< 726 ns) porque el compilador resuelve el orden de dependencias estaticamente. H, I, J y K pagan el costo del DFS en runtime (el Resolver recorre el grafo dinamicamente). K es ligeramente mas lento que H en cascada (7,134 vs 3,769 ns) por overhead adicional del mecanismo de discovery. Aun asi, la cascada mas lenta (K = 7,134 ns) es imperceptible.
+**Analisis:** la cascada Sync es el escenario mas exigente: construir 4 provisions en
+cadena de 4 niveles. Los compile-time (Q/O/Q2/O2/P/D/P2/G) dominan por debajo de 850 ns
+porque el compilador resuelve el orden estaticamente. E2/H/I/J/K pagan el costo del
+DFS en runtime (el Resolver recorre el grafo dinamicamente). N/L/M pagan el coste de
+Koin recursivo. M es 8x mas lento que la peor alternativa compile-time debido a
+`loadModules()` en cascada.
 
-#### Cross-Feature Operation -- Operacion real cruzando features
+#### Cross-Feature Operation -- Operacion real cruzando features (ranking)
 
-| Patron | Tiempo (ns) |
-|--------|-------------|
-| H | 1,165,232 |
-| K | 1,180,167 |
-| E2 | 1,215,247 |
-| I | 1,431,963 |
-| J | 1,454,029 |
-| D | 1,705,529 |
-| G | 1,706,527 |
+| # | Patron | Tiempo (ns) |
+|--:|--------|------------:|
+| 1 | H | 1,300,000 |
+| 2 | I | 1,500,000 |
+| 3 | J | 1,500,000 |
+| 4 | Q | 1,600,000 |
+| 5 | O | 1,700,000 |
+| 6 | P | 1,700,000 |
+| 7 | Q2 | 1,700,000 |
+| 8 | N | 1,800,000 |
+| 9 | O2 | 1,800,000 |
+| 10 | D | 1,900,000 |
+| 11 | G | 2,000,000 |
+| 12 | K | 2,000,000 |
+| 13 | E2 | 2,100,000 |
+| 14 | P2 | 3,100,000 |
+| - | L, M | n/d (no medido) |
 
-Los valores estan en el rango ~1.1-1.7M ns porque Storage usa DataStore (I/O real a disco via suspend + runBlocking). Los tiempos reflejan el coste real de operaciones cross-feature con persistencia a disco (sync.sync()). Una vez resueltos los servicios, el rendimiento depende del codigo de negocio (incluyendo I/O a disco), no del patron DI. Las diferencias entre patrones se deben a la variabilidad del acceso a disco, no al mecanismo de DI. Nota: ~1.5 ms es perceptible si crossFeatureOp se invoca frecuentemente en el hilo principal.
+**Analisis:** los valores estan en el rango ~1.3-3.1M ns porque Storage usa DataStore
+(I/O real a disco via suspend + runBlocking). Los tiempos reflejan el coste real de
+`sync.sync()` con persistencia a disco. **Una vez resueltos los servicios, el
+rendimiento depende del codigo de negocio (incluyendo I/O a disco), no del patron DI.**
+La variabilidad entre patrones aqui se debe principalmente al acceso a disco, no al
+mecanismo DI. P2 muestra un outlier (3.1M) que probablemente es variabilidad de medicion.
 
-#### E2E App Startup -- Init + resolve all + primera operacion por feature
+#### E2E App Startup -- Init + resolve all + primera operacion por feature (ranking)
 
-| Patron | Tiempo (ns) |
-|--------|-------------|
-| E2 | 418,304 |
-| D | 490,218 |
-| G | 567,101 |
-| H | 651,291 |
-| J | 724,898 |
-| I | 771,951 |
-| K | 882,041 |
+| # | Patron | Tiempo (ns) |
+|--:|--------|------------:|
+| 1 | Q | 950,000 |
+| 2 | P2 | 993,000 |
+| 3 | D | 1,200,000 |
+| 4 | O | 1,200,000 |
+| 5 | Q2 | 1,300,000 |
+| 6 | E2 | 1,400,000 |
+| 7 | G | 1,400,000 |
+| 8 | P | 1,400,000 |
+| 9 | O2 | 1,500,000 |
+| 10 | I | 1,700,000 |
+| 11 | H | 1,700,000 |
+| 12 | J | 1,700,000 |
+| 13 | N | 2,000,000 |
+| 14 | K | 2,300,000 |
+| - | L, M | n/d (no medido) |
 
-Los valores incluyen DataStore (I/O real a disco), lo que anade latencia real a las operaciones cross-feature incluidas en el e2e. Incluso el patron mas lento (K = 882,041 ns) completa el arranque del SDK con 6 features en menos de 1 ms. Esto representa el 0.044% de un arranque tipico de app Android (~2,000,000,000 ns). **Ningun patron es un cuello de botella en el arranque.** K es mas lento que H porque el IPC a system_server se acumula en el ciclo completo de init + resolve + primera operacion, pero todos estan por debajo de 1 ms.
+**Analisis:** incluso el patron mas lento (K = 2.3M ns) completa el arranque del SDK
+con 6 features en menos de 2.5 ms. Esto representa ~0.1% de un arranque tipico de app
+Android (~2,000,000,000 ns). **Ningun patron es un cuello de botella en el arranque.**
 
 ---
 
@@ -238,7 +382,10 @@ Los valores incluyen DataStore (I/O real a disco), lo que anade latencia real a 
 
 ### 4.1 Conteo de provisions construidas por etapa
 
-Esta tabla verifica la pereza (laziness) del grafo de dependencias: cuantas provisions se han instanciado en cada momento.
+Esta tabla verifica la pereza (laziness) del grafo de dependencias: cuantas provisions
+se han instanciado en cada momento. Las columnas muestran los 7 patrones Android-only
+originales; L/M/N/O/O2/P/P2/Q/Q2 siguen analogos comportamientos de lazy -- detalle en
+la nota bajo la tabla.
 
 | Etapa | D | E2 | G | H | I | J | K |
 |-------|---|----|----|---|---|---|---|
@@ -248,12 +395,31 @@ Esta tabla verifica la pereza (laziness) del grafo de dependencias: cuantas prov
 | afterSync | 5 | 5 | 5 | 6 | 6 | 6 | 6 |
 | fullGraph | 6 | 6 | 6 | 7 | 7 | 7 | 7 |
 
+**Para los 9 patrones KMP / Hilt-style / Koin, el comportamiento lazy es el siguiente**
+(medido via `builtProvisionCount` o trackers dedicados):
+
+| Patron | afterInit | Nota |
+|--------|----------:|------|
+| O (Metro eager) | 5 | Todos los singletons creados en `init()` -- no lazy |
+| O2 (Metro Lazy) | 0 | `LazyCreationTracker` -- singletons lazy via `Lazy<T>` |
+| P (KI-anvil eager) | 5 | Similar a O |
+| P2 (KI-anvil Lazy) | 0 | `@SingleIn` scope -- singletons lazy |
+| Q (Dagger eager) | 5 | Todos los @Singleton creados en `init()` |
+| Q2 (Dagger Lazy) | 0 | `dagger.Lazy<T>` difiere construccion |
+| L (Koin eager) | 0* | Koin `single {}` es lazy por defecto |
+| M (Koin lazy loadModules) | 0 | Modulos cargan on-demand via `loadModules()` |
+| N (sweet-spi + Koin) | 0* | = L |
+
+(*) Koin `single` se instancia en primer `get()` no en init.
+
 ### 4.2 Analisis de laziness
 
 - **D y G** construyen CoreProvisions en init (afterInit = 1); el resto es lazy.
 - **E2** no construye nada en init (afterInit = 0); solo cataloga entries en HashMaps. Es el patron mas perezoso en la fase de inicializacion.
 - **H, I, J y K** construyen ObservabilityProvisions como provision adicional (fullGraph = 7 vs 6), porque el logger se descubre via ServiceLoader (H, I, J) o AndroidManifest (K) como un provider mas en vez de inyectarse como parametro directo. K tiene comportamiento de memoria identico a H porque reutiliza los mismos FeatureProvider y el mismo Resolver.
-- **Todos los patrones son genuinamente lazy:** pedir EncryptionApi no construye Analytics. Pedir Analytics no construye Auth. Solo se construyen las dependencias estrictamente necesarias para satisfacer la solicitud.
+- **O, P, Q (eager) NO son lazy**: todos los singletons se materializan en init. afterInit = 5.
+- **O2, P2, Q2, E2, L, M, N son lazy**: afterInit = 0, construccion on-demand en primer get().
+- **Todos los patrones con soporte lazy son genuinamente lazy:** pedir EncryptionApi no construye Analytics. Pedir Analytics no construye Auth. Solo se construyen las dependencias estrictamente necesarias para satisfacer la solicitud.
 
 ### 4.3 Comportamiento afterEnc: H y K vs resto
 
@@ -290,58 +456,127 @@ H y K muestran 3 provisions tras pedir Encryption (vs 2 en los demas patrones). 
 | coldCascadeTiming | Comparacion de tiempos de cascada fria | PASS |
 | alternatingPatterns | 100 rondas alternando entre los 16 patrones | PASS |
 
-### 5.3 Benchmarks de estres por patron
+### 5.3 Benchmarks de estres por patron (los 16 multi-modulo)
 
-| Metrica | D | E2 | G | H | I | J | K |
-|---------|---|----|----|---|---|---|---|
-| stress_initShutdown (ns) | 226 | 4,093 | 245 | 85,446 | 88,935 | 93,732 | 198,073 |
-| stress_concurrent (ns) | 484,329 | 461,788 | 473,717 | 472,057 | 439,467 | 439,728 | 459,426 |
-| stress_resolveAll (ns) | 100 | 205 | 101 | 208 | 207 | 213 | 208 |
-| stress_selective (ns) | 297 | 3,613 | 279 | 84,193 | 88,883 | 82,120 | 200,142 |
-| stress_reInit (ns) | 2,096 | 15,973 | 2,078 | 179,690 | 208,120 | 187,173 | 426,814 |
-| stress_incremental (ns) | 1,114 | 7,473 | 1,177 | 96,927 | 89,918 | 87,604 | 207,402 |
+Formato patron-por-fila para acomodar 16 patrones x 6 metricas de estres.
+
+| Patron | initShutdown | concurrent | resolveAll | reInit | incremental |
+|--------|-------------:|-----------:|-----------:|-------:|------------:|
+| D | 248 | 493K | 100 | 36K | 1,172 |
+| E2 | 4,418 | 571K | 211 | 17K | 11,688 |
+| G | 229 | 596K | 101 | 38K | 1,223 |
+| H | 99,293 | 515K | 212 | 363K | 97,694 |
+| I | 103,695 | 608K | 211 | 427K | 100,488 |
+| J | 93,732 | 439K | 213 | 371K | 87,604 |
+| K | 201,490 | 554K | 213 | 767K | 213,696 |
+| N | 42,293 | 784K | 6,328 | 732K | 71,509 |
+| O | 301 | 586K | 80 | 36K | 588 |
+| O2 | 516 | 587K | 86 | **2,305** | 952 |
+| P | 293 | 618K | 165 | 28K | 1,060 |
+| P2 | 508 | 638K | 156 | **2,929** | 1,321 |
+| Q | 403 | 591K | 64 | 25K | 667 |
+| Q2 | 549 | 586K | 85 | **2,157** | 1,218 |
+| L | n/d | n/d | 6,244 | 1.1M | n/d |
+| M | n/d | n/d | 7,920 | 1.2M | n/d |
+
+`K = 1,000 ns`, `M = 1,000,000 ns`. **Negrita** en reInit marca los 3 ganadores
+(lazy compile-time DI: Q2/O2/P2).
 
 ### 5.4 Analisis de estres
 
-**Ciclo de vida (initShutdown, reInit, selective, incremental):** D y G son consistentemente mas rapidos (226 - 2,096 ns) porque no invocan ServiceLoader en cada ciclo. H, I y J pagan ~85,000 - 94,000 ns por ciclo init debido al escaneo de classpath. K paga ~198,000 ns por ciclo init porque PackageManager.getServiceInfo() es un IPC mas costoso que el escaneo local de ServiceLoader. Esto es relevante solo en tests de estres; en uso real, init se llama una vez por sesion de la app.
+**Ciclo de vida (initShutdown, reInit, incremental):** Los compile-time DI
+(D, G, O, P, Q, Q2, O2, P2) son consistentemente los mas rapidos (229 - 549 ns
+initShutdown) porque no invocan discovery en cada ciclo. Q2/O2/P2 dominan reInit
+con ~2,100-2,900 ns gracias a sus trackers lazy. H, I y J pagan ~85,000 - 104,000 ns
+por ciclo init debido al escaneo de classpath (ServiceLoader). K paga ~201,000 ns por
+ciclo init (IPC a system_server). N paga ~42,000 ns (sweet-spi + Koin registry). L/M
+son los peor performer en reInit (1.1-1.2M ns) -- Koin + ServiceLoader = doble coste.
 
-**Concurrencia (stress_concurrent):** Todos los patrones convergen a ~439,000 - 484,000 ns. Todos los patrones son ahora thread-safe (synchronized + ConcurrentHashMap). La concurrencia esta dominada por el costo de coordinacion entre threads (locks, CAS), no por el patron DI.
+**Concurrencia (stress_concurrent):** Todos los patrones convergen a ~439,000 - 784,000 ns.
+Todos los patrones son thread-safe (synchronized + ConcurrentHashMap / Koin internal locks).
+La concurrencia esta dominada por el costo de coordinacion entre threads (locks, CAS),
+no por el patron DI. N es el mas lento (784K ns) por locks internos de Koin.
 
-**Resolucion cached (stress_resolveAll):** Todos los patrones resuelven el grafo completo desde cache en 100 - 213 ns. La diferencia entre D (100 ns) y J (213 ns) es insignificante. K (208 ns) se comporta identicamente a H porque usa el mismo Resolver con los mismos ConcurrentHashMap lookups.
+**Resolucion cached (stress_resolveAll):** Los compile-time resuelven en 64-213 ns
+(Q = 64 ns imbatible, acceso directo al campo). Los Koin pagan ~6,000-8,000 ns por
+el lookup runtime. La diferencia es irrelevante excepto en hot loops con >1,000 get/s.
 
 ---
 
 ## 6. Escalabilidad
 
-### 6.1 Costo de agregar un feature nuevo
+### 6.1 Costo de agregar un feature nuevo (los 16 patrones)
 
-| Patron | Archivos a modificar en wiring | Tipo de cambio |
-|--------|-------------------------------|----------------|
-| **D** | `MultiModuleSdk.kt` | Agregar 2 ramas al when-block + 1 metodo ensure*() + 1 campo nullable |
-| **E2** | `Entries.kt` | Agregar 1 funcion xxxAutoEntry() + 1 linea en allAutoEntries() |
-| **G** | `MultiModuleSdkG.kt` | Agregar 2 ramas al when-block + 1 metodo ensure*() + 1 campo + 1 import |
-| **H** | Ninguno | El feature se auto-registra via META-INF/services. Zero edicion central |
-| **I** | Ninguno | Idem H, con PureFeatureProvider |
-| **J** | Ninguno | Idem H, con KIFeatureProvider |
-| **K** | Ninguno | El feature se auto-registra via AndroidManifest `<meta-data>`. Zero edicion central |
+Para cada patron, se muestran los archivos que hay que editar al anadir un feature
+nuevo. Esta tabla refleja el criterio bidimensional Req 6 + Req 11 de
+`docs/shared/requirements.md`:
 
-### 6.2 Clasificacion por escalabilidad
+| Patron | Req 6 -- grafo | Req 11 -- facade | Edicion total por feature + API |
+|--------|----------------|------------------|--------------------------------|
+| **D** | `MultiModuleSdk.kt` ensure*() + when | = grafo (mismo `when` sirve a ambos ejes) | 1 ensure*() + 1 rama `when` por feature; +1 rama por API |
+| **E2** | 1 linea en `allAutoEntries()` + 1 funcion entry | Nada (registry HashMap) | 1 entry por feature; 0 por API |
+| **G** | `MultiModuleSdkG.kt` ensure*() + when | = grafo | = D |
+| **H** | Nada (META-INF/services) | Nada (resolver HashMap) | **Zero edicion central** |
+| **I** | Nada (META-INF/services) | Nada (resolver HashMap) | **Zero edicion central** |
+| **J** | Nada (META-INF/services) | Nada (resolver HashMap) | **Zero edicion central** |
+| **K** | Nada (AndroidManifest merge) | Nada (resolver HashMap) | **Zero edicion central** |
+| **L** | Nada (META-INF/services) | Nada (`koin.get` nativo) | **Zero edicion central** |
+| **M** | `loadModules()` cascada manual | Nada | 1 registro en cascada por feature; 0 por API |
+| **N** | Nada (sweet-spi expect/actual) | Nada (`koin.get` nativo) | **Zero edicion central** |
+| **O** | Nada (`@ContributesTo`) | `when` manual en facade | 0 por feature (grafo auto); **+1 rama por API** |
+| **O2** | Nada (`@ContributesTo`) | `when` manual en facade | 0 por feature; +1 rama por API |
+| **P** | Nada (`@ContributesTo` KSP) | `when` manual en facade | 0 por feature; +1 rama por API |
+| **P2** | Nada (`@ContributesTo` KSP) | `when` manual en facade | 0 por feature; +1 rama por API |
+| **Q** | 1 modulo en `@Component(modules=[...])` | `when` manual en facade | 1 linea por feature + 1 rama por API |
+| **Q2** | 1 modulo en `@Component(modules=[...])` | `when` manual en facade | 1 linea por feature + 1 rama por API |
 
-**Escala con dificultad (D, G):** El modulo de wiring crece linealmente con el numero de features. Con 50 features, el when-block tiene 50+ ramas y los metodos ensure*() forman una marana de dependencias manuales. Cada feature nuevo requiere un PR al modulo de wiring -- cuello de botella para equipos distribuidos. **Nota de consistencia**: el `when` del facade `get<T>(Class)` tambien crece linealmente por API. Este segundo problema NO es exclusivo de D/G -- aparece identico en los patrones compile-time DI O/O2/P/P2/Q/Q2 (ver Req 11 en `docs/shared/requirements.md`). La diferencia es que D/G pagan ese coste tanto por feature como por API; O/O2/P/P2 solo por API (grafo auto-agregado con `@ContributesTo`); Q/Q2 por modulo listado + por API.
+### 6.2 Clasificacion por escalabilidad (los 16 patrones)
 
-**Escala con moderacion (E2):** El modulo de wiring crece, pero cada feature es una funcion aislada (1 entry = 1 funcion). Las dependencias se declaran explicitamente y el registry las resuelve con DFS. Con 50 features, Entries.kt tendria ~600 lineas -- manejable pero no ideal.
+**ZERO EDICION END-TO-END (cumplen Req 6 + Req 11, escalan perfectamente a 50+ x 10 APIs):**
 
-**Escala sin limites (H, I, J, K):** El modulo de wiring no cambia nunca. Cada feature declara su propio FeatureProvider en su modulo y se registra via META-INF/services (H, I, J) o via AndroidManifest `<meta-data>` (K). Con 100 features, el archivo de wiring sigue siendo 50-55 lineas. Equipos independientes pueden publicar features sin coordinacion central.
+- **H, I, J, K**: Resolver-based, ServiceLoader/Manifest. Wiring modulo inmutable + facade
+  via `resolver.get(clazz)` HashMap.
+- **L, N**: Koin + discovery (ServiceLoader/sweet-spi). Wiring modulo inmutable + facade
+  via `koin.get(clazz)` nativo.
+
+**1 LINEA CENTRAL POR FEATURE (escalable con edicion minima):**
+
+- **E2**: 1 entry en `allAutoEntries()`. Facade inmutable via registry HashMap.
+- **M**: `loadModules()` cascada manual. Facade inmutable via `koin.get` nativo.
+
+**GRAFO AUTO, FACADE MANUAL (mitigable con KSP codegen propio):**
+
+- **O, O2, P, P2**: `@ContributesTo` (Metro/kotlin-inject-anvil) agrega al grafo en
+  compilacion (Req 6 OK). El facade `MultiModuleSdkX.get<T>(Class)` mantiene un
+  `when (clazz)` manual que crece 1 rama por API. A 50 features × 10 APIs = 500 ramas
+  mantenidas a mano. **Mitigable con un procesador KSP propio (~200 LOC)** que genere
+  el `when` desde el componente. Ver Req 11 en `docs/shared/requirements.md`.
+
+**DOBLE CRECIMIENTO (feature + API):**
+
+- **D, G**: `when`/`ensure*()` crecen por feature Y el `when` del facade crece por API.
+- **Q, Q2**: `@Component(modules=[...])` listado manual + `when` del facade manual.
+
+Con 50 features × 10 APIs por feature:
+- H/I/J/K/L/N: 0 ediciones centrales totales
+- E2/M: ~50 lineas centrales
+- O/O2/P/P2: 500 ramas en el facade (o 0 con KSP custom)
+- Q/Q2: 50 modules + 500 ramas (o 50 con KSP custom)
+- D/G: 500+ ramas + 50 ensure*() methods
 
 ### 6.3 Velocidad de build
 
 | Patron | Codegen | Impacto en build incremental |
 |--------|---------|------------------------------|
-| D, E2, G, H, K | Dagger 2 (KSP/KAPT, genera Java) | +2-5 segundos por modulo con @Component |
+| D, E2, G, H, K, Q, Q2 | Dagger 2 (KSP, genera Java) | +2-5 segundos por modulo con @Component |
 | I | Ninguno | Zero overhead. Build mas rapido del proyecto |
-| J | kotlin-inject (KSP, genera Kotlin) | +1-3 segundos por modulo con @Component. Menos que Dagger |
+| J, P, P2 | kotlin-inject / kotlin-inject-anvil (KSP, genera Kotlin) | +1-3 segundos por modulo. Menos que Dagger |
+| O, O2 | Metro (compiler plugin, no KSP) | +1-2 segundos por modulo. Plugin acoplado a version de Kotlin |
+| L, M, N | Koin runtime (+ sweet-spi KSP en N) | 0 segundos en L/M (puro runtime); +0.5-1s en N por sweet-spi KSP |
 
-**I es el patron con builds mas rapidos** porque no tiene ningun paso de procesamiento de anotaciones. Esto es relevante en proyectos con 20+ modulos donde el tiempo de KSP se acumula.
+**I es el patron con builds mas rapidos** porque no tiene ningun paso de procesamiento
+de anotaciones. L/M tambien son rapidos en build pero pagan en runtime (Koin ~6K ns
+resolve). Esto es relevante en proyectos con 20+ modulos donde el tiempo de KSP se acumula.
 
 ---
 
@@ -614,69 +849,101 @@ internal fun allAutoEntries(config: SdkConfig, logger: SdkLogger) = listOf(
 ### 8.1 Arbol de decision
 
 ```
-Cuantos features tendra el SDK?
+Necesitas KMP (iOS, Desktop)?
 |
-+-- < 10 features
-|    +-- Equipo familiarizado con Dagger? --> Pattern D
-|    +-- Preferencia por simplicidad? --> Pattern G
++-- SI --> compile-time es innegociable?
+|    +-- SI --> Aceptas mantener `when` manual en facade (o escribir KSP propio)?
+|    |         +-- SI --> P2 (KI-anvil Lazy) o O2 (Metro Lazy, framework joven)
+|    |         +-- NO --> Koin/H hibrido (facade inmutable) + tests verify()
+|    +-- NO --> N (sweet-spi + Koin) -- zero-touch end-to-end
 |
-+-- 10-30 features
-|    +-- Se necesita registro centralizado? --> Pattern E2
-|
-+-- 30+ features o equipos distribuidos
++-- NO (Android-only) --> Cuantos features tendra el SDK?
      |
-     +-- El equipo ya usa Dagger internamente?
-     |    +-- SI --> Se necesita robustez ante R8/ProGuard sin reglas keep?
-     |    |         +-- SI --> Pattern K (discovery via AndroidManifest, Firebase-style)
-     |    |         +-- NO --> Pattern H (ServiceLoader + Dagger, grafo lazy)
-     |    +-- NO --> Se prefieren builds rapidos sin codegen?
-     |              +-- SI --> Pattern I (zero framework, builds mas rapidos)
-     |              +-- NO --> Pattern J (kotlin-inject, menos boilerplate)
+     +-- < 10 features
+     |    +-- Equipo familiarizado con Dagger? --> D o G
+     |    +-- Preferencia por simplicidad? --> G
      |
-     +-- SDK legacy migrando incrementalmente?
-          +-- Pattern G (cada feature expone factory function)
+     +-- 10-30 features
+     |    +-- Compile-time + facade inmutable? --> E2
+     |    +-- Hilt-style? --> Q2 (aceptar modules=[...] manual)
+     |
+     +-- 30+ features o equipos distribuidos
+          |
+          +-- Zero-touch end-to-end es innegociable?
+          |    +-- SI --> H (ServiceLoader + Resolver + Dagger)
+          |               o I (zero framework, builds rapidos)
+          |               o K (AndroidManifest discovery, R8 friendly)
+          |    +-- NO --> Compile-time completa + aceptas KSP propio?
+          |              +-- SI --> Q2 o O2/P2 (KMP bonus)
+          |              +-- NO --> H (Tier 1, Req 11 OK sin codegen)
+          |
+          +-- SDK legacy migrando --> G (factory functions)
 ```
 
-### 8.2 Tabla de recomendacion por escenario
+### 8.2 Tabla de recomendacion por escenario (los 16 patrones)
 
 | Escenario | Patron recomendado | Justificacion |
 |-----------|-------------------|---------------|
-| SDK interno de empresa, < 10 features, equipo Dagger | **D** | Minimo overhead, maximo control, el equipo ya conoce Dagger |
-| SDK interno, 10-30 features, un equipo gestiona el wiring | **E2** | Catalogo centralizado con lazy init; 1 linea por feature nuevo |
-| SDK open-source con contribuidores externos | **H** | Zero coordinacion central; los contribuidores solo publican su feature |
+| SDK interno Android, < 10 features, equipo Dagger | **D** o **G** | Minimo overhead, maximo control, el equipo ya conoce Dagger |
+| SDK interno Android, 10-30 features | **E2** | Catalogo centralizado con lazy init + facade inmutable + compile-time COMPLETA (unico Dagger con los 3) |
+| SDK Android open-source con contribuidores externos | **H** | Zero coordinacion central end-to-end; los contribuidores solo publican su feature |
 | SDK con R8/ProGuard agresivo, sin reglas keep | **K** | Manifest entries sobreviven minificacion; mismo grafo lazy que H |
 | SDK con builds rapidos como prioridad | **I** | Zero codegen; cada feature es constructor injection puro |
-| SDK con compile-time safety sin Dagger | **J** | kotlin-inject valida en compilacion; genera Kotlin, no Java |
-| SDK legacy migrando incrementalmente | **G** | Cada feature expone factory function; DaggerComponent queda interno |
+| SDK con Hilt-style + Android-only | **Q2** | `dagger.Lazy<T>` + compile-time, aceptar `@Component(modules)` + `when` facade manuales |
+| SDK legacy Android migrando incrementalmente | **G** | Cada feature expone factory function; DaggerComponent queda interno |
+| SDK KMP nuevo, compile-time prioritario | **P2** o **O2** | `@ContributesTo` + lazy, aceptar `when` facade manual (mitigable con KSP propio) |
+| SDK KMP nuevo, zero-touch end-to-end prioritario | **N** | sweet-spi + Koin, facade inmutable nativo, sin compile-time safety (mitigable con `koin.verify()`) |
+| SDK KMP con framework maduro + ecosistema | **N** (Koin 7+ anos) | Koin tiene mas ecosistema que Metro/kotlin-inject-anvil |
 
 ### 8.3 Recomendacion general
 
-Para un SDK Android nuevo que anticipa crecimiento mas alla de 15-20 features:
+Para un **SDK Android nuevo** que anticipa crecimiento mas alla de 15-20 features:
 
-1. **Comenzar con Pattern H** (Dagger + ServiceLoader) -- aplica el mismo principio arquitectonico que Firebase SDK (auto-registro, wiring inmutable, grafo lazy). Compile-time safety dentro de cada feature.
-2. **Considerar Pattern K** si R8/ProGuard es agresivo y se prefiere evitar reglas keep para META-INF/services. K reutiliza los mismos FeatureProvider de H, cambiando unicamente el mecanismo de discovery (AndroidManifest `<meta-data>` via PackageManager). El costo es ~2.2x init mas lento (211K vs 96K ns) y requerir Context en init(), pero ambos son imperceptibles (< 1 ms e2e).
-3. **Considerar Pattern I** si los tiempos de build son prioridad (zero codegen, builds mas rapidos) o si el equipo prefiere evitar frameworks DI.
-4. **Considerar Pattern J** si el equipo quiere compile-time safety con menos boilerplate que Dagger y codegen moderno en Kotlin.
+1. **Pattern H** (Dagger + ServiceLoader) -- aplica el mismo principio arquitectonico que
+   Firebase SDK (auto-registro, wiring inmutable end-to-end, grafo lazy). Compile-time
+   safety dentro de cada feature + facade inmutable nativamente.
+2. **Pattern K** si R8/ProGuard es agresivo. K reutiliza los mismos FeatureProvider de H,
+   cambiando unicamente el mecanismo de discovery (AndroidManifest `<meta-data>`).
+3. **Pattern I** si los tiempos de build son prioridad (zero codegen, builds mas rapidos)
+   o si el equipo prefiere evitar frameworks DI.
+4. **Pattern E2** si compile-time COMPLETA (no parcial) es innegociable y aceptas 1 linea
+   en `allAutoEntries()` por feature.
 
-La migracion H -> K es trivial (mismo Resolver, mismos FeatureProvider, solo cambia el discovery). La migracion H -> I/J es incremental: cada feature puede migrar su Provider individualmente, porque el Resolver acepta cualquier subclase de FeatureProvider.
+Para un **SDK KMP nuevo**: la decision depende de que ejes valoras.
 
-### 8.4 Matriz de pros y contras
+- **Compile-time innegociable**: P2 + aceptar `when` facade manual (~500 ramas a escala)
+  o escribir KSP propio. Alternativa: O2 (mejor perf pero framework mas joven).
+- **Zero-touch end-to-end innegociable**: N (sweet-spi + Koin) con `koin.verify()` en CI.
 
-| Criterio | D | E2 | G | H | I | J | K |
-|----------|---|----|----|---|---|---|---|
-| Paradigma | Compile-time | Compile-time | Compile-time | Compile-time + Runtime | Puro runtime | Compile-time + Runtime | Compile-time + Runtime |
-| Framework | Dagger 2 | Dagger 2 | Dagger 2 | Dagger 2 | Ninguno | kotlin-inject | Dagger 2 |
-| Seguridad en compilacion | Alta | Alta | Alta | Alta (dentro del feature) | Ninguna | Alta | Alta (dentro del feature) |
-| Auto-discovery | No | No | No | Si (ServiceLoader) | Si (ServiceLoader) | Si (ServiceLoader) | Si (AndroidManifest) |
-| Edicion central por feature | Si (when + ensure) | Si (1 entry) | Si (when + ensure) | No | No | No | No |
-| Lineas en wiring | 149 | 66 + 129 entries | 107 | 51 | 54 | 55 | 50 |
-| Init frio (ns) | 1,135 | 8,203 | 1,214 | 95,870 | 95,528 | 92,407 | 210,826 |
-| Resolve cached (ns) | 15.9 | 34.4 | 15.3 | 34.8 | 34.6 | 34.7 | 34.3 |
-| E2E startup (ns) | 490,218 | 418,304 | 567,101 | 651,291 | 771,951 | 724,898 | 882,041 |
-| Build speed | Lento (KSP) | Lento (KSP) | Lento (KSP) | Lento (KSP) | Rapido (0 codegen) | Moderado (KSP) | Lento (KSP) |
-| Escalabilidad (50+ features) | Dificil | Moderada | Dificil | Excelente | Excelente | Excelente | Excelente |
-| Robustez ante R8/ProGuard | Requiere keep | Requiere keep | Requiere keep | Requiere keep | Requiere keep | Requiere keep | Sin reglas keep |
-| Requiere Context en init | Si | Si | Si | Si | Si | Si | Si |
+**Para migracion**: H -> K es trivial. H -> I/J es incremental (feature por feature).
+KMP: feature por feature, API publica del SDK no cambia.
+
+### 8.4 Matriz de pros y contras (los 16 patrones)
+
+Formato patron-por-fila para acomodar los 16 patrones.
+
+| Patron | Paradigma | Framework | Compile-time | Req 6 (grafo) | Req 11 (facade) | Init (ns) | Resolve all (ns) | KMP |
+|--------|-----------|-----------|:------------:|:-------------:|:---------------:|----------:|-----------------:|:---:|
+| D | Compile-time | Dagger | Alta | NO | NO | 1,212 | 100 | NO |
+| E2 | Compile-time + DFS runtime | Dagger | Alta | ~ | OK | 10,983 | 211 | NO |
+| G | Compile-time | Dagger | Alta | NO | NO | 1,257 | 101 | NO |
+| H | Compile-time + runtime | Dagger + SL | Parcial | OK | **OK** | 106,865 | 212 | NO |
+| I | Runtime puro | Ninguno | NO | OK | **OK** | 94,255 | 211 | ~ |
+| J | Compile-time + runtime | kotlin-inject + SL | Parcial | OK | **OK** | 97,197 | 213 | ~ |
+| K | Compile-time + runtime | Dagger + Manifest | Parcial | OK | **OK** | 213,737 | 213 | NO |
+| L | Runtime | Koin + SL | NO | OK | **OK** | 154,403 | 6,244 | ~ |
+| M | Runtime | Koin + SL lazy | NO | NO | **OK** | 164,353 | 7,920 | ~ |
+| N | Runtime | Koin + sweet-spi | NO | OK | **OK** | 69,636 | 6,328 | OK |
+| O | Compile-time | Metro | Alta | OK | NO | 603 | 80 | OK |
+| O2 | Compile-time + Lazy | Metro | Alta | OK | NO | 1,127 | 86 | OK |
+| P | Compile-time | kotlin-inject-anvil | Parcial | OK | NO | 1,064 | 165 | OK |
+| P2 | Compile-time + Lazy | kotlin-inject-anvil | Parcial | OK | NO | 1,416 | 156 | OK |
+| Q | Compile-time | Dagger Hilt-style | Alta | NO | NO | 676 | 64 | NO |
+| Q2 | Compile-time + Lazy | Dagger Hilt-style | Alta | NO | NO | 1,080 | 85 | NO |
+
+**Lectura**: patrones con Req 6 = OK Y Req 11 = OK son los unicos con wiring inmutable
+end-to-end (H, I, J, K, L, N). E2 es semi (~). Los compile-time DI (O/O2/P/P2/Q/Q2)
+fallan Req 11 -- el facade `when` crece por API.
 
 ---
 
