@@ -9,7 +9,6 @@ import org.koin.core.KoinApplication
 import org.koin.dsl.koinApplication
 import org.koin.dsl.module
 import java.util.ServiceLoader
-import kotlin.reflect.KClass
 
 /**
  * Pattern L: Koin + ServiceLoader (Eager Modules).
@@ -63,10 +62,11 @@ object MultiModuleSdkL : MultiModuleSdkApi {
         _initialized = true
     }
 
-    @Suppress("UNCHECKED_CAST")
     override fun <T : Any> get(clazz: Class<T>): T {
         check(_initialized) { "MultiModuleSdkL not initialized." }
-        return _koinApp!!.koin.get(clazz.kotlin as KClass<Any>) as T
+        val koin = _koinApp?.koin ?: error("koinApp is null")
+        val instance = koin.get<Any>(clazz.kotlin)
+        return checkNotNull(clazz.cast(instance)) { "Cast failed for ${clazz.simpleName}" }
     }
 
     inline fun <reified T : Any> get(): T = get(T::class.java)

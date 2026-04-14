@@ -20,18 +20,33 @@ package com.grinwich.sdk.contracts
 /**
  * Declares everything needed to integrate a feature's provision into the SDK.
  *
+ * Self-installing: the entry writes itself into the registry via [installInto],
+ * where [P] is in scope. This avoids unchecked casts when the registry iterates
+ * over `List<ProvisionEntry<*>>` and star-projection erases [P].
+ *
  * @param P The provision interface type (e.g., EncProvisions)
  * @param provisionClass Class token for registration/lookup
  * @param dependencies Provision classes that must be registered first
  * @param build Factory that creates the provision (receives registry to resolve parents)
  * @param services Explicit service bindings — compile-time checked, NO reflection
  */
-class ProvisionEntry<P>(
+class ProvisionEntry<P : Any>(
     val provisionClass: Class<P>,
     val dependencies: Set<Class<*>> = emptySet(),
-    val build: (ProvisionRegistry) -> P,
-    val services: (P) -> Map<Class<*>, Any>,
-)
+    private val build: (ProvisionRegistry) -> P,
+    private val services: (P) -> Map<Class<*>, Any>,
+) {
+    internal fun installInto(registry: ProvisionRegistry) {
+        for (dep in dependencies) {
+            check(registry.hasProvision(dep)) {
+                "${dep.simpleName} must be registered before ${provisionClass.simpleName}"
+            }
+        }
+        val provision: P = build(registry)
+        registry.putProvision(provisionClass, provision)
+        registry.putServices(services(provision))
+    }
+}
 
 /**
  * Registry that holds provisions and their eagerly-resolved service instances.
@@ -47,15 +62,8 @@ class ProvisionRegistry {
     private val services = HashMap<Class<*>, Any>()
 
     /** Register a single entry. Dependencies must already be registered. */
-    fun <P> register(entry: ProvisionEntry<P>) {
-        for (dep in entry.dependencies) {
-            check(provisions.containsKey(dep)) {
-                "${dep.simpleName} must be registered before ${entry.provisionClass.simpleName}"
-            }
-        }
-        val provision = entry.build(this)
-        provisions[entry.provisionClass] = provision as Any
-        services.putAll(entry.services(provision))
+    fun register(entry: ProvisionEntry<*>) {
+        entry.installInto(this)
     }
 
     /**
@@ -63,16 +71,13 @@ class ProvisionRegistry {
      * Order-independent — the registry resolves build order from dependencies.
      */
     fun registerAll(entries: List<ProvisionEntry<*>>) {
-        val sorted = topoSort(entries)
-        for (entry in sorted) {
-            // Type-safe by construction: entry was registered as ProvisionEntry<P>
-            @Suppress("UNCHECKED_CAST")
-            register(entry as ProvisionEntry<Any>)
+        for (entry in topoSort(entries)) {
+            entry.installInto(this)
         }
     }
 
     /** Retrieve a previously-registered provision by its interface type. */
-    fun <P> provision(clazz: Class<P>): P =
+    fun <P : Any> provision(clazz: Class<P>): P =
         checkNotNull(clazz.cast(provisions[clazz])) { "Provision ${clazz.simpleName} not registered." }
 
     /** Resolve a service by its interface type. */
@@ -80,6 +85,14 @@ class ProvisionRegistry {
         checkNotNull(clazz.cast(services[clazz])) { "Service ${clazz.simpleName} not available." }
 
     fun hasProvision(clazz: Class<*>): Boolean = provisions.containsKey(clazz)
+
+    internal fun <P : Any> putProvision(clazz: Class<P>, provision: P) {
+        provisions[clazz] = provision
+    }
+
+    internal fun putServices(map: Map<Class<*>, Any>) {
+        services.putAll(map)
+    }
 
     /** Number of provisions currently built. Useful for verifying lazy behavior in tests. */
     val builtProvisionCount: Int get() = provisions.size
@@ -128,14 +141,29 @@ class ProvisionRegistry {
 /**
  * Evolution from [ProvisionEntry]: declares [serviceClasses] upfront for indexing.
  * Entries are INSTALLED (cataloged) at init, BUILT on first demand via get<T>().
+ *
+ * Self-installing: [buildAndRegister] performs the build+register sequence where
+ * [P] is in scope, avoiding unchecked casts when the registry iterates over
+ * `AutoProvisionEntry<*>` under star projection.
  */
-class AutoProvisionEntry<P>(
+class AutoProvisionEntry<P : Any>(
     val provisionClass: Class<P>,
     val dependencies: Set<Class<*>> = emptySet(),
     val serviceClasses: Set<Class<*>>,
-    val build: (AutoProvisionRegistry) -> P,
-    val services: (P) -> Map<Class<*>, Any>,
-)
+    private val build: (AutoProvisionRegistry) -> P,
+    private val services: (P) -> Map<Class<*>, Any>,
+) {
+    /**
+     * Build this entry's provision and write it into [registry]. Writes services
+     * first, then the provision itself — the provision map is the thread-safety
+     * gate for concurrent readers (see [AutoProvisionRegistry]).
+     */
+    internal fun buildAndRegister(registry: AutoProvisionRegistry) {
+        val provision: P = build(registry)
+        registry.putServices(services(provision))
+        registry.putProvision(provisionClass, provision) // LAST — gate for other threads
+    }
+}
 
 /**
  * Auto-initializing registry — lazy build-on-demand.
@@ -185,7 +213,7 @@ class AutoProvisionRegistry {
     }
 
     /** Retrieve a built provision by its interface type. Used by entry build lambdas. */
-    fun <P> provision(clazz: Class<P>): P =
+    fun <P : Any> provision(clazz: Class<P>): P =
         checkNotNull(clazz.cast(provisions[clazz])) { "Provision ${clazz.simpleName} not built. Dependency not declared?" }
 
     fun isBuilt(clazz: Class<*>): Boolean = provisions.containsKey(clazz)
@@ -200,6 +228,14 @@ class AutoProvisionRegistry {
             provisions.clear()
             services.clear()
         }
+    }
+
+    internal fun <P : Any> putProvision(clazz: Class<P>, provision: P) {
+        provisions[clazz] = provision
+    }
+
+    internal fun putServices(map: Map<Class<*>, Any>) {
+        services.putAll(map)
     }
 
     /**
@@ -222,15 +258,12 @@ class AutoProvisionRegistry {
                 val (cls, processed) = stack.removeLast()
                 if (provisions.containsKey(cls)) continue
 
+                val entry = catalog[cls]
+                    ?: error("Provision ${cls.simpleName} not installed in catalog.")
+
                 if (processed) {
-                    @Suppress("UNCHECKED_CAST")
-                    val entry = catalog[cls] as AutoProvisionEntry<Any>
-                    val provision = entry.build(this)
-                    services.putAll(entry.services(provision))
-                    provisions[cls] = provision // LAST — gate for other threads
+                    entry.buildAndRegister(this)
                 } else {
-                    val entry = catalog[cls]
-                        ?: error("Provision ${cls.simpleName} not installed in catalog.")
                     stack.addLast(cls to true)
                     for (dep in entry.dependencies) {
                         if (!provisions.containsKey(dep)) {

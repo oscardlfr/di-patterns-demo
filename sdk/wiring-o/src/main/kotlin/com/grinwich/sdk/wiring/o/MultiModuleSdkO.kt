@@ -70,11 +70,10 @@ object MultiModuleSdkO : MultiModuleSdkApi {
         _initialized = true
     }
 
-    @Suppress("UNCHECKED_CAST")
     override fun <T : Any> get(clazz: Class<T>): T {
         check(_initialized) { "MultiModuleSdkO not initialized." }
         val graph = _graph ?: error("graph is null")
-        return when (clazz) {
+        val instance: Any = when (clazz) {
             EncryptionApi::class.java -> graph.encryption
             HashApi::class.java -> graph.hashApi
             AuthApi::class.java -> graph.auth
@@ -84,7 +83,8 @@ object MultiModuleSdkO : MultiModuleSdkApi {
             SdkLogger::class.java -> _logger
             Context::class.java -> graph.context
             else -> error("No binding for ${clazz.simpleName} in SdkGraph")
-        } as T
+        }
+        return checkNotNull(clazz.cast(instance)) { "Cast failed for ${clazz.simpleName}" }
     }
 
     inline fun <reified T : Any> get(): T = get(T::class.java)

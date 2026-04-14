@@ -10,7 +10,6 @@ import org.koin.dsl.koinApplication
 import org.koin.dsl.module
 import java.util.ServiceLoader
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.reflect.KClass
 
 /**
  * Pattern M: Koin + ServiceLoader (Lazy loadModules).
@@ -78,14 +77,15 @@ object MultiModuleSdkM : MultiModuleSdkApi {
         _initialized = true
     }
 
-    @Suppress("UNCHECKED_CAST")
     override fun <T : Any> get(clazz: Class<T>): T {
         check(_initialized) { "MultiModuleSdkM not initialized." }
 
         // Ensure the provider for this service is loaded (cascade)
         ensureLoaded(clazz)
 
-        return _koinApp!!.koin.get(clazz.kotlin as KClass<Any>) as T
+        val koin = _koinApp?.koin ?: error("koinApp is null")
+        val instance = koin.get<Any>(clazz.kotlin)
+        return checkNotNull(clazz.cast(instance)) { "Cast failed for ${clazz.simpleName}" }
     }
 
     /**
@@ -106,7 +106,8 @@ object MultiModuleSdkM : MultiModuleSdkApi {
             }
 
             // Load this provider's module into the running Koin instance
-            _koinApp!!.koin.loadModules(listOf(provider.module()))
+            val koin = _koinApp?.koin ?: error("koinApp is null")
+            koin.loadModules(listOf(provider.module()))
             _loadedProviders.add(provider.featureName)
         }
     }

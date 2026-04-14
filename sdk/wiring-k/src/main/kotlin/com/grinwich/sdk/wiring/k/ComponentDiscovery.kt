@@ -37,10 +37,10 @@ object ComponentDiscovery {
             .filter { it.startsWith(META_PREFIX) }
             .map { key ->
                 val className = key.removePrefix(META_PREFIX)
-                @Suppress("UNCHECKED_CAST")
                 Class.forName(className)
+                    .asSubclass(FeatureProvider::class.java)
                     .getDeclaredConstructor()
-                    .newInstance() as FeatureProvider<*>
+                    .newInstance()
             }
     }
 }

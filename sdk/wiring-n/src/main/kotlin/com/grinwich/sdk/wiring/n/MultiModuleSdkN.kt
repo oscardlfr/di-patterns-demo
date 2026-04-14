@@ -8,7 +8,6 @@ import com.grinwich.sdk.feature.observability.AndroidSdkLogger
 import org.koin.core.KoinApplication
 import org.koin.dsl.koinApplication
 import org.koin.dsl.module
-import kotlin.reflect.KClass
 
 /**
  * Pattern N: sweet-spi + Koin (Eager Modules).
@@ -62,10 +61,11 @@ object MultiModuleSdkN : MultiModuleSdkApi {
         _initialized = true
     }
 
-    @Suppress("UNCHECKED_CAST")
     override fun <T : Any> get(clazz: Class<T>): T {
         check(_initialized) { "MultiModuleSdkN not initialized." }
-        return _koinApp!!.koin.get(clazz.kotlin as KClass<Any>) as T
+        val koin = _koinApp?.koin ?: error("koinApp is null")
+        val instance = koin.get<Any>(clazz.kotlin)
+        return checkNotNull(clazz.cast(instance)) { "Cast failed for ${clazz.simpleName}" }
     }
 
     inline fun <reified T : Any> get(): T = get(T::class.java)

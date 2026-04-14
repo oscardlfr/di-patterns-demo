@@ -85,11 +85,10 @@ object MultiModuleSdkQ : MultiModuleSdkApi {
         _initialized = true
     }
 
-    @Suppress("UNCHECKED_CAST")
     override fun <T : Any> get(clazz: Class<T>): T {
         check(_initialized) { "MultiModuleSdkQ not initialized." }
         val component = _component ?: error("component is null")
-        return when (clazz) {
+        val instance: Any = when (clazz) {
             EncryptionApi::class.java -> component.encryption()
             HashApi::class.java -> component.hash()
             AuthApi::class.java -> component.auth()
@@ -99,7 +98,8 @@ object MultiModuleSdkQ : MultiModuleSdkApi {
             SdkLogger::class.java -> _logger
             Context::class.java -> component.context()
             else -> error("No binding for ${clazz.simpleName} in SdkComponent")
-        } as T
+        }
+        return checkNotNull(clazz.cast(instance)) { "Cast failed for ${clazz.simpleName}" }
     }
 
     inline fun <reified T : Any> get(): T = get(T::class.java)
