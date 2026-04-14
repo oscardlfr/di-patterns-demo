@@ -124,13 +124,19 @@ Necesitas KMP (iOS, macOS, WASM)?
 
 ### Recomendacion rapida
 
-| Contexto | Patron recomendado | Razon |
-|----------|-------------------|-------|
-| SDK KMP nuevo | **O** (Metro) | Init mas rapido (603 ns), compile-time safe, zero runtime discovery |
-| SDK KMP con muchas features | **O2** (Metro Lazy) | Re-init 15x mas rapido, singletons on-demand |
-| App Android con Hilt | **Q** (Hilt-style Dagger) | Familiar, compile-time safe, 676 ns init |
-| SDK Android con auto-discovery | **H** (ServiceLoader) | Wiring inmutable, escala a 50+ features |
-| Migracion gradual a KMP | **P** (kotlin-inject-anvil) | KSP genera Kotlin, same aggregation pattern |
+| Contexto | Patron recomendado | Razon | Caveat |
+|----------|-------------------|-------|--------|
+| SDK KMP nuevo, perf primario | **O** (Metro) | Init mas rapido (603 ns), compile-time safe | Facade `when` manual por API (Req 11). Mitigable con KSP propio |
+| SDK KMP con muchas features | **O2** (Metro Lazy) | Re-init 15x mas rapido, singletons on-demand | Mismo caveat de O |
+| SDK KMP zero-touch end-to-end | **N** (sweet-spi + Koin) | Auto-registro grafo + facade inmutable nativo | Sin compile-time safety. Mitigable con `koin.verify()` en CI |
+| App Android con Hilt | **Q** (Hilt-style Dagger) | Familiar, compile-time safe, 676 ns init | Doble edicion central: `@Component(modules=[...])` + `when` del facade |
+| SDK Android con auto-discovery | **H** (ServiceLoader) | Wiring inmutable end-to-end, escala a 50+ features × N APIs | Init lento (107 us). Compile-time parcial -- mitigable con `verify()` |
+| Migracion gradual a KMP | **P** (kotlin-inject-anvil) | KSP genera Kotlin, same aggregation pattern | Mismo caveat de facade que O/P2 |
+
+**Trade-off resumen** (ver `docs/shared/requirements.md` para criterio bidimensional):
+- Patrones con **facade inmutable nativo** (HashMap/runtime lookup): H, I, J, K, L, M, N, E2
+- Patrones con **`when` manual en facade** (compile-time DI): O, O2, P, P2, Q, Q2
+- Mitigacion para los segundos: KSP propio (~200 LOC) que genere el `when` desde el componente
 
 ---
 

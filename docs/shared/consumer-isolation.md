@@ -171,8 +171,19 @@ NO de otros feature-impl. Solo los modulos de wiring importan las implementacion
 | J | Nada -- `KIFeatureProvider` descubierto via ServiceLoader |
 | K | Nada -- `FeatureProvider` descubierto via AndroidManifest `<meta-data>` |
 
-H, I, J y K tienen wiring inmutable: el modulo de wiring no importa ninguna clase de
-implementacion. Cada feature se auto-registra via ServiceLoader (META-INF/services).
+H, I, J y K tienen wiring inmutable end-to-end: el modulo de wiring no importa ninguna
+clase de implementacion. Cada feature se auto-registra via ServiceLoader (META-INF/services).
+Y ademas, el facade `get<T>(Class)` delega a `resolver.get(clazz)` (HashMap lookup), por
+lo que tampoco crece por API expuesta.
+
+Patrones compile-time (O, O2, P, P2, Q, Q2) tienen wiring del modulo automatico (`@ContributesTo`
+o `@Module`) pero **no** facade inmutable: el dispatcher mantiene un `when (clazz)` manual
+por cada API. Mitigable con un procesador KSP propio. Ver `docs/shared/requirements.md`
+Req 11.
+
+Coste de discovery (init):
+- H/I/J: ServiceLoader (~95-107 us)
+- K: PackageManager + AndroidManifest (~214 us, 2x mas que H)
 
 Para el analisis completo de la arquitectura multi-modulo, ver
 [multimodule/api-impl-architecture.md](../multimodule/api-impl-architecture.md).

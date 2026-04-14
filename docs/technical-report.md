@@ -30,11 +30,12 @@ Los 16 patrones se organizan en 3 categorias: **Android-only** (D, E2, G, H, I, 
 | **J (kotlin-inject)** | SDKs que prefieren codegen moderno en Kotlin (KSP) sobre Dagger (KAPT/Java) |
 | **K (AndroidManifest Discovery)** | SDKs que necesitan robustez ante R8/ProGuard sin reglas keep (discovery via manifest metadata) |
 
-### Tres conclusiones clave
+### Cuatro conclusiones clave
 
 1. **Rendimiento no es diferenciador.** Todos los patrones resuelven servicios en nanosegundos y completan init + resolve + primera operacion en menos de 882,041 ns (el aumento respecto a ejecuciones anteriores se debe a la migracion de Storage a DataStore con I/O real a disco).
-2. **Escalabilidad si lo es.** Los patrones D y G requieren editar el modulo de wiring por cada feature nuevo; H, I, J y K no requieren cambio alguno en el modulo central.
-3. **El principio de auto-discovery con grafo lazy es el estandar de SDKs corporativos.** Firebase SDK usa un patron conceptualmente identico (auto-registro via AndroidManifest metadata + ComponentRuntime con topo-sort). Pattern H aplica el mismo principio con ServiceLoader + Resolver DFS. Pattern K replica el mecanismo de Firebase de forma aun mas literal: descubre providers via `<meta-data>` en AndroidManifest con PackageManager.
+2. **Escalabilidad tiene dos ejes, no uno.** El primer eje es el grafo (¿agregar feature requiere editar wiring?). El segundo eje es el facade (¿agregar API requiere editar el dispatcher `get<T>(Class)`?). Los patrones D y G fallan ambos. Los patrones compile-time DI O/O2/P/P2/Q/Q2 cumplen el primero pero fallan el segundo (el `when (clazz)` del facade crece por API). Solo H/I/J/K/L/M/N cumplen ambos nativamente. Ver `docs/shared/requirements.md` Req 6 + Req 11.
+3. **El benchmark mide pequenas escalas (6 features × 1-2 APIs).** A 50 features × 10 APIs el coste de mantener un `when` de 500 ramas en O2/P2/Q2 NO se ve en estos numeros. Es coste de mantenimiento, no de runtime. Mitigable con KSP propio que genere el `when` desde el componente.
+4. **El principio de auto-discovery con grafo lazy es el estandar de SDKs corporativos.** Firebase SDK usa un patron conceptualmente identico (auto-registro via AndroidManifest metadata + ComponentRuntime con topo-sort). Pattern H aplica el mismo principio con ServiceLoader + Resolver DFS. Pattern K replica el mecanismo de Firebase de forma aun mas literal: descubre providers via `<meta-data>` en AndroidManifest con PackageManager.
 
 ---
 
@@ -59,11 +60,11 @@ Los 16 patrones se organizan en 3 categorias: **Android-only** (D, E2, G, H, I, 
 
 | Patron | Modulo Gradle | Framework | Mecanismo | Lineas wiring |
 |--------|---------------|-----------|-----------|---------------|
-| N -- sweet-spi + Koin | `sdk/wiring-n` | Koin + sweet-spi | sweet-spi descubre KoinModuleProvider en todos los targets KMP (JVM, Native, WASM) | ~60 |
-| O -- Koin DSL Modules | `sdk/wiring-o` | Koin | Modules Koin declarados via DSL, sin ServiceLoader | ~55 |
-| O2 -- Koin DSL Auto-Discovery | `sdk/wiring-o2` | Koin | Koin DSL con auto-discovery de modules | ~55 |
-| P -- Koin Annotations | `sdk/wiring-p` | Koin + koin-annotations | @Module/@Single KSP genera module definitions | ~50 |
-| P2 -- Koin Annotations Auto | `sdk/wiring-p2` | Koin + koin-annotations | Koin Annotations con auto-discovery | ~50 |
+| N -- sweet-spi + Koin | `sdk/wiring-n` | Koin + sweet-spi | sweet-spi descubre KoinFeatureProvider en todos los targets KMP (JVM, Native, WASM). koin.get(clazz.kotlin) facade inmutable nativo | ~80 |
+| O -- Metro eager | `sdk/wiring-o` | Metro (compiler plugin) | @ContributesTo agrega al @DependencyGraph en compilacion. Singletons eager. Facade con `when (clazz)` manual por API | ~95 |
+| O2 -- Metro Lazy | `sdk/wiring-o2` | Metro (compiler plugin) | Idem O pero accessors retornan Lazy<T> -- singletons on-demand. Facade con `when (clazz)` manual | ~100 |
+| P -- kotlin-inject-anvil eager | `sdk/wiring-p` | kotlin-inject-anvil (KSP) | @ContributesTo via KSP @MergeComponent. Singletons eager. Facade con `when (clazz)` manual | ~90 |
+| P2 -- kotlin-inject-anvil Lazy | `sdk/wiring-p2` | kotlin-inject-anvil (KSP) | Idem P con @SingleIn lazy tracking. Facade con `when (clazz)` manual | ~95 |
 
 #### Partial KMP (3 patrones)
 
@@ -103,11 +104,24 @@ Sync es el nodo hoja mas pesado: depende transitivamente de Core, Enc, Auth y St
 
 ### 2.3 Clasificacion de los patrones
 
-**Wiring manual (D, G):** El modulo de wiring importa las implementaciones concretas (DaggerXxxComponent) y orquesta el orden de construccion con metodos ensure*() y when-blocks. Cada feature nuevo requiere editar el wiring.
+La clasificacion completa se evalua en **dos ejes** (ver `docs/shared/requirements.md` Req 6 y Req 11):
 
-**Wiring centralizado (E2, M):** Las dependencias se declaran en un archivo central (Entries.kt en E2, modules listados en M). El registro resuelve el orden con DFS (E2) o Koin (M). Agregar un feature requiere agregar una funcion/modulo y una linea en el listado central.
+- **Eje feature (Req 6)**: ¿agregar un modulo nuevo requiere editar wiring central?
+- **Eje API (Req 11)**: ¿agregar una API nueva requiere editar el dispatcher `get<T>(Class)` del facade?
 
-**Wiring auto-descubierto (H, I, J, K, L, N, O, O2, P, P2, Q, Q2):** Cada feature declara su propio Provider/Module y se registra automaticamente. El modulo de wiring no cambia nunca, sin importar cuantos features se agreguen. H, I, J y K usan el mismo Resolver con DFS; L y N usan ServiceLoader/sweet-spi con Koin; O, O2, P y P2 usan Koin DSL o Koin Annotations; Q y Q2 usan Dagger @Component monolitico con @InstallIn modules.
+**Wiring manual (D, G)** -- fallan ambos ejes:
+El modulo de wiring importa implementaciones concretas (DaggerXxxComponent) y orquesta el orden de construccion con metodos ensure*() y when-blocks. Cada feature nuevo requiere editar el wiring (eje feature). El facade `get<T>(Class)` mantiene un `when (clazz)` que crece por API (eje API).
+
+**Wiring centralizado (E2, M)** -- semi-manual en el eje feature:
+Las dependencias se declaran en un archivo central (Entries.kt en E2, modules listados en M). E2 resuelve via registry HashMap (facade inmutable, eje API OK). M usa Koin (facade nativo, eje API OK). Agregar feature = 1 linea en el listado central.
+
+**Wiring del modulo auto-descubierto (H, I, J, K, L, N, O, O2, P, P2)**: Cada feature se auto-registra. El modulo de wiring no se edita por feature. Subgrupos:
+
+- **Resolver-based (H, I, J, K)**: ServiceLoader o AndroidManifest descubre Provider; Resolver construye via DFS. Facade delega a `resolver.get(clazz)` -- HashMap lookup. **Inmutable end-to-end** (Req 6 + Req 11 cumplidos).
+- **Koin runtime (L, M, N)**: ServiceLoader/sweet-spi descubre Module; `koin.get(clazz.kotlin)` facade inmutable nativo. **Inmutable end-to-end**.
+- **Compile-time DI (O, O2, P, P2)**: `@ContributesTo` (Metro compiler plugin / kotlin-inject-anvil KSP) agrega al grafo (Req 6 cumplido). **Pero el facade `get<T>(Class)` mantiene un `when (clazz)` manual** que crece linealmente por API (Req 11 NO cumplido). Mitigable con un procesador KSP propio (~200 LOC) que genere el `when` desde el componente.
+
+**Wiring del modulo manual + facade manual (Q, Q2)**: Dagger @Component con `modules=[...]` listado explicitamente (Req 6 fail) Y facade con `when (clazz)` manual (Req 11 fail). Doble crecimiento central.
 
 ---
 
@@ -313,7 +327,7 @@ H y K muestran 3 provisions tras pedir Encryption (vs 2 en los demas patrones). 
 
 ### 6.2 Clasificacion por escalabilidad
 
-**Escala con dificultad (D, G):** El modulo de wiring crece linealmente con el numero de features. Con 50 features, el when-block tiene 50+ ramas y los metodos ensure*() forman una marana de dependencias manuales. Cada feature nuevo requiere un PR al modulo de wiring -- cuello de botella para equipos distribuidos.
+**Escala con dificultad (D, G):** El modulo de wiring crece linealmente con el numero de features. Con 50 features, el when-block tiene 50+ ramas y los metodos ensure*() forman una marana de dependencias manuales. Cada feature nuevo requiere un PR al modulo de wiring -- cuello de botella para equipos distribuidos. **Nota de consistencia**: el `when` del facade `get<T>(Class)` tambien crece linealmente por API. Este segundo problema NO es exclusivo de D/G -- aparece identico en los patrones compile-time DI O/O2/P/P2/Q/Q2 (ver Req 11 en `docs/shared/requirements.md`). La diferencia es que D/G pagan ese coste tanto por feature como por API; O/O2/P/P2 solo por API (grafo auto-agregado con `@ContributesTo`); Q/Q2 por modulo listado + por API.
 
 **Escala con moderacion (E2):** El modulo de wiring crece, pero cada feature es una funcion aislada (1 entry = 1 funcion). Las dependencias se declaran explicitamente y el registry las resuelve con DFS. Con 50 features, Entries.kt tendria ~600 lineas -- manejable pero no ideal.
 

@@ -240,7 +240,7 @@ Resultados en `benchmark/build/outputs/connected_android_test_additional_output/
 | [Benchmarks multi-modulo](docs/multimodule/benchmark-results.md) | 144 benchmarks + 253 stress/memory tests en S22 Ultra |
 | [Arquitectura api/impl](docs/multimodule/api-impl-architecture.md) | Separacion Gradle, provision interfaces (17 variantes de wiring) |
 | **Compartidos** | |
-| [Requisitos](docs/shared/requirements.md) | 10 requisitos, cumplimiento por patron |
+| [Requisitos](docs/shared/requirements.md) | 11 requisitos (incluye criterio bidimensional auto-registro grafo + facade inmutable), cumplimiento por patron |
 | [Conceptos DI](docs/shared/consumer-isolation.md) | DI vs Service Locator, niveles de aislamiento |
 | [Dependencias cruzadas](docs/shared/cross-feature-deps.md) | Como resuelve cada approach las cross-deps |
 | [Configuracion benchmarks](docs/shared/benchmark-configuration.md) | Guia para ejecutar los 453 tests |

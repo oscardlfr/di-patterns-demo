@@ -34,7 +34,7 @@ lazy singletons, y rendimiento para este contexto?**
 
 | # | Criterio | Peso | Justificacion |
 |---|----------|------|---------------|
-| 1 | Auto-registro | MUST HAVE | Con +50 modulos, edicion central = cuello de botella de PRs y merge conflicts |
+| 1 | Auto-registro (grafo) | MUST HAVE | Anadir feature = solo `implementation(...)` en Gradle. Con +50 modulos, edicion central por feature = cuello de botella de PRs y merge conflicts |
 | 2 | Seguridad en compilacion | MUST HAVE | 10 devs = alta probabilidad de bindings rotos sin validacion compile-time |
 | 3 | Inicializacion lazy | MUST HAVE | Startup performance critico en mobile. No crear 50 singletons si solo se usan 5 |
 | 4 | Thread-safe shutdown | IMPORTANTE | SDK se reinicializa en cambios de configuracion o testing |
@@ -42,8 +42,22 @@ lazy singletons, y rendimiento para este contexto?**
 | 6 | Madurez del ecosistema | IMPORTANTE | Soporte a largo plazo, documentacion, comunidad activa |
 | 7 | Init performance | IMPORTANTE | Impacto en cold start del consumidor. Una vez por sesion |
 | 8 | Resolve cached performance | IMPORTANTE | Impacto en hot paths: cada `sdk.get<T>()` paga este costo |
+| 9 | Wiring del facade inmutable | IMPORTANTE | El dispatcher `get<T>(Class)` del SDK NO requiere editar ramas manualmente al anadir una API. Sin esto, 50 features × 10 APIs = 500 ramas de `when` mantenidas a mano |
 
 **Criterios eliminatorios:** Si un patron no cumple los 3 MUST HAVE, se descarta.
+
+**Sobre el Criterio 1 vs 9 (auto-registro: dos ejes distintos):**
+- **Criterio 1 (grafo)** mide si el framework DI agrega el modulo al grafo automaticamente
+  (`@ContributesTo`, ServiceLoader, `@Module + @InstallIn` con auto-discovery, etc.).
+- **Criterio 9 (facade)** mide si el dispatcher `get<T>(Class)` del SDK escala. Patrones
+  compile-time (Dagger, Metro, kotlin-inject) suelen necesitar un `when (clazz)` manual
+  porque no tienen runtime class lookup nativo.
+
+Un patron puede cumplir uno y fallar el otro. **O2/P2 cumplen Criterio 1 pero fallan
+Criterio 9** -- el `when` manual del facade crece linealmente por API. Es deuda oculta
+a escala. Mitigable con un procesador KSP propio (~200 LOC) que genere el `when` desde
+el componente. Patrones con runtime DI nativo (Koin, H/I/J/K vía Resolver) cumplen
+ambos sin codegen propio.
 
 ---
 
@@ -60,7 +74,7 @@ Estos patrones cumplen los 3 MUST HAVE con la maxima calidad: compile-time safet
 | Criterio | O2 (Metro Lazy) | P2 (kotlin-inject-anvil Lazy) |
 |----------|-----------------|-------------------------------|
 | **Framework** | Metro compiler plugin | kotlin-inject KSP |
-| Auto-registro | **OK** -- `@ContributesTo` agrega al grafo automaticamente | **OK** -- `@ContributesTo` agrega al grafo via KSP merge |
+| Auto-registro (grafo) | **OK** -- `@ContributesTo` agrega al grafo automaticamente | **OK** -- `@ContributesTo` agrega al grafo via KSP merge |
 | Compile-time safety | **OK** -- grafo completo validado en compilacion | **OK** -- KSP valida bindings en compilacion |
 | Lazy | **OK** -- `Lazy<T>` difiere singletons hasta primer acceso | **OK** -- `@SingleIn` scope, lazy via kotlin-inject |
 | Thread-safe shutdown | **OK** -- LazyCreationTracker.deactivate() + nullify graph | **OK** -- LazyCreationTracker.deactivate() + nullify component |
@@ -69,13 +83,25 @@ Estos patrones cumplen los 3 MUST HAVE con la maxima calidad: compile-time safet
 | Init Cold | **1,127 ns** | **1,416 ns** |
 | Resolve All (cached) | **86 ns** | **156 ns** |
 | Re-Init | **2,305 ns** | **2,929 ns** |
+| **Wiring del facade inmutable** | **NO** -- `when (clazz)` manual en `MultiModuleSdkO2.get()`. Crece 1 rama por API. Mitigable con KSP propio | **NO** -- mismo problema en `MultiModuleSdkP2.get()`. Mitigable con KSP propio |
 | MUST HAVEs | **3/3** | **3/3** |
+| Total criterios OK | **8/9** (falla facade) | **8/9** (falla facade) |
 
-**O2** es objetivamente el mas rapido: init 95x mas rapido que H (1,127 vs 106,865 ns),
-resolve cached 2.3x mas rapido (86 vs 202 ns), re-init 157x mas rapido (2,305 vs 362,649 ns).
+**O2** es objetivamente el mas rapido en perf pura: init 95x mas rapido que H
+(1,127 vs 106,865 ns), resolve cached 2.3x mas rapido (86 vs 202 ns), re-init 157x mas
+rapido (2,305 vs 362,649 ns).
 
 **P2** es ~25% mas lento que O2 pero usa KSP estandar en vez de compiler plugin,
 lo que reduce el riesgo de rotura en bumps de Kotlin.
+
+**Caveat de O2/P2 a escala (Criterio 9):** ambos requieren mantener un `when (clazz)` en
+el facade `MultiModuleSdk{O2,P2}.get<T>(Class<T>): T`. Con 50 features × 10 APIs = 500
+ramas mantenidas a mano. El framework auto-agrega los modulos al grafo, pero el dispatcher
+de tipo runtime es manual. Mitigable con un procesador KSP propio (~200 LOC) que lea el
+componente y genere el `when`. Sin esa inversion, el coste se traduce en ~10 lineas de
+edicion al facade por cada API nueva. Costo por feature: 1 anotacion `@ContributesTo`
+en el feature-impl (zero touch en wiring) + N ramas en el facade del SDK (1 por API
+expuesta). Ver Req 11 en `docs/shared/requirements.md`.
 
 ### Tier 2 -- Compile-time + Auto-registro, pero Eager
 
@@ -85,12 +111,13 @@ innecesariamente.
 
 | Criterio | O (Metro) | P (kotlin-inject-anvil) |
 |----------|-----------|-------------------------|
-| Auto-registro | **OK** -- `@ContributesTo` | **OK** -- `@ContributesTo` |
+| Auto-registro (grafo) | **OK** -- `@ContributesTo` | **OK** -- `@ContributesTo` |
 | Compile-time safety | **OK** -- compiler plugin | **OK** -- KSP |
 | Lazy | **NO** -- eager: todos los singletons en init | **NO** -- eager |
 | Init Cold | **603 ns** (el mas rapido de todos) | **1,064 ns** |
 | Resolve All | **80 ns** | **165 ns** |
 | Re-Init | **36,000 ns** (15.6x mas lento que O2) | **28,000 ns** (9.6x mas lento que P2) |
+| **Wiring del facade inmutable** | **NO** -- mismo `when` que O2 | **NO** -- mismo `when` que P2 |
 | MUST HAVEs | **2/3** (falla Lazy) | **2/3** (falla Lazy) |
 
 Con 50+ features opcionales, la falta de lazy es un descarte para este caso.
@@ -109,7 +136,7 @@ provisions on-demand con DFS recursivo. Cada feature usa Dagger internamente.
 
 | Criterio | Evaluacion | Detalle |
 |----------|-----------|---------|
-| Auto-registro | **OK** | `META-INF/services` + ServiceLoader. Zero edicion central |
+| Auto-registro (grafo) | **OK** | `META-INF/services` + ServiceLoader. Zero edicion central |
 | Compile-time safety | **PARCIAL** | Dagger valida cada Component individualmente, pero un provider faltante es error runtime |
 | Lazy | **OK** | DFS genuino: `builtProvisionCount == 0` tras init (confirmado en 9 tests de memoria) |
 | Thread-safe shutdown | **OK** | `concurrentShutdown` pasa 200 rounds. synchronized + ConcurrentHashMap |
@@ -118,19 +145,22 @@ provisions on-demand con DFS recursivo. Cada feature usa Dagger internamente.
 | Init Cold | **106,865 ns** | ServiceLoader scan domina el costo |
 | Resolve All (cached) | **212 ns** | ConcurrentHashMap lookup O(1) |
 | Re-Init | **362,649 ns** | ServiceLoader + rebuild completo |
+| **Wiring del facade inmutable** | **OK** | `MultiModuleSdkH.get(clazz)` delega a `resolver.get(clazz)` -- HashMap lookup. **Cero `when`, cero edicion al anadir APIs**. Unico patron Tier 1-3 con esta propiedad nativamente (sin codegen propio) |
 | MUST HAVEs | **2.5/3** (compile-time parcial) |
+| Total criterios OK | **8/9** (falla compile-time parcial) |
 
 **Pros:**
 - Arquitectura probada: 35 tests, thunderingHerd (100 threads), concurrentBuild (6 threads x 100 rounds), 10,000 ciclos sin leaks
 - Auto-registro perfecto via META-INF/services
 - DFS lazy genuino demostrado
 - Dagger + ServiceLoader = ecosistema maduro
+- **Facade inmutable**: a diferencia de O2/P2/Q2, el dispatcher `get<T>(Class)` no crece por API. 50 features × 10 APIs = mismo facade de ~50 lineas. Es la unica ventaja arquitectural que O2/P2 NO replican sin codegen propio
 
 **Contras:**
 - Provider faltante = runtime error
 - Init 95x mas lento que O2 (106,865 vs 1,127 ns)
 - Re-init 157x mas lento que O2 (362,649 vs 2,305 ns)
-- Resolver propio = 105 lineas a mantener
+- Resolver propio = 105 lineas a mantener (compensado por facade inmutable)
 
 #### 3.3.2 Pattern I -- Pure Resolver (zero framework DI)
 
@@ -166,69 +196,96 @@ para cada feature nuevo.
 
 | Criterio | Evaluacion | Detalle |
 |----------|-----------|---------|
-| Auto-registro | **NO** | Cada feature @Module se lista en `@Component(modules=[...])` |
+| Auto-registro (grafo) | **NO** | Cada feature @Module se lista en `@Component(modules=[...])` |
 | Compile-time safety | **OK** | Grafo completo validado por Dagger |
 | Lazy | **OK** | `dagger.Lazy<T>` difiere construccion hasta primer acceso |
 | Madurez | **ALTA** | Dagger 10+ anos. `dagger.Lazy` es API oficial |
 | Init Cold | **1,080 ns** |
 | Resolve All | **85 ns** |
 | Re-Init | **2,157 ns** -- el mas rapido de todos |
+| **Wiring del facade inmutable** | **NO** | `when (clazz)` manual en `MultiModuleSdkQ2.get()`. Mismo problema que O2/P2 |
 | MUST HAVEs | **2/3** (falla auto-registro) |
+| Total criterios OK | **6/9** (falla auto-registro grafo Y facade inmutable) |
 
-**Trade-off:** Con 50 modules, `@Component(modules=[...])` tiene 50 lineas que 10 devs
-editan simultaneamente. Merge conflicts frecuentes. Pero si UN dev mantiene el wiring,
-es gestionable.
+**Trade-off:** Q2 paga edicion central en **DOS sitios**:
+1. `@Component(modules=[...])` -- crece 1 linea por feature (50 features = 50 lineas)
+2. `MultiModuleSdkQ2.get()` `when` -- crece 1 rama por API (10 APIs/feature × 50 = 500 ramas)
+
+Con 50 modules + 10 APIs cada uno: ~550 ediciones centrales totales. Con 10 devs en
+paralelo, merge conflicts garantizados. Solo gestionable si UN dev mantiene el wiring
+y se acepta cuello de botella. Mitigable con KSP propio para el `when` (reduce a ~50
+ediciones), pero el `modules=[...]` sigue siendo manual.
 
 #### 3.4.2 Pattern E2 -- AutoProvisionRegistry + DFS
 
 | Criterio | Evaluacion |
 |----------|-----------|
-| Auto-registro | **PARCIAL** -- 1 linea en `allEntries()` por feature |
+| Auto-registro (grafo) | **PARCIAL** -- 1 linea en `allEntries()` por feature |
 | Compile-time safety | **OK** -- Dagger per-Component |
 | Lazy | **OK** -- DFS on-demand |
 | Init Cold | **10,983 ns** |
+| **Wiring del facade inmutable** | **OK** -- `MultiModuleSdkE2.get()` delega a `registry.get(clazz)` (HashMap). **Cero `when`** |
 | MUST HAVEs | **2.5/3** (auto-registro parcial) |
+| Total criterios OK | **8/9** |
 
-Semi-auto: lista central de entries genera merge conflicts a escala, aunque cada feature
-solo anade 1 linea.
+Semi-auto: lista central de entries (`allEntries()`) genera merge conflicts a escala,
+aunque cada feature solo anade 1 linea (NO N lineas como Q2). **El facade es inmutable**
+-- esa es su ventaja sobre O2/P2/Q2: misma compile-time safety completa de Dagger pero
+sin `when` que mantener.
 
 ### Tier 5 -- Koin-based (runtime DI, sin compile-time safety)
 
 | Criterio | N (sweet-spi + Koin) | L (Koin + ServiceLoader) | M (Koin + ServiceLoader Lazy) |
 |----------|---------------------|--------------------------|-------------------------------|
-| Auto-registro | **OK** | **OK** | **OK** |
+| Auto-registro (grafo) | **OK** | **OK** | **NO** -- cascada manual de loadModules |
 | Compile-time safety | **NO** -- Koin runtime | **NO** | **NO** |
 | Lazy | **OK** -- Koin `single{}` | **OK** | **OK** |
 | Init Cold | **69,636 ns** | **154,403 ns** | **164,353 ns** |
 | Resolve All (cached) | **6,328 ns** | **6,244 ns** | **7,920 ns** |
 | Re-Init | **732,000 ns** | **1.1M ns** | **1.2M ns** |
+| **Wiring del facade inmutable** | **OK** -- `koin.get(clazz)` nativo | **OK** -- igual | **OK** -- igual |
 | MUST HAVEs | **2/3** | **2/3** | **2/3** |
 
 N es el mejor Koin-based pero su resolve cached (6,328 ns) es 74x mas lento que O2 (86 ns).
 Sin compile-time safety, 10 devs con 50+ modulos = bindings rotos en produccion.
-L y M anaden ServiceLoader JVM-only sin beneficio significativo.
+L y M anaden ServiceLoader JVM-only sin beneficio significativo. **Ventaja arquitectural
+de los 3**: facade inmutable nativo (sin `when`, sin codegen propio) -- comparten esa
+propiedad con H/I/J/K/E2.
 
 ---
 
 ## 4. Recomendacion
 
-### Los datos hablan: O2 y P2 son objetivamente los mejores candidatos
+### Los datos hablan: depende de que ejes valoras
 
-La tabla de rendimiento es contundente:
+La tabla de rendimiento es contundente, pero la decision depende de que dimensiones priorices:
 
-| Metrica | O2 (Metro Lazy) | P2 (KI-anvil Lazy) | H (ServiceLoader) | Q2 (Dagger Lazy) |
-|---------|----------------:|--------------------:|-------------------:|------------------:|
-| Init Cold | 1,127 ns | 1,416 ns | 106,865 ns | 1,080 ns |
-| Resolve All | 86 ns | 156 ns | 212 ns | 85 ns |
-| Re-Init | 2,305 ns | 2,929 ns | 362,649 ns | 2,157 ns |
-| Auto-registro | OK | OK | OK | **NO** |
-| Compile-time | OK | OK | PARCIAL | OK |
-| Lazy | OK | OK | OK | OK |
-| Madurez | BAJA | MEDIA | ALTA | ALTA |
+| Metrica / Criterio | O2 (Metro Lazy) | P2 (KI-anvil Lazy) | H (ServiceLoader) | Q2 (Dagger Lazy) | E2 (Registry) |
+|--------------------|----------------:|--------------------:|-------------------:|------------------:|---------------:|
+| Init Cold | 1,127 ns | 1,416 ns | 106,865 ns | 1,080 ns | 10,983 ns |
+| Resolve All | 86 ns | 156 ns | 212 ns | 85 ns | 211 ns |
+| Re-Init | 2,305 ns | 2,929 ns | 362,649 ns | 2,157 ns | 17,000 ns |
+| Auto-registro (grafo) | OK | OK | OK | **NO** | PARCIAL |
+| Compile-time | OK | OK | PARCIAL | OK | OK |
+| Lazy | OK | OK | OK | OK | OK |
+| Madurez | BAJA | MEDIA | ALTA | ALTA | ALTA |
+| **Wiring del facade inmutable** | **NO** | **NO** | **OK** | **NO** | **OK** |
 
-O2 y P2 son los unicos patrones que cumplen **los 3 MUST HAVE con maxima calidad** (compile-time
-completa, no parcial). Q2 tiene compile-time completa y lazy, pero no tiene auto-registro. H
-tiene auto-registro y lazy, pero compile-time parcial.
+**Lectura honesta:**
+- **O2/P2 dominan perf y compile-time safety**, pero fallan facade inmutable: el `when (clazz)`
+  del `MultiModuleSdkO2.get()` crece 1 rama por API. A 50 features × 10 APIs = 500 ramas
+  manuales. Mitigable con KSP propio (~200 LOC).
+- **H gana en facade inmutable nativo** (resolver HashMap) y madurez, pero falla compile-time
+  safety completa (parcial: cada Component validado, pero provider faltante = runtime error).
+- **E2 es el unico Dagger** con compile-time + facade inmutable. Pero auto-registro parcial
+  (1 linea en `allEntries()` por feature).
+- **Q2 falla DOS criterios** (auto-registro grafo + facade inmutable): doble edicion central.
+
+**Ningun patron cumple los 9 criterios.** El ranking depende del peso relativo:
+- Si **MUST HAVEs (1-3)** + facade inmutable son innegociables, **H o E2** ganan.
+- Si **perf** es prioritario y se acepta inversion en KSP propio, **O2/P2** ganan.
+- Si compile-time COMPLETA es innegociable y NO se quiere KSP custom, **E2** es el unico
+  Dagger con esa propiedad.
 
 ### Recomendacion: Estrategia por fases
 
@@ -304,23 +361,29 @@ de features nuevos es bajo (2-3/mes), es tolerable. Si es alto (5+/mes), no es v
 
 | Patron | Razon de descarte | Criterio fallido |
 |--------|-------------------|------------------|
-| **D** (Component Deps) | No auto-registro. When-blocks crecen linealmente con features | Auto-registro (MUST HAVE) |
-| **G** (Factory Functions) | No auto-registro. `ensure*()` functions crecen linealmente | Auto-registro (MUST HAVE) |
-| **Q** (Hilt-style Dagger eager) | No auto-registro + no lazy. 50 singletons creados en init aunque se usen 5 | Auto-registro + Lazy (2 MUST HAVE) |
+| **D** (Component Deps) | No auto-registro grafo + facade no inmutable. When-blocks crecen por feature Y por API | Auto-registro grafo (MUST HAVE) + facade |
+| **G** (Factory Functions) | No auto-registro grafo (`ensure*()` crece por feature) + facade no inmutable (`when` crece por API) | Auto-registro (MUST HAVE) + facade |
+| **Q** (Hilt-style Dagger eager) | No auto-registro + no lazy. 50 singletons creados en init aunque se usen 5. Ademas facade no inmutable | Auto-registro + Lazy (2 MUST HAVE) |
 | **I** (Pure Resolver) | Zero compile-time safety. 10 devs sin validacion = alto riesgo | Compile-time safety (MUST HAVE) |
-| **O** (Metro eager) | Cumple auto-registro y compile-time, pero no lazy. Con 50 features opcionales, la falta de lazy desperdicia recursos | Lazy (MUST HAVE) |
-| **P** (kotlin-inject-anvil eager) | Misma limitacion que O: sin lazy singletons | Lazy (MUST HAVE) |
-| **N** (sweet-spi + Koin) | Sin compile-time safety. Resolve 74x mas lento que O2 (6,328 vs 86 ns). Koin runtime = bindings rotos en produccion | Compile-time safety (MUST HAVE) |
+| **O** (Metro eager) | Cumple auto-registro grafo y compile-time, pero no lazy + facade no inmutable | Lazy (MUST HAVE) + facade |
+| **P** (kotlin-inject-anvil eager) | Misma limitacion que O: sin lazy + facade no inmutable | Lazy (MUST HAVE) + facade |
+| **N** (sweet-spi + Koin) | Sin compile-time safety. Resolve 74x mas lento que O2 (6,328 vs 86 ns). Koin runtime = bindings rotos en produccion. **Bonus:** facade inmutable nativo | Compile-time safety (MUST HAVE) |
 | **L** (Koin + ServiceLoader) | Mismos problemas que N + ServiceLoader overhead. Init 154K ns, resolve 6,244 ns | Compile-time (MUST) + rendimiento |
 | **M** (Koin + ServiceLoader Lazy) | El peor performer overall. Lazy cascade 48,334 ns. Re-init 1.2M ns | Compile-time (MUST) + rendimiento |
-| **E2** (AutoProvisionRegistry) | Semi-auto-registro: lista central de entries genera merge conflicts. No zero-touch | Auto-registro parcial |
-| **K** (AndroidManifest) | Init 2x mas lento que H sin beneficio. Solo viable si R8 elimina META-INF | Alternativa a H si R8 es problema |
-| **Q2** (Hilt-style Dagger Lazy) | No auto-registro. 50+ modules en @Component = merge conflicts. Alternativa viable si se acepta trade-off | Auto-registro (MUST HAVE). Alternativa si equipo acepta wiring manual |
+| **E2** (AutoProvisionRegistry) | Semi-auto-registro grafo (1 linea por feature en `allEntries()`). Sin embargo facade SI inmutable y compile-time COMPLETA | Auto-registro grafo parcial |
+| **K** (AndroidManifest) | Init 2x mas lento que H sin beneficio. Solo viable si R8 elimina META-INF. Comparte con H facade inmutable | Alternativa a H si R8 es problema |
+| **Q2** (Hilt-style Dagger Lazy) | No auto-registro grafo + facade no inmutable. **Doble** edicion central. Alternativa viable si se acepta KSP propio para el `when` | Auto-registro (MUST HAVE) + facade |
 
-**Nota sobre Q2:** Ofrece compile-time safety COMPLETA + Lazy (2 de 3 MUST HAVE). Si el
-equipo tiene disciplina de rebase y el ritmo de features nuevos es moderado, Q2 es una
-alternativa genuina. Pero a +50 modules con 10 devs en paralelo, el auto-registro
-de O2/P2/H supera el beneficio de eliminar el merge conflict risk.
+**Nota sobre Q2:** Ofrece compile-time safety COMPLETA + Lazy (2 de 3 MUST HAVE). Pero
+falla **dos** criterios de zero-touch: (a) auto-registro grafo (modules manuales en
+@Component) y (b) facade inmutable (`when` manual). Mitigable parcialmente con KSP propio
+para el `when`, pero el modules=[...] sigue siendo manual. A +50 modules × 10 APIs con
+10 devs en paralelo, **doble cuello de botella central**.
+
+**Nota sobre E2 (revisada):** Aunque tiene auto-registro parcial, **es el unico patron
+Dagger con compile-time safety COMPLETA + Lazy + facade inmutable**. Si el equipo acepta
+1 linea en `allEntries()` por feature como coste, E2 es candidato Tier 2 (no Tier 4 como
+sugeria la version anterior de este doc).
 
 ---
 
@@ -330,7 +393,7 @@ de O2/P2/H supera el beneficio de eliminar el merge conflict risk.
 
 | # | Criterio | O2 | P2 | H | Q2 | E2 | K | I |
 |---|----------|----|----|---|----|----|---|---|
-| 1 | Auto-registro | **OK** | **OK** | **OK** | NO | PARCIAL | **OK** | **OK** |
+| 1 | Auto-registro (grafo) | **OK** | **OK** | **OK** | NO | PARCIAL | **OK** | **OK** |
 | 2 | Compile-time safety | **OK** | **OK** | PARCIAL | **OK** | **OK** | PARCIAL | NO |
 | 3 | Lazy | **OK** | **OK** | **OK** | **OK** | **OK** | **OK** | **OK** |
 | 4 | Thread-safe shutdown | **OK** | **OK** | **OK** | **OK** | **OK** | **OK** | **OK** |
@@ -338,10 +401,18 @@ de O2/P2/H supera el beneficio de eliminar el merge conflict risk.
 | 6 | Madurez ecosistema | **BAJA** | **MEDIA** | **ALTA** | **ALTA** | **ALTA** | **ALTA** | **ALTA** |
 | 7 | Init cold (ns) | **1,127** | **1,416** | 106,865 | **1,080** | 10,983 | 213,737 | 94,255 |
 | 8 | Resolve cached (ns) | **86** | **156** | 212 | **85** | 211 | 213 | 211 |
+| 9 | **Wiring del facade inmutable** | **NO** | **NO** | **OK** | **NO** | **OK** | **OK** | **OK** |
 | | **MUST HAVEs cumplidos** | **3/3** | **3/3** | **2.5/3** | **2/3** | **2.5/3** | **2.5/3** | **2/3** |
-| | **Candidato viable** | **Tier 1** | **Tier 1** | **Tier 3** | **Tier 4** | **Tier 4** | **Tier 3** | NO |
+| | **Total criterios OK (de 9)** | **8** | **8** | **8** | **6** | **8** | **8** | **7** |
+| | **Candidato viable** | **Tier 1** | **Tier 1** | **Tier 1*** | **Tier 4** | **Tier 2** | **Tier 3** | NO |
 
-### Tests clave de Pattern H (Tier 3 pero probado en produccion)
+*H promovido de Tier 3 a Tier 1 al considerar el Criterio 9 (facade inmutable). Tiene
+auto-registro, lazy, thread-safe, logger persistente, madurez alta Y facade inmutable
+nativo. Su unica falla es compile-time safety **parcial** (no completa). Esa diferencia
+no es eliminatoria a pequeno-mediano riesgo, dado que un test `verify()` en CI cubre
+el caso.
+
+### Tests clave de Pattern H (promovido a Tier 1, probado en produccion)
 
 | Test | Resultado | Que demuestra |
 |------|-----------|---------------|
@@ -398,7 +469,7 @@ de O2/P2/H supera el beneficio de eliminar el merge conflict risk.
 
 ## 8. Riesgos y Mitigaciones
 
-### Riesgos de Pattern H (Tier 3 -- opcion conservadora)
+### Riesgos de Pattern H (Tier 1 -- opcion conservadora)
 
 | # | Riesgo | Probabilidad | Impacto | Mitigacion |
 |---|--------|-------------|---------|-----------|
@@ -438,17 +509,34 @@ Independientemente del patron elegido, mantener la suite de tests ejecutandose e
 
 | Opcion | Tier | Recomendacion | Para quien |
 |--------|------|--------------|------------|
-| **O2 (Metro Lazy)** | **1** | **Mejor balance (si se acepta Metro v0.6.6)** | Equipos que priorizan rendimiento + correctness y aceptan riesgo de framework joven |
-| **P2 (kotlin-inject-anvil Lazy)** | **1** | **Mejor balance conservador** | Equipos que quieren Tier 1 con KSP estandar y Amazon como maintainer |
-| **H (ServiceLoader + Resolver + Dagger)** | **3** | **Produccion inmediata, riesgo minimo** | Equipos que priorizan estabilidad probada sobre rendimiento optimal |
-| Q2 (Hilt-style Dagger Lazy) | 4 | Alternativa si no se necesita auto-registro | Equipos con pocos features nuevos/mes y disciplina de rebase |
+| **H (ServiceLoader + Resolver + Dagger)** | **1** | **Produccion inmediata + facade inmutable nativo** | Equipos que priorizan zero-touch end-to-end y madurez probada. Aceptan compile-time parcial mitigado con `verify()` test |
+| **O2 (Metro Lazy)** | **1** | **Mejor perf, requiere KSP propio para facade** | Equipos que priorizan rendimiento + compile-time completa Y aceptan invertir ~200 LOC en KSP custom o aceptan editar `when` por API |
+| **P2 (kotlin-inject-anvil Lazy)** | **1** | **Variante O2 con KSP estandar y maintainer corporativo** | Equipos que quieren Tier 1 con menor riesgo de framework (Amazon mantiene). Mismo caveat de facade |
+| **E2 (AutoProvisionRegistry)** | **2** | **Sweet spot Dagger: compile-time COMPLETA + facade inmutable** | Equipos que aceptan 1 linea por feature en `allEntries()` y quieren Dagger sin merge conflicts en `@Component` |
+| Q2 (Hilt-style Dagger Lazy) | 4 | Solo si se acepta KSP propio para `when` Y disciplina de rebase para `@Component` | Equipos pequenos con pocas features nuevas/mes |
 | K (AndroidManifest Discovery) | 3 | Solo si R8 elimina META-INF | Alternativa a H en entornos ProGuard agresivos |
-| E2 (AutoProvisionRegistry) | 4 | Solo si se acepta semi-auto-registro | Equipos pequenos con pocas features |
 | N (sweet-spi + Koin) | 5 | No recomendado a escala | Solo si el equipo ya usa Koin y no puede migrar |
 
-**Decision data-driven:**
-- Los datos demuestran que **O2 y P2 superan a H** en 7 de 8 criterios (H gana en madurez).
-- El **unico argumento a favor de H sobre O2/P2** es la madurez del ecosistema.
-- **Si la madurez es negociable:** O2 o P2 hoy.
-- **Si la madurez es innegociable:** H hoy, migrar a O2/P2 cuando maduren. La migracion es
-  modular (feature por feature) y la API del SDK no cambia.
+**Decision honesta (criterio bidimensional):**
+
+La pregunta clave es: **¿que ejes valoras mas?**
+
+- **Si zero-touch end-to-end es innegociable** y compile-time parcial es aceptable
+  (con `verify()` test en CI): **H**. Es el unico patron Tier 1-3 con facade inmutable
+  nativo + auto-registro grafo + madurez alta.
+
+- **Si compile-time completa es innegociable** y aceptas invertir en mantener `when`
+  manual o KSP propio: **O2** (perf) o **P2** (madurez). Plan: hoy editar `when`,
+  manana migrar a KSP custom cuando el numero de APIs lo justifique.
+
+- **Si compile-time completa Y facade inmutable son innegociables** sin invertir en
+  KSP propio: **E2**. Aceptas 1 linea en `allEntries()` por feature.
+
+- **Si el SDK tendra <30 features × <5 APIs cada uno**: cualquiera de los 4 funciona.
+  La diferencia se nota a partir de 50 × 10.
+
+**Diferencia con la version anterior de este doc:** La version anterior recomendaba O2
+como "objetivamente el mejor" basandose en 7 de 8 criterios. Esa evaluacion ignoraba el
+Criterio 9 (facade inmutable). Anadirlo cambia el ranking: O2 y P2 dejan de ser dominantes
+y H pasa a ser candidato Tier 1 con perfil distinto. Ningun patron domina absolutamente
+-- la decision depende del trade-off compile-time vs facade inmutable.

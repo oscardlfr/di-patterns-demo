@@ -363,7 +363,7 @@ interface AuthComponent {  // público, pero tipado como AuthProvisions en sdk-w
 ```
 
 **Pro:** Cross-deps automáticas sin God Object. Compile-time safety completo. Pattern natural de Dagger multi-módulo. Features solo conocen contratos (provision interfaces).
-**Contra:** El facade en `sdk-wiring` tiene `when` blocks que crecen con cada feature. A 50+ features, el facade es un archivo de 500+ líneas de wiring manual. Requiere módulo `di-contracts` adicional.
+**Contra:** El facade en `sdk-wiring` tiene `when` blocks que crecen con cada feature **y por API**. A 50+ features × 10 APIs, el facade es un archivo de 500+ líneas de wiring manual. Requiere módulo `di-contracts` adicional. **Nota**: este mismo problema aparece en O, O2, P, P2, Q y Q2 — cualquier patrón compile-time DI que exponga un dispatcher `get<T>(Class)` necesita ese `when` salvo que se genere con KSP propio. Ver Req 11 en `docs/shared/requirements.md`.
 
 **Indicado para:** SDKs medianos (10–30 features) con muchas cross-deps, donde compile-time safety es prioritario y el equipo puede mantener el wiring central.
 
@@ -1016,10 +1016,10 @@ y un `@Component` bridge conecta servicios del SDK al grafo Dagger de la app.
 | **L** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
 | **M** | 🟢 Alta | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ❌ | ✅ |
 | **N** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
-| **O** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
-| **O2** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
-| **P** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ |
-| **P2** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ |
+| **O** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ❌ | ✅ |
+| **O2** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ❌ | ✅ |
+| **P** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | ✅ |
+| **P2** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | ✅ |
 | **Q** | 🟡 Media-alta | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ |
 | **Q2** | 🟡 Media-alta | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ |
 | **Koin** | 🟢 Muy alta | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
@@ -1029,60 +1029,84 @@ y un `@Component` bridge conecta servicios del SDK al grafo Dagger de la app.
 
 ## Detalle de Limitaciones a Escala
 
-### ¿Qué crece linealmente al añadir features?
+### ¿Qué crece linealmente al añadir features y APIs?
 
-| Approach | Qué crece | Dónde crece | Impacto real a 50+ |
-|----------|-----------|-------------|---------------------|
-| **A** | Lista `modules=[...]` en @Component | `sdk-wiring` | Anotación ilegible |
-| **B** | Interfaces CoreApis | Cada `:impl` con cross-deps | God Object — sabotea aislamiento |
-| **C** | Archivos META-INF | Cada `:impl` | Bajo — pero errores silenciosos |
-| **D** | `when` blocks en facade | `sdk-wiring` | Facade de 500+ líneas |
-| **E** | Feature enum + `when` blocks | `sdk-wiring` + api | Enum de 50+ entries |
-| **E2** | `allEntries()` list | `sdk-wiring` | 1 línea por feature — manejable |
-| **G** | `ensure*()` en facade | `wiring-g` | = D (sin imports de DaggerXxx) |
-| **H** | Nada — wiring inmutable | `wiring-h` | Zero edición central |
-| **I** | Nada — wiring inmutable | `wiring-i` | Zero edición central |
-| **J** | Nada — wiring inmutable | `wiring-j` | Zero edición central |
-| **K** | Nada — wiring inmutable | `wiring-k` | Zero edición central |
-| **L** | Nada — wiring inmutable | `wiring-l` | Zero edición central (ServiceLoader + Koin) |
-| **M** | `sdkModules()` list | `wiring-m` | 1 línea por feature — manejable (Koin manual) |
-| **N** | Nada — wiring inmutable | `wiring-n` | Zero edición central (sweet-spi + Koin) |
-| **O** | Nada — wiring inmutable | `wiring-o` | Zero edición central (Koin DSL) |
-| **O2** | Nada — wiring inmutable | `wiring-o2` | Zero edición central (Koin DSL auto) |
-| **P** | Nada — wiring inmutable | `wiring-p` | Zero edición central (Koin Annotations) |
-| **P2** | Nada — wiring inmutable | `wiring-p2` | Zero edición central (Koin Annotations auto) |
-| **Q** | Lista `modules=[...]` en @Component | `wiring-q` | Anotación crece con cada feature |
-| **Q2** | Lista `modules=[...]` en @Component | `wiring-q2` | Anotación crece con cada feature |
-| **Koin** | `sdkModules()` list | `sdk-wiring` | 1 línea por feature — manejable |
-| **Hybrid** | = Koin + bridge @Provides | `sdk-wiring` + app bridge | Bridge crece 1 línea/servicio |
+La escalabilidad tiene **dos ejes** que la mayoría de comparativas confunden:
+
+- **Eje feature**: ¿añadir una feature nueva requiere editar wiring central?
+- **Eje API**: ¿añadir una API nueva requiere editar el dispatcher `get<T>(Class)` del facade?
+
+Un patrón puede ser zero-touch en un eje y manual en el otro. Ver `docs/shared/requirements.md` Req 6 (grafo) y Req 11 (facade) para la definición completa.
+
+| Approach | Crece por feature | Crece por API en facade | Impacto a 50 feats × 10 APIs |
+|----------|-------------------|-------------------------|-------------------------------|
+| **A** | Lista `modules=[...]` en @Component | `when` en facade | Anotación 50 líneas + 500 ramas |
+| **B** | Interfaces CoreApis | `when` en facade | God Object + 500 ramas |
+| **C** | Archivos META-INF (auto) | `when (serviceClass)` por Component (5 lugares) | 50 archivos + 500 ramas distribuidas |
+| **D** | `when` blocks en facade (1 sitio sirve a ambos ejes) | mismo `when` | Facade de 500+ líneas |
+| **E** | Feature enum + `when` blocks | mismo `when` | Enum 50 entries + 500 ramas |
+| **E2** | `allEntries()` list (semi-central) | Nada — registry HashMap | 1 línea/feature, 0 por API |
+| **G** | `ensure*()` en facade | `when` en facade | Doble crecimiento (50 ensure + 500 ramas) |
+| **H** | Nada — ServiceLoader auto | Nada — Resolver HashMap | **Zero edición end-to-end** |
+| **I** | Nada — ServiceLoader auto | Nada — Resolver HashMap | **Zero edición end-to-end** |
+| **J** | Nada — ServiceLoader auto | Nada — Resolver HashMap | **Zero edición end-to-end** |
+| **K** | Nada — AndroidManifest merge | Nada — Resolver HashMap | **Zero edición end-to-end** |
+| **L** | Nada — ServiceLoader auto | Nada — `koin.get(clazz)` nativo | **Zero edición end-to-end** |
+| **M** | `loadModules()` cascada manual | Nada — `koin.get(clazz)` nativo | 1 línea por feature en cascada |
+| **N** | Nada — sweet-spi auto | Nada — `koin.get(clazz)` nativo | **Zero edición end-to-end** (KMP) |
+| **O** | Nada — `@ContributesTo` (Metro compiler plugin) | `when` en facade | **0 features, 500 ramas en facade** |
+| **O2** | Nada — `@ContributesTo` (Metro compiler plugin) | `when` en facade | **0 features, 500 ramas en facade** |
+| **P** | Nada — `@ContributesTo` (kotlin-inject-anvil KSP merge) | `when` en facade | **0 features, 500 ramas en facade** |
+| **P2** | Nada — `@ContributesTo` (kotlin-inject-anvil KSP merge) | `when` en facade | **0 features, 500 ramas en facade** |
+| **Q** | Lista `modules=[...]` en @Component | `when` en facade | 50 modules + 500 ramas |
+| **Q2** | Lista `modules=[...]` en @Component | `when` en facade | 50 modules + 500 ramas |
+| **Koin** | `sdkModules()` list | Nada — `koin.get()` nativo | 1 línea por feature, 0 por API |
+| **Hybrid** | = Koin + bridge @Provides en app | Nada en SDK; bridge crece en app | 1 línea/feature SDK + 1 línea/servicio bridge |
+
+**Mitigación para O/O2/P/P2/Q/Q2**: el `when` del facade puede generarse con un procesador
+KSP propio que lea el componente (~200 LOC). Eso convierte estos patrones en zero-touch
+end-to-end también. Coste: mantener el procesador. Ver Req 11 en `docs/shared/requirements.md`.
 
 ### ¿Qué rompe la arquitectura a escala?
 
 ```
-                     ┌───────────────────────────────────────────────────────┐
-                     │  ESCALA SIN PROBLEMAS (50+)                           │
-                     │                                                       │
-                     │  E2  H  I  J  K  L  N  O  O2  P  P2  Koin  Hybrid    │
-                     └───────────────────────────────────────────────────────┘
+                     ┌─────────────────────────────────────────────────┐
+                     │  ZERO EDICIÓN END-TO-END (escala perfectamente) │
+                     │                                                 │
+                     │  H  I  J  K  L  N                               │
+                     │  (Resolver-based o Koin nativo, ambos ejes auto)│
+                     └─────────────────────────────────────────────────┘
 
-    ┌───────────────────────────────────────────────┐
-    │  FUNCIONA HASTA ~30 FEATURES                  │
-    │                                                │
-    │  D    E    G    M    Q    Q2                    │
-    │  (when blocks, enum, manual modules, @Component)│
-    └───────────────────────────────────────────────┘
+      ┌──────────────────────────────────────────────────┐
+      │  1 LÍNEA CENTRAL POR FEATURE (manejable)         │
+      │                                                  │
+      │  E2  M  Koin  Hybrid                             │
+      │  (allEntries / loadModules / sdkModules)         │
+      └──────────────────────────────────────────────────┘
 
- ┌──────────────────────────────────────────┐
- │  RIESGOSO A > 15 FEATURES               │
- │                                           │
- │  B (God Object)    C (errores silenciosos)│
- └──────────────────────────────────────────┘
+         ┌─────────────────────────────────────────────────────────┐
+         │  GRAFO AUTO, FACADE MANUAL (mitigable con KSP codegen)  │
+         │                                                         │
+         │  O  O2  P  P2                                           │
+         │  (Metro / kotlin-inject-anvil — facade `when` crece     │
+         │   linealmente por API; sin KSP propio, 500 ramas a 50×10)│
+         └─────────────────────────────────────────────────────────┘
 
-┌────────────────────────────────────────────────┐
-│  NO ADECUADO PARA ESTA ARQUITECTURA            │
-│                                                 │
-│  A (sin lean binary, sin init selectiva real)   │
-└────────────────────────────────────────────────┘
+   ┌───────────────────────────────────────────────────┐
+   │  DOBLE CRECIMIENTO (feature + API)                │
+   │                                                   │
+   │  D  G  Q  Q2                                      │
+   │  (when blocks o ensure*() Y modules en @Component)│
+   └───────────────────────────────────────────────────┘
+
+ ┌─────────────────────────────────────────────────┐
+ │  NO ESCALA POR ARQUITECTURA                     │
+ │                                                 │
+ │  A (sin lean binary)                            │
+ │  B (God Object CoreApis)                        │
+ │  C (errores silenciosos en META-INF + 5 whens)  │
+ │  E (Feature enum expuesto al consumidor)        │
+ └─────────────────────────────────────────────────┘
 ```
 
 ---

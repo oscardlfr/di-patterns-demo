@@ -181,6 +181,27 @@ features_usadas / features_totales >= 0.5 -->  Usar eager (mas simple)
 Si el ratio de features usadas vs totales es menor al 50%, lazy ahorra trabajo
 significativo.
 
+### Nota: lazy/eager es ortogonal al criterio bidimensional de wiring
+
+La discusion lazy-vs-eager se refiere SOLO a si los singletons se crean en init
+(eager) o en primer acceso (lazy). NO se refiere al wiring del modulo (Req 6) ni
+al wiring del facade (Req 11). Ver `docs/shared/requirements.md`.
+
+Para Re-Init, los lazy ganan dramaticamente:
+
+| Patron | Re-Init (ns) | Notas |
+|--------|--------------:|-------|
+| Q2 (Dagger Lazy) | 2,157 | Mejor de todos -- nullify component sin crear singletons |
+| O2 (Metro Lazy) | 2,305 | Idem -- LazyCreationTracker resetea sin recrear |
+| P2 (KI-anvil Lazy) | 2,929 | Idem |
+| E2 (Registry DFS) | 17,000 | Auto-Init Registry preserva catalog, recrea provisions |
+| Q (Dagger eager) | 25,000 | Recrea todos los singletons |
+| H (Resolver+ServiceLoader) | 362,649 | Re-discovery de providers via ServiceLoader |
+| N (sweet-spi+Koin) | 732,000 | El mas lento -- destruye y recrea Koin completo |
+
+H y N pagan el coste de descubrir providers cada vez. Es el trade-off de su facade
+inmutable nativo: el dispatcher es trivial pero el descubrimiento es caro.
+
 ---
 
 ## 5. Coste Real del Lazy Wrapper

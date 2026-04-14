@@ -221,8 +221,8 @@ expone cada feature. El modulo de wiring es el **unico lugar** que conecta todo:
 | L | Koin `get()` resuelve provision interfaces via ServiceLoader-discovered modules |
 | M | Koin `get()` resuelve provision interfaces via modules listados manualmente |
 | N | Koin `get()` resuelve via sweet-spi-discovered modules (Full KMP) |
-| O/O2 | Koin DSL modules con `get()` automatico |
-| P/P2 | Koin Annotations (@Single/@Module) con `get()` automatico |
+| O/O2 | Metro `@ContributesTo(AppScope)` -- compiler plugin agrega al grafo en compilacion |
+| P/P2 | kotlin-inject-anvil `@ContributesTo(AppScope)` -- KSP `@MergeComponent` en compilacion |
 | Q/Q2 | Dagger @Component monolitico -- `dependencies=[...]` resuelve todo en compilacion |
 
 ---
@@ -231,23 +231,23 @@ expone cada feature. El modulo de wiring es el **unico lugar** que conecta todo:
 
 | Approach | Cross-feature | Mecanismo | Limitacion |
 |----------|--------------|-----------|-----------|
-| **D** (multi) | Automatico | `dependencies=[ProvisionInterface]` | `when` blocks crecen |
-| **E2** (multi) | Automatico | `dependencies=[...]` + DFS on-demand | ~25 ns/lookup |
-| **G** (multi) | Automatico | Factory functions + provision interfaces | ensure*() no escalan |
-| **H** (multi) | Automatico | FeatureProviders + DFS resolver | ~3.5x init overhead |
-| **I** (multi) | Automatico | PureFeatureProviders + DFS resolver | Zero compile-time safety |
-| **J** (multi) | Automatico | KIFeatureProviders + DFS resolver | KSP overhead, = H |
-| **K** (multi) | Automatico | FeatureProviders via AndroidManifest + DFS resolver | IPC overhead (PackageManager), = H |
-| **L** (multi) | Automatico | Koin modules via ServiceLoader + `get()` | ServiceLoader es JVM-only |
-| **M** (multi) | Automatico | Koin modules listados manualmente + `get()` | Modulos crecen linealmente |
-| **N** (multi) | Automatico | Koin modules via sweet-spi + `get()` | Full KMP, resolucion runtime |
-| **O/O2** (multi) | Automatico | Koin DSL modules + `get()` | Full KMP, resolucion runtime |
-| **P/P2** (multi) | Automatico | Koin Annotations (@Single) + `get()` | Full KMP, KSP overhead |
-| **Q/Q2** (multi) | Automatico | Dagger @Component monolitico | Sin lean binary, @Component crece |
-| **Koin** | Automatico | `get()` desde el mismo grafo | Resolucion runtime |
-| **Hybrid** | Automatico | Koin `get()` + bridge Dagger | Puente unidireccional |
-| **B** (mono) | Manual | CoreApis extendido | God Object a escala |
-| **C** (mono) | Manual | ServiceResolver runtime | God Object + JVM only |
+| **D** (multi) | Automatico | `dependencies=[ProvisionInterface]` | `when` blocks en facade (crecen por feature Y API) |
+| **E2** (multi) | Automatico | `dependencies=[...]` + DFS on-demand | 1 linea por feature en `allEntries()`; facade inmutable via registry |
+| **G** (multi) | Automatico | Factory functions + provision interfaces | `ensure*()` crecen por feature + `when` en facade |
+| **H** (multi) | Automatico | FeatureProviders + DFS resolver | ~3.5x init overhead; facade inmutable via resolver |
+| **I** (multi) | Automatico | PureFeatureProviders + DFS resolver | Zero compile-time safety; facade inmutable |
+| **J** (multi) | Automatico | KIFeatureProviders + DFS resolver | KSP overhead, = H; facade inmutable |
+| **K** (multi) | Automatico | FeatureProviders via AndroidManifest + DFS resolver | IPC overhead (PackageManager); facade inmutable |
+| **L** (multi) | Automatico | Koin modules via ServiceLoader + `get()` | ServiceLoader es JVM-only; facade inmutable via koin.get |
+| **M** (multi) | Automatico | Koin modules listados manualmente + `get()` | Modulos crecen linealmente; facade inmutable |
+| **N** (multi) | Automatico | Koin modules via sweet-spi + `get()` | Full KMP, resolucion runtime; facade inmutable |
+| **O/O2** (multi) | Automatico | Metro `@ContributesTo` -- compiler plugin | Full KMP, compile-time; **facade `when` manual por API** (mitigable con KSP propio) |
+| **P/P2** (multi) | Automatico | kotlin-inject-anvil `@ContributesTo` -- KSP | Full KMP, compile-time; **facade `when` manual por API** (mitigable con KSP propio) |
+| **Q/Q2** (multi) | Automatico | Dagger @Component monolitico | Sin lean binary, @Component crece + facade `when` manual |
+| **Koin** | Automatico | `get()` desde el mismo grafo | Resolucion runtime; facade inmutable |
+| **Hybrid** | Automatico | Koin `get()` + bridge Dagger | Puente unidireccional; facade inmutable (Koin) |
+| **B** (mono) | Manual | CoreApis extendido | God Object a escala; facade `when` manual |
+| **C** (mono) | Manual | ServiceResolver runtime | God Object + JVM only; `when` per Component wrapper |
 
 **Conclusion:** Si las features dependen unas de otras, un grafo unico (D, E2, G, H, I, J, K, L, M, N, O, O2, P, P2, Q, Q2, Koin)
 resuelve todo automaticamente. Per-feature monolitico (B, C) funciona cuando las features son
@@ -259,3 +259,20 @@ es exclusivamente como se construyen y descubren los FeatureProviders:
 - **I:** Constructor injection puro + ServiceLoader
 - **J:** kotlin-inject `@Component` + ServiceLoader
 - **K:** Dagger `@Component` + AndroidManifest `<meta-data>` (Firebase-style)
+
+---
+
+## Cross-feature-deps vs Wiring del facade (Req 11)
+
+**Nota importante**: este doc cubre solo la **resolucion de dependencias cruzadas al construir
+provisions** (cuando `AuthProvisions.auth()` necesita `EncryptionApi`). Es ortogonal al
+**wiring del facade del SDK** (cuando el consumidor llama `sdk.get<EncryptionApi>()`).
+
+- La resolucion cross-feature es **automatica en todos los patrones multi-modulo** (17 de 22).
+- El wiring del facade **NO es automatico en todos**: H/I/J/K/L/M/N/E2 delegan a un registry
+  runtime (HashMap/Koin.get) sin `when`; O/O2/P/P2/Q/Q2 mantienen un `when (clazz)` manual que
+  crece por API. Ver `docs/shared/requirements.md` Req 11 para definicion completa.
+
+Los dos ejes son independientes. Un patron puede tener cross-feature-deps automatico pero
+facade manual (O/O2/P/P2/Q/Q2). Para el caso opuesto (facade automatico pero cross-deps
+manual) no hay patrones en este proyecto -- seria un antipatron.

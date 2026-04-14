@@ -31,7 +31,7 @@ de merge constantes.
 | # | Criterio | Peso | Justificacion |
 |---|----------|------|---------------|
 | 1 | Compatibilidad KMP | MUST HAVE | Sin KMP no hay iOS ni Desktop. Eliminatorio |
-| 2 | Auto-registro | MUST HAVE | Con +50 modulos, edicion central = cuello de botella |
+| 2 | Auto-registro (grafo) | MUST HAVE | Anadir feature = solo `implementation(...)` en Gradle. Edicion central por feature = cuello de botella con +50 modulos |
 | 3 | Inicializacion lazy | MUST HAVE | Startup performance critico en mobile |
 | 4 | Seguridad en compilacion | IMPORTANTE | 10 devs = alta probabilidad de bindings rotos |
 | 5 | Thread-safe shutdown | IMPORTANTE | SDK se reinicializa en cambios de configuracion |
@@ -40,9 +40,23 @@ de merge constantes.
 | 8 | Resolve performance | DESEABLE | Impacto en hot paths del consumidor |
 | 9 | Init performance | DESEABLE | Impacto en cold start del consumidor |
 | 10 | Footprint de memoria | DESEABLE | Impacto en dispositivos de gama baja |
+| 11 | Wiring del facade inmutable | IMPORTANTE | El dispatcher `get<T>(Class)` del SDK NO requiere editar ramas manualmente al anadir una API. 50 features × 10 APIs = 500 ramas de `when` mantenidas a mano si falla |
 
 **Criterios eliminatorios (MUST HAVE):** Si un patron no cumple los 3 MUST HAVE, se descarta
 independientemente de sus otras cualidades.
+
+**Sobre Criterio 2 vs 11 (auto-registro: dos ejes distintos):**
+- **Criterio 2 (grafo)** mide si el framework DI agrega el modulo automaticamente
+  (`@ContributesTo`, sweet-spi, etc).
+- **Criterio 11 (facade)** mide si el dispatcher `get<T>(Class)` del SDK escala. Patrones
+  compile-time (Metro, kotlin-inject) suelen requerir un `when (clazz)` manual porque no
+  tienen runtime class lookup nativo. Patrones runtime (Koin) o Resolver-based (H) lo
+  cumplen sin codegen propio.
+
+**O2/P2 cumplen Criterio 2 pero fallan Criterio 11**. Ambos requieren un `when` manual
+en el facade que crece linealmente por API. Mitigable con un procesador KSP propio
+(~200 LOC) que genere el `when` desde el componente. Sin esa inversion, son 500 ramas
+mantenidas a mano a escala.
 
 ---
 
@@ -60,7 +74,7 @@ Cada feature declara un `@ServiceProvider` que registra un `Module` de Koin.
 | Criterio | Evaluacion | Detalle |
 |----------|-----------|---------|
 | KMP | OK | sweet-spi genera expect/actual. Koin es full KMP |
-| Auto-registro | OK | `@ServiceProvider` + sweet-spi. Zero edicion central |
+| Auto-registro (grafo) | OK | `@ServiceProvider` + sweet-spi. Zero edicion central |
 | Lazy | OK | `loadModules()` de Koin + `get<T>()` on-demand |
 | Compile-time safety | NO | Koin resuelve en runtime. Bindings rotos = crash en ejecucion |
 | Thread-safe shutdown | OK | Koin `close()` limpia el grafo |
@@ -68,6 +82,7 @@ Cada feature declara un `@ServiceProvider` que registra un `Module` de Koin.
 | Madurez | ALTA | Koin: 7+ anos, documentacion extensa, comunidad grande |
 | Resolve cached | ~12,150 ns | 60x mas lento que H (202 ns) |
 | Init cold | ~135,200 ns | Comparable a H (106,865 ns) |
+| **Wiring del facade inmutable** | **OK** | `koin.get(clazz.kotlin)` -- runtime registry nativo de Koin. Cero `when` |
 
 **Pros:**
 - API familiar para desarrolladores Android (Koin es el DI mas usado en KMP)
@@ -89,7 +104,7 @@ Cada feature declara un `@ServiceProvider` que registra un `Module` de Koin.
 | Criterio | Evaluacion | Detalle |
 |----------|-----------|---------|
 | KMP | OK | Compiler plugin genera codigo para cada target |
-| Auto-registro | OK | `@ContributesTo` agrega al grafo automaticamente |
+| Auto-registro (grafo) | OK | `@ContributesTo` agrega al grafo automaticamente |
 | Lazy | OK | Singletons lazy por defecto en Metro |
 | Compile-time safety | OK | Grafo completo validado en compilacion |
 | Thread-safe shutdown | OK | Grafo inmutable, destroy limpia scope |
@@ -97,6 +112,7 @@ Cada feature declara un `@ServiceProvider` que registra un `Module` de Koin.
 | Madurez | BAJA | v0.6.6, proyecto de Slack, comunidad pequena |
 | Resolve cached | ~45 ns | El mas rapido (campo directo, sin map lookup) |
 | Init cold | ~891 ns | 120x mas rapido que H (106,865 ns) |
+| **Wiring del facade inmutable** | **NO** | `when (clazz)` manual en `MultiModuleSdkO2.get()`. Crece 1 rama por API. Mitigable con KSP propio (~200 LOC) |
 
 **Pros:**
 - Rendimiento excepcional: init 120x mas rapido que H, resolve 4.5x mas rapido
@@ -118,7 +134,7 @@ Cada feature declara un `@ServiceProvider` que registra un `Module` de Koin.
 | Criterio | Evaluacion | Detalle |
 |----------|-----------|---------|
 | KMP | OK | kotlin-inject es full KMP. KSP genera para cada target |
-| Auto-registro | OK | `@ContributesTo` agrega al grafo via KSP merge |
+| Auto-registro (grafo) | OK | `@ContributesTo` agrega al grafo via KSP merge |
 | Lazy | OK | `@SingleIn` con lazy tracking en el scope |
 | Compile-time safety | OK | KSP valida bindings en compilacion |
 | Thread-safe shutdown | OK | Scope destroy limpia el grafo, inmutable |
@@ -126,6 +142,7 @@ Cada feature declara un `@ServiceProvider` que registra un `Module` de Koin.
 | Madurez | MEDIA | kotlin-inject: 4+ anos. anvil ext: 1+ ano. Amazon mantiene |
 | Resolve cached | ~62 ns | 3.3x mas rapido que H (202 ns) |
 | Init cold | ~1,200 ns | 89x mas rapido que H (106,865 ns) |
+| **Wiring del facade inmutable** | **NO** | `when (clazz)` manual en `MultiModuleSdkP2.get()`. Mismo problema que O2. Mitigable con KSP propio |
 
 **Pros:**
 - Compile-time safety completa via KSP (no compiler plugin)
@@ -149,7 +166,7 @@ para descubrimiento KMP. FeatureProviders descubiertos via `@ServiceProvider`.
 | Criterio | Evaluacion | Detalle |
 |----------|-----------|---------|
 | KMP | OK | sweet-spi reemplaza ServiceLoader con expect/actual |
-| Auto-registro | OK | `@ServiceProvider` + sweet-spi. Zero edicion central |
+| Auto-registro (grafo) | OK | `@ServiceProvider` + sweet-spi. Zero edicion central |
 | Lazy | OK | DFS resolver construye on-demand (demostrado en benchmarks) |
 | Compile-time safety | NO | Provider faltante es error runtime (igual que H) |
 | Thread-safe shutdown | OK | Demostrado: concurrentShutdown 200 rounds OK |
@@ -157,34 +174,54 @@ para descubrimiento KMP. FeatureProviders descubiertos via `@ServiceProvider`.
 | Madurez | MEDIA | Resolver propio (probado). sweet-spi maduro |
 | Resolve cached | ~202 ns | ConcurrentHashMap lookup |
 | Init cold | ~106,865 ns | ServiceLoader scan (sweet-spi similar) |
+| **Wiring del facade inmutable** | **OK** | `resolver.get(clazz)` -- HashMap lookup. Cero `when`, cero edicion al anadir APIs |
 
 **Pros:**
 - Arquitectura probada: 35 tests, 10K ciclos, 100 threads, zero leaks
 - DFS lazy genuino: builtProvisionCount == 0 tras init
 - Thread-safe: synchronized + ConcurrentHashMap
 - Control total del codigo: sin dependencia en framework externo para DI
+- **Facade inmutable nativo**: a diferencia de O2/P2, el dispatcher `get<T>(Class)` no
+  crece por API. Mismo facade de ~50 lineas para 5 o 500 APIs. Es la unica ventaja
+  arquitectural que O2/P2 NO replican sin codegen propio
 
 **Contras:**
 - Sin compile-time safety: 10 devs con +50 modulos = alto riesgo de bindings rotos
+  (mitigable con test `verify()` en CI)
 - Init 120x mas lento que Metro, 89x mas lento que kotlin-inject-anvil
-- Mantener un Resolver propio = costo de mantenimiento a largo plazo
-- No escala bien a +50 modulos sin validacion en compilacion
+- Mantener un Resolver propio = costo de mantenimiento a largo plazo (compensado por
+  facade inmutable: si el SDK tiene 50+ APIs, el `when` que NO mantienes en O2/P2
+  vale mucho mas que las 105 lineas del Resolver)
 
 ---
 
 ## 4. Recomendacion
 
-### Recomendacion Primaria: Pattern P2 (kotlin-inject-anvil Lazy)
+**Honestidad antes de recomendar**: la version anterior de este doc presentaba P2 como
+"PRIMARIA" basandose en 9/10 criterios cumplidos. Esa evaluacion ignoraba el Criterio 11
+(facade inmutable) que P2 falla. Anadirlo cambia el cuadro: **ningun patron domina los
+11 criterios**. La eleccion depende de que ejes valoras.
 
-**P2 ofrece el mejor balance para un SDK corporativo con +50 modulos y 10 devs:**
+### Tres opciones validas, tres trade-offs distintos
 
-1. **KMP completo** via KSP -- genera codigo para Android, iOS, Desktop
-2. **Compile-time safety** via `@ContributesTo` -- un binding faltante rompe la compilacion, no la produccion
-3. **Auto-registro** -- anadir `@ContributesTo(AppScope::class)` en un feature nuevo = registrado. Zero edicion central
-4. **Lazy singletons** via `@SingleIn` -- el consumidor paga solo por lo que usa
-5. **KSP (no compiler plugin)** -- KSP es mas estable entre versiones de Kotlin que un compiler plugin
-6. **Rendimiento excelente** -- init 89x mas rapido que H, resolve 3.3x mas rapido
-7. **Amazon en produccion** -- Ring y Alexa usan kotlin-inject-anvil, garantizando mantenimiento
+#### Opcion A: Pattern P2 (kotlin-inject-anvil Lazy) -- si compile-time es prioritario y aceptas KSP propio
+
+**Cuando elegir:**
+- Compile-time safety completa es innegociable (10 devs, 50 modulos = riesgo alto sin ella)
+- Estas dispuesto a invertir ~200 LOC en un procesador KSP propio que genere el `when`
+  del facade desde el componente, **o** aceptas mantener ese `when` a mano (1 rama por API)
+
+**Pros:**
+- KMP completo via KSP -- genera codigo para Android, iOS, Desktop
+- Compile-time safety completa -- binding faltante rompe la compilacion
+- Auto-registro grafo via `@ContributesTo` -- zero edicion para anadir features
+- Lazy singletons via `@SingleIn`
+- Amazon en produccion (Ring, Alexa) -- mantenimiento garantizado
+- Rendimiento excelente -- init 89x mas rapido que H, resolve 3.3x mas rapido
+
+**Contras:**
+- **Falla Criterio 11**: facade `MultiModuleSdkP2.get<T>(Class)` requiere `when` manual
+  por API. Sin codegen propio, 50 features × 10 APIs = 500 ramas a mano
 
 **Ejemplo de auto-registro con P2:**
 
@@ -198,21 +235,47 @@ interface EncComponent {
 }
 ```
 
-Anadir este archivo en un modulo Gradle nuevo = el servicio queda registrado globalmente.
-Zero cambios en ningun otro fichero.
+Anadir este archivo en un modulo Gradle nuevo = el servicio queda registrado en el grafo
+DI globalmente. **Pero**: para que el SDK lo exponga, hay que anadir una rama al `when`
+de `MultiModuleSdkP2.get()`. **Cero cambios en wiring, +1 rama en facade.**
 
-### Recomendacion Secundaria: Pattern N (sweet-spi + Koin)
+#### Opcion B: Pattern N (sweet-spi + Koin) -- si facade inmutable es prioritario y compile-time es negociable
 
-**Si el equipo ya usa Koin** y migrar a kotlin-inject es un costo prohibitivo:
+**Cuando elegir:**
+- Quieres zero-touch end-to-end (modulo + facade): nada que mantener manualmente
+- Aceptas runtime DI con `koin.verify()` en CI como sustituto de compile-time
+- Equipo familiarizado con Koin
 
-- Mantener Koin + anadir `koin.verify()` en CI para detectar bindings rotos en tests
-- sweet-spi para descubrimiento KMP (reemplaza ServiceLoader)
-- Aceptar el trade-off: sin compile-time safety real, pero con API familiar
+**Pros:**
+- KMP completo via sweet-spi
+- Auto-registro grafo via `@ServiceProvider`
+- **Facade inmutable nativo** (`koin.get(clazz)`) -- el unico patron KMP-completo con
+  esta propiedad sin codegen propio
+- Madurez alta (Koin: 7+ anos)
+- Anadir API = `single { ... }` en un modulo Koin. Zero ediciones al facade
 
-**Cuando elegir N sobre P2:**
-- Equipo con +2 anos de experiencia en Koin
-- Migracion gradual desde arquitectura Koin existente
-- Prioridad en time-to-market sobre robustez a largo plazo
+**Contras:**
+- Sin compile-time safety -- bindings rotos = crash en runtime (mitigable con
+  `koin.verify()` en tests)
+- Resolve 60x mas lento que P2 (12,150 vs 62 ns) -- relevante en hot loops
+- Init mas lento (135K ns)
+
+#### Opcion C: Pattern H + sweet-spi (hibrido) -- si quieres facade inmutable + Resolver propio
+
+**Cuando elegir:**
+- Quieres facade inmutable nativo Y control total del codigo (sin framework DI externo)
+- Aceptas mantener un Resolver de ~105 lineas y compile-time parcial
+
+**Pros:**
+- Arquitectura probada: 35 tests, 10K ciclos, zero leaks
+- DFS lazy genuino
+- **Facade inmutable nativo** (`resolver.get(clazz)`)
+- Sin dependencia de framework DI externo
+
+**Contras:**
+- Compile-time parcial (provider faltante = runtime error)
+- Init lento (~107K ns) -- comparable a N
+- Mantener Resolver propio
 
 ### Futuro: Pattern O2 (Metro Lazy)
 
@@ -220,19 +283,21 @@ Zero cambios en ningun otro fichero.
 
 - Rendimiento superior a P2 (init 1.3x mas rapido, resolve 1.4x mas rapido)
 - Compile-time safety igual de completa
-- Auto-registro identico (`@ContributesTo`)
-- Evaluar migracion cuando: (a) v1.0 estable, (b) comunidad crezca, (c) soporte de Kotlin version bumps demostrado
+- Auto-registro grafo identico (`@ContributesTo`)
+- Mismo problema de Criterio 11 (facade `when` manual, mitigable con KSP propio)
+- Evaluar migracion cuando: (a) v1.0 estable, (b) comunidad crezca, (c) soporte de
+  Kotlin version bumps demostrado
 
 ---
 
 ## 5. Evidencia de Benchmarks
 
-Comparacion directa de los 4 candidatos en los 10 criterios (S22 Ultra, 2026-04-12):
+Comparacion directa de los 4 candidatos en los 11 criterios (S22 Ultra, 2026-04-12):
 
 | # | Criterio | N (sweet-spi+Koin) | O2 (Metro Lazy) | P2 (KI-anvil Lazy) | H+sweet-spi |
 |---|----------|--------------------|-----------------|---------------------|-------------|
 | 1 | KMP | OK | OK | OK | OK |
-| 2 | Auto-registro | OK | OK | OK | OK |
+| 2 | Auto-registro (grafo) | OK | OK | OK | OK |
 | 3 | Lazy | OK | OK | OK | OK |
 | 4 | Compile-time safety | NO | OK | OK | NO |
 | 5 | Thread-safe shutdown | OK | OK | OK | OK |
@@ -241,9 +306,20 @@ Comparacion directa de los 4 candidatos en los 10 criterios (S22 Ultra, 2026-04-
 | 8 | Resolve cached (ns) | ~12,150 | ~45 | ~62 | ~202 |
 | 9 | Init cold (ns) | ~135,200 | ~891 | ~1,200 | ~106,865 |
 | 10 | Memory footprint | MEDIO | BAJO | BAJO | MEDIO |
+| 11 | **Wiring del facade inmutable** | **OK** | **NO** | **NO** | **OK** |
 | | **MUST HAVEs** | **3/3** | **3/3** | **3/3** | **3/3** |
-| | **IMPORTANTE** | **2.5/4** | **3/4** | **4/4** | **2.5/4** |
+| | **IMPORTANTE (de 5)** | **3.5/5** | **3/5** | **4/5** | **3.5/5** |
 | | **DESEABLE** | **1/3** | **3/3** | **3/3** | **2/3** |
+| | **Total criterios OK** | **8/11** | **9/11** | **10/11** | **8/11** |
+
+**Lectura honesta del cuadro:**
+- **N y H** ganan facade inmutable nativo, pero pierden compile-time. Buenos si zero-touch
+  end-to-end es prioritario y se acepta runtime safety con `verify()` en CI.
+- **O2 y P2** ganan compile-time + perf, pero pierden facade inmutable. Buenos si
+  compile-time es prioritario y se acepta KSP propio (~200 LOC) o `when` manual.
+- **P2 con KSP custom** = 11/11 hipoteticamente (mejor candidato con la inversion).
+- **N + Koin maduro** = 8/11 sin inversion adicional (mejor candidato sin la inversion).
+- **Sin un ganador absoluto** -- la decision depende de los tradeoffs aceptables.
 
 ### Benchmarks de Rendimiento Detallados
 
@@ -347,13 +423,23 @@ contra el patron elegido. Si el rendimiento degrada tras una actualizacion, se d
 
 ## Resumen Ejecutivo
 
-| Opcion | Recomendacion | Para quien |
-|--------|--------------|------------|
-| **P2 (kotlin-inject-anvil Lazy)** | **PRIMARIA** | Equipos nuevos o migrando desde Dagger/H |
-| N (sweet-spi + Koin) | Secundaria | Equipos con fuerte inversion en Koin |
-| O2 (Metro Lazy) | Futuro (v1.0+) | Cuando Metro madure |
-| H + sweet-spi | No recomendado a escala | Prototipo o SDK < 10 modulos |
+| Opcion | Cuando elegir | Trade-off |
+|--------|--------------|-----------|
+| **P2 (kotlin-inject-anvil Lazy)** | Compile-time safety es **innegociable** y aceptas KSP propio (~200 LOC) o `when` manual en facade | Mejor rendimiento (10/11 criterios); falla Criterio 11 (facade) |
+| **N (sweet-spi + Koin)** | Facade inmutable end-to-end es **innegociable** y aceptas runtime DI con `verify()` test | Wiring zero-touch end-to-end nativo (8/11); falla Criterio 4 (compile-time) |
+| **H + sweet-spi (hibrido)** | Quieres facade inmutable + control total del codigo + compile-time parcial es aceptable | Resolver propio (~105 LOC) + facade inmutable; init lento |
+| O2 (Metro Lazy) | Cuando Metro alcance v1.0+ | Mismo trade-off que P2 pero con rendimiento superior |
 
-**Decision:** Para un SDK corporativo con +50 modulos, 10 devs y requisito KMP,
-**Pattern P2 (kotlin-inject-anvil Lazy)** es la recomendacion primaria por su combinacion
-unica de compile-time safety, auto-registro, KSP estable y rendimiento demostrado.
+**Decision honesta:** No hay un patron PRIMARIO universal.
+
+- **Si el SDK tendra >50 APIs y compile-time safety completa es innegociable**: P2 + KSP propio
+  para generar el `when` del facade (10/11 con la inversion = 11/11).
+- **Si quieres zero-touch end-to-end sin escribir codegen**: N (sweet-spi + Koin) +
+  `koin.verify()` en CI. Aceptas runtime DI.
+- **Si compile-time parcial es aceptable y quieres control total**: H + sweet-spi.
+
+**Cambio respecto a la version anterior:** este doc anteriormente recomendaba P2 como
+"PRIMARIA" basado en 9/10 criterios cumplidos. Anadir Criterio 11 (facade inmutable)
+revela que P2 deja una deuda oculta en el dispatcher del SDK. Sin un KSP propio, esa
+deuda crece con cada API y a 50+ APIs supera el coste del Resolver de H. La eleccion
+correcta depende de los ejes que el equipo prioriza.

@@ -23,7 +23,7 @@ con when-blocks. Lazy init real: cada Component se crea on-demand con cascada
 de dependencias.
 
 - **Discovery:** Manual (when-block en el facade)
-- **Escala:** No escala a 50+ (when-blocks crecen linealmente)
+- **Escala:** No escala a 50+ (`ensure*()` crece por feature Y `when` del facade crece por API -- mismo problema de facade que O/O2/P/P2/Q/Q2)
 - **Init Cold:** 1,212 ns
 
 ### Pattern E2 -- Auto-Init Registry (wiring-e2)
@@ -43,7 +43,7 @@ Identico a D, pero cada feature-impl expone una funcion factory publica
 El Component queda `internal`. Mismo patron lazy `ensure*()`.
 
 - **Discovery:** Manual (factory functions)
-- **Escala:** No escala a 50+ (ensure crecen linealmente)
+- **Escala:** No escala a 50+ (`ensure*()` crece por feature Y `when` del facade crece por API -- mismo problema de facade que O/O2/P/P2/Q/Q2)
 - **Init Cold:** 1,257 ns
 
 ### Pattern H -- ServiceLoader + FeatureProvider + Resolver DFS (wiring-h)
@@ -179,7 +179,9 @@ grafo en compilacion: el facade solo llama `DaggerSdkComponent.factory().create(
 y los bindings ya estan conectados.
 
 En D, anadir una feature requiere editar when-blocks. En Q, anadir una feature
-requiere anadir un `@Module` a la lista del `@Component` -- una sola linea.
+requiere anadir un `@Module` a la lista del `@Component` (1 linea) **mas** anadir 1 rama
+al `when (clazz)` del `MultiModuleSdkQ.get<T>(Class)` por cada API expuesta. **Coste real
+por feature: 1 linea + N ramas (1 por API).**
 
 ### Ventajas
 
@@ -191,7 +193,13 @@ requiere anadir un `@Module` a la lista del `@Component` -- una sola linea.
 
 ### Desventajas
 
-- **Modules explicitos.** Cada feature @Module se lista en el @Component (1 linea por feature).
+- **Modules explicitos** (Req 6 fail): cada feature @Module se lista en el @Component
+  (1 linea por feature). Edicion central.
+- **Facade no inmutable** (Req 11 fail): el dispatcher `MultiModuleSdkQ.get<T>(Class)`
+  mantiene un `when (clazz)` que crece 1 rama por API. A 50 features × 10 APIs = 500
+  ramas mantenidas a mano. Mitigable con KSP propio.
+- **Doble crecimiento**: feature nueva = 1 linea en `@Component(modules=[...])` MAS N
+  ramas en `when` del facade. Pattern D solo tenia el segundo, no el primero.
 - **JVM exclusivo.** Dagger no soporta KMP.
 - **No es Hilt real.** Sin @HiltAndroidApp, los modules no se auto-descubren.
 - **Eager por defecto.** Todos los @Singleton se crean al construir el component.
@@ -321,9 +329,10 @@ Impacto en benchmarks:
 | Criterio | D<br>*(Dagger when-block)* | E2<br>*(Registry DFS)* | G<br>*(Factory functions)* | H<br>*(Resolver+Dagger)* | I<br>*(Pure Resolver)* | K<br>*(Manifest Discovery)* | Q<br>*(Dagger @Module)* | Q2<br>*(Dagger Lazy)* |
 |----------|---|---|----|---|---|---|---|---|
 | **Framework DI** | Dagger | Dagger | Dagger | Dagger + SL | Ninguno | Dagger + Manifest | Dagger | Dagger |
-| **Wiring inmutable** | No | No | No | Si | Si | Si | Semi | Semi |
+| **Wiring grafo (Req 6)** | No | ~ | No | Si | Si | Si | No | No |
+| **Wiring facade (Req 11)** | No | Si | No | Si | Si | Si | No | No |
 | **Auto-descubrimiento** | No | No | No | ServiceLoader | ServiceLoader | Manifest | Compile-time | Compile-time |
-| **Escala 50+** | No | Si | No | Si | Si | Si | Si | Si |
+| **Escala 50+** | No (ambos ejes) | ~ (1 linea/feat) | No (ambos ejes) | Si | Si | Si | ~ (grafo + facade manuales, mitigable KSP) | ~ (grafo + facade manuales, mitigable KSP) |
 | **Compile-time safe** | Completo | Completo | Completo | Per-Component | No | Per-Component | Completo | Completo |
 | **Lazy singletons** | Si (ensure) | Si (DFS) | Si (ensure) | Si (DFS) | Si (DFS) | Si (DFS) | No | Si (dagger.Lazy) |
 | **Codegen** | KSP -> Java | KSP -> Java | KSP -> Java | KSP -> Java | Ninguno | KSP -> Java | KSP -> Java | KSP -> Java |

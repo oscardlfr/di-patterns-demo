@@ -168,13 +168,21 @@ trade-offs reales son:
 | KMP compatible | No | Si | Si (SDK Koin, bridge Android) |
 | Codegen / build time | ~2-4s extra (KSP) | 0s extra | ~1s extra (bridge KSP) |
 | Complejidad estructural | Media-Alta | Baja | Alta |
-| Escalabilidad 50+ | B: No (God Object); C: Si | Si | Si |
+| Escalabilidad 50+ | B: No (God Object); C: Si (grafo) pero facade `when` crece | Si (facade inmutable via koin.get) | Si (hereda Koin) |
+| **Wiring del facade inmutable (Req 11)** | **No** -- B tiene `when (clazz)` en `DaggerBSdk.get()`; C tiene `when (serviceClass)` por Component wrapper (5 lugares) | **Si** -- `koin.get()` runtime nativo | **Si** -- hereda de Koin |
+
+**Nota sobre Req 11 (wiring del facade)**: B y C comparten con los compile-time multi-modulo
+(Q/Q2/O/O2/P/P2) el mismo problema estructural: un `when (clazz)` manual en el facade que
+crece por cada servicio expuesto. Para SDKs monoliticos el coste es menor (pocas features),
+pero a 20+ servicios cada API anadida requiere editar el facade. Koin e Hybrid cumplen Req 11
+nativamente (no hay `when` -- `koin.get(clazz)` resuelve via registry runtime). Ver
+`docs/shared/requirements.md` Req 11 para definicion completa del criterio.
 
 ### 4.4 Recomendacion
 
 Elegir el patron basandose en las restricciones del equipo y del proyecto:
 
-- **Compile-time safety critica** -- Dagger B o C
-- **Velocidad de desarrollo / equipo junior** -- Koin
+- **Compile-time safety critica** -- Dagger B o C (aceptar coste de Req 11 manual)
+- **Velocidad de desarrollo / equipo junior** -- Koin (facade inmutable incluido)
 - **SDK KMP con consumidores Dagger** -- Hybrid
 - **Rendimiento** -- Irrelevante. Todos son suficientes.

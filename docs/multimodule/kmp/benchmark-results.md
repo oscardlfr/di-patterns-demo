@@ -190,19 +190,29 @@ desde cero. N paga el overhead completo de sweet-spi + Koin.
 ### Hallazgos clave
 
 1. **O (Metro) domina init y resolucion** -- compiler plugin genera codigo
-   altamente optimizado sin overhead de framework.
+   altamente optimizado sin overhead de framework. **Caveat no medido**: el facade
+   `MultiModuleSdkO.get<T>(Class)` mantiene un `when (clazz)` manual que crece 1
+   rama por API. A escala 50 features × 10 APIs = 500 ramas mantenidas a mano.
+   Mitigable con KSP propio (ver `docs/shared/requirements.md` Req 11).
 
 2. **O2 y P2 dominan re-init y lazy** -- las variantes lazy son 10-16x mas rapidas
-   en re-init, lo que las hace ideales para SDKs con hot restart.
+   en re-init, lo que las hace ideales para SDKs con hot restart. **Mismo caveat
+   de Req 11** que O y P.
 
-3. **N (Koin) es consistentemente el mas lento** en todas las categorias excepto
-   concurrencia. El overhead de Koin (runtime definition registry, reflexion sobre
-   KClass) es significativo en operaciones de microsegundos.
+3. **N (Koin) es consistentemente el mas lento** en runtime, pero **es el unico
+   patron KMP-compatible con facade inmutable nativo end-to-end** (`koin.get(clazz.kotlin)`
+   sin `when`, sin codegen propio). El trade-off: 6,328 ns resolve cached vs 86 ns
+   en O2. Bueno si la prioridad es zero-touch y resolves no estan en hot loops.
 
 4. **P vs O: KSP vs compiler plugin** -- la diferencia es ~1.8x en init (1,064 vs
    603 ns). Ambos son sub-microsegundo. La eleccion depende de preferencia de
-   tooling, no de performance.
+   tooling, no de performance. Ambos comparten el mismo coste de Req 11.
 
 5. **Lazy vale la pena para SDKs grandes** -- si tu SDK tiene 20+ features y el
    usuario tipico solo usa 5, las variantes lazy (O2, P2) evitan crear los 15
    singletons innecesarios.
+
+6. **Benchmark vs mantenibilidad** -- estos numeros miden runtime con 6 features ×
+   1-2 APIs. El tradeoff verdadero a 50 features × 10 APIs es de mantenibilidad
+   (lineas de wiring + ramas de `when`), no de nanosegundos. Ver
+   `docs/sdk-recommendation-kmp.md` para la decision con criterio bidimensional.

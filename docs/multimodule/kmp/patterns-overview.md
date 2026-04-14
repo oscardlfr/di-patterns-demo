@@ -195,7 +195,8 @@ object MultiModuleSdkO : MultiModuleSdkApi {
   sin reflexion, sin maps, sin locks.
 - **Full KMP.** Metro compila para todos los targets de Kotlin.
 - **Compile-time safe.** Binding faltante = error de compilacion.
-- **Wiring auto-agregado.** `@ContributesTo` elimina la lista explicita de modules.
+- **Auto-agregacion al grafo.** `@ContributesTo` elimina la lista explicita de modules
+  en `@DependencyGraph` (Req 6 cumplido).
 - **Shutdown trivial.** Solo nullifica el grafo.
 
 ### Desventajas
@@ -204,6 +205,11 @@ object MultiModuleSdkO : MultiModuleSdkApi {
 - **Compiler plugin.** Dependencia fuerte en el plugin de Metro (vs KSP en los demas).
 - **Re-init mas lento que O2.** 36,000 ns vs 2,305 ns (15.6x mas lento).
 - **Ecosistema joven.** Metro tiene menos adopcion que kotlin-inject o Dagger.
+- **Facade no inmutable** (Req 11): aunque `@ContributesTo` agrega los modulos al
+  grafo automaticamente, el dispatcher `MultiModuleSdkO.get<T>(Class)` mantiene un
+  `when (clazz)` que crece 1 rama por cada API expuesta. A 50 features × 10 APIs =
+  500 ramas mantenidas a mano. Mitigable con un procesador KSP propio (~200 LOC) que
+  genere el `when` desde el componente. Ver `docs/shared/requirements.md` Req 11.
 
 ---
 
@@ -299,6 +305,8 @@ object MultiModuleSdkO2 : MultiModuleSdkApi {
 - **Init ~1.9x mas lento que O.** 1,127 ns vs 603 ns por el setup del tracker.
 - **Lazy cascade mas lento que O.** 507 ns vs 346 ns (primer acceso paga la creacion).
 - **Compiler plugin.** Misma dependencia fuerte en Metro.
+- **Facade no inmutable** (Req 11): hereda el mismo `when (clazz)` manual de O. Crece
+  por API. Mitigable con KSP propio (~200 LOC).
 
 ---
 
@@ -398,6 +406,8 @@ estan en el rango sub-microsegundo.
 - **~1.8x mas lento que Metro en init.** 1,064 ns vs 603 ns.
 - **Re-init lento.** 28,000 ns -- 12x mas lento que P2 (2,929 ns).
 - **Delegate naming.** KSP genera `contextDelegate`, `configDelegate` etc. con sufijo.
+- **Facade no inmutable** (Req 11): el dispatcher `MultiModuleSdkP.get<T>(Class)` mantiene
+  un `when (clazz)` que crece por API. Mismo problema que O. Mitigable con KSP propio.
 
 ---
 
@@ -483,6 +493,8 @@ object MultiModuleSdkP2 : MultiModuleSdkApi {
 
 - **Init ~1.3x mas lento que P.** 1,416 ns vs 1,064 ns.
 - **CrossFeature mas lento.** 3.1M ns vs 1.7M ns en P (variabilidad alta).
+- **Facade no inmutable** (Req 11): hereda el mismo `when (clazz)` manual de P. Crece
+  por API. Mitigable con KSP propio.
 
 ---
 
@@ -496,8 +508,15 @@ object MultiModuleSdkP2 : MultiModuleSdkApi {
 | **Discovery** | sweet-spi (runtime) | Compile-time | Compile-time | Compile-time (KSP) | Compile-time (KSP) |
 | **Codegen** | KSP (sweet-spi) | Compiler plugin | Compiler plugin | KSP | KSP |
 | **Lazy singletons** | Si (Koin single) | No | Si (Lazy\<T\>) | No | Si (SingleIn) |
-| **Wiring inmutable** | Si | Si | Si | Si | Si |
+| **Wiring del modulo (Req 6)** | Si -- @ServiceProvider | Si -- @ContributesTo | Si -- @ContributesTo | Si -- @ContributesTo | Si -- @ContributesTo |
+| **Wiring del facade (Req 11)** | **Si -- koin.get nativo** | **No -- when manual** | **No -- when manual** | **No -- when manual** | **No -- when manual** |
 | **Compile-time safe** | No (Koin) | Si | Si | Si | Si |
+
+**Nota sobre wiring inmutable**: el grafo se auto-agrega con `@ContributesTo` (Req 6) en
+todos los compile-time. Pero el dispatcher `get<T>(Class)` del facade solo es inmutable
+nativamente en N (gracias a `koin.get(clazz.kotlin)`). En O/O2/P/P2, el `when` del facade
+crece linealmente por API expuesta. Mitigable con un procesador KSP propio. Ver
+`docs/shared/requirements.md` Req 11 para definicion completa.
 
 ### Benchmarks resumen (Samsung Galaxy S22 Ultra)
 

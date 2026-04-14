@@ -7,6 +7,14 @@ escalabilidad y seguridad en compilacion.
 
 Para patrones multi-modulo (D, E2, G, H, I, J, K, L, M, N, O, P), ver `docs/multimodule/`.
 Para el analisis de rendimiento, ver [benchmark-results.md](benchmark-results.md).
+Para los criterios de evaluacion (incluido el criterio bidimensional auto-registro
+grafo + facade inmutable que aplica tambien a estos patrones monoliticos), ver
+`docs/shared/requirements.md`.
+
+**Nota sobre wiring del facade en monoliticos**: B y C tienen `when (clazz)` en sus
+facades (`DaggerBSdk.get()` y `DaggerCSdk` per-Component), igual que los compile-time
+multi-modulo (Q/Q2/O/P). Koin y Hybrid usan `koin.get()` runtime nativo (sin `when`).
+Aplica el mismo criterio Req 11 que en multi-modulo.
 
 ---
 

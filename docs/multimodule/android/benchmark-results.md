@@ -185,13 +185,27 @@ significativamente del estado previo.
 ### Conclusiones
 
 1. **Q y Q2 dominan la mayoria de categorias** gracias a la resolucion compile-time
-   de Dagger. Q es mejor para init, Q2 es mejor para re-init y lazy.
+   de Dagger. Q es mejor para init, Q2 es mejor para re-init y lazy. **Caveat
+   no medido en estos benchmarks**: el coste de mantenimiento del `when (clazz)` del
+   facade `MultiModuleSdkQ.get()` y de `@Component(modules=[...])` crece linealmente
+   con cada API y feature. A 50 features × 10 APIs = 500 ramas + 50 modules listados
+   manualmente. Los benchmarks miden runtime, no mantenibilidad.
 
 2. **D y G son los mejores patrones manuales** -- init rapido, lazy real, pero no
-   escalan a muchas features.
+   escalan a muchas features. Mismo caveat: el `when` del facade tambien crece.
 
 3. **Los patrones con ServiceLoader (H, I, K) sacrifican init speed por
-   escalabilidad** -- el wiring inmutable compensa si el SDK tiene 10+ features.
+   escalabilidad real** -- el wiring inmutable end-to-end compensa si el SDK tiene
+   10+ features. **A diferencia de Q/Q2/D/G, NO tienen `when` manual** -- el facade
+   delega a `resolver.get(clazz)` (HashMap lookup). Anadir API = 0 ediciones al
+   facade. Es la propiedad clave que NO se ve en estos numeros pero importa a 50+ APIs.
 
 4. **Q2 es el rey del re-init** -- 2,157 ns es 355x mas rapido que K. Si tu
-   app hace hot restart frecuente, Q2 es la eleccion obvia.
+   app hace hot restart frecuente, Q2 es la eleccion obvia desde el angulo runtime.
+   Pero pesa el coste del `when` manual (Req 11, ver `docs/shared/requirements.md`)
+   a escala -- compensable con KSP propio para generar el `when`.
+
+**Lectura general**: los benchmarks miden a escala 6 features × 1-2 APIs. El tradeoff
+verdadero a 50 × 10 esta en los criterios de mantenimiento (Req 6 + Req 11), no en
+nanosegundos. Ver `docs/sdk-recommendation-android.md` para la decision con criterio
+bidimensional.

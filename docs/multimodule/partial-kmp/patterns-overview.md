@@ -204,8 +204,9 @@ Pattern N.
 ### Ventajas
 
 - **Koin familiar.** `single{}`, `koinApplication{}` -- API conocida.
-- **Wiring inmutable.** ServiceLoader descubre providers automaticamente.
-- **Escala a 50+.** Cada feature expone un `KoinFeatureProvider`.
+- **Wiring del modulo inmutable.** ServiceLoader descubre providers automaticamente (Req 6 OK).
+- **Wiring del facade inmutable.** `koin.get(clazz.kotlin)` runtime registry nativo. **Cero `when`** (Req 11 OK). Es una de las ventajas que comparten todos los patrones Koin (L/M/N) y los Resolver-based (H/I/J/K).
+- **Escala a 50+.** Cada feature expone un `KoinFeatureProvider`. Wiring inmutable end-to-end.
 - **Lazy singletons.** Koin `single{}` crea el objeto la primera vez que se resuelve.
 
 ### Desventajas
@@ -215,6 +216,7 @@ Pattern N.
 - **Re-init lento.** 1.1M ns -- destruir y recrear toda la infraestructura Koin.
 - **ServiceLoader JVM-only.** No compila fuera de JVM.
 - **No tiene thread-safe shutdown.** `_koinApp?.close()` no esta sincronizado.
+- **Sin compile-time safety.** Bindings rotos en runtime.
 
 ---
 
@@ -346,7 +348,8 @@ Misma razon que J y L: `java.util.ServiceLoader`. Koin es 100% KMP-compatible.
 - **True lazy modules.** Features no accedidas nunca cargan su module Koin.
 - **Koin familiar.** Misma API que L.
 - **Thread-safe shutdown.** `synchronized(loadLock)` protege el cleanup.
-- **Wiring inmutable.** ServiceLoader descubre features.
+- **Wiring del modulo descubierto** (Req 6 PARCIAL: ServiceLoader descubre, pero `loadModules()` cascada manual).
+- **Wiring del facade inmutable** (Req 11 OK): `koin.get(clazz.kotlin)` runtime nativo, sin `when`.
 
 ### Desventajas
 
@@ -355,6 +358,7 @@ Misma razon que J y L: `java.util.ServiceLoader`. Koin es 100% KMP-compatible.
 - **Re-init el mas lento.** 1.2M ns -- destruir y recrear toda la infraestructura.
 - **ServiceLoader JVM-only.** No compila fuera de JVM.
 - **Complejidad adicional.** `ensureLoaded()` recursivo + `_loadedProviders` tracking.
+- **Sin compile-time safety.** Bindings rotos en runtime.
 
 ---
 
