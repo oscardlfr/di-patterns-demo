@@ -1,53 +1,50 @@
 package com.grinwich.sdk.feature.syn
 
-import com.grinwich.sdk.api.*
-import com.grinwich.sdk.contracts.*
+import com.grinwich.sdk.api.AuthApi
+import com.grinwich.sdk.api.EncryptionApi
+import com.grinwich.sdk.api.SdkLogger
+import com.grinwich.sdk.api.StorageApi
+import com.grinwich.sdk.api.SyncApi
+import com.grinwich.sdk.contracts.SynScope
 import dagger.Binds
 import dagger.BindsInstance
 import dagger.Component
 import dagger.Module
 
-/** Factory: builds SynProvisions without exposing DaggerSynComponent. */
-fun buildSynProvisions(
-    core: CoreProvisions,
+/**
+ * Factory: builds [SyncApi] directly — single-service feature, no Bundle.
+ */
+fun buildSyncService(
+    auth: AuthApi,
+    storage: StorageApi,
+    encryption: EncryptionApi,
     logger: SdkLogger,
-    enc: EncProvisions,
-    auth: AuthProvisions,
-    stor: StorProvisions,
-): SynProvisions = DaggerSynComponent.builder()
-    .core(core).logger(logger).enc(enc).auth(auth).storage(stor).build()
+): SyncApi = DaggerSynComponent.builder()
+    .auth(auth)
+    .storage(storage)
+    .encryption(encryption)
+    .logger(logger)
+    .build()
+    .sync()
 
 /**
- * SynComponent — heaviest cross-deps in the SDK.
+ * SynComponent — single-service Dagger component.
  *
- * dependencies = [CoreProvisions, EncProvisions, AuthProvisions, StorProvisions]:
- *   - All resolved via provision interfaces (contracts)
- *   - This module NEVER imports EncComponent, AuthComponent, or StorComponent
- *   - Dagger sees provision methods on each interface and injects the types
- *
- * In a real project, this file lives in :feature-sync:impl.
- * It compiles independently — only needs di-contracts + sdk:api + sdk:impl-common.
+ * Does not declare `dependencies = [...]`. Everything enters via `@BindsInstance`
+ * in the builder: `AuthApi`, `StorageApi`, `EncryptionApi` (cross-feature) and
+ * `SdkLogger` (infra). Deepest dependency chain in the SDK.
  */
 @SynScope
-@Component(
-    dependencies = [
-        CoreProvisions::class,
-        EncProvisions::class,
-        AuthProvisions::class,
-        StorProvisions::class,
-    ],
-    modules = [SynModule::class],
-)
-interface SynComponent : SynProvisions {
+@Component(modules = [SynModule::class])
+internal interface SynComponent {
 
-    override fun sync(): SyncApi
+    fun sync(): SyncApi
 
     @Component.Builder interface Builder {
-        fun core(core: CoreProvisions): Builder
+        @BindsInstance fun auth(auth: AuthApi): Builder
+        @BindsInstance fun storage(storage: StorageApi): Builder
+        @BindsInstance fun encryption(encryption: EncryptionApi): Builder
         @BindsInstance fun logger(logger: SdkLogger): Builder
-        fun enc(enc: EncProvisions): Builder
-        fun auth(auth: AuthProvisions): Builder
-        fun storage(storage: StorProvisions): Builder
         fun build(): SynComponent
     }
 }

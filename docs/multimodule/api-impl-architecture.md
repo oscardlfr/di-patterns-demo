@@ -3,15 +3,24 @@
 Análisis de compatibilidad de cada approach DI con una arquitectura multi-módulo Gradle
 donde las features se organizan en módulos `api`, `impl` e `integration`.
 
-**Ejemplo realista implementado** en este proyecto:
+**Ejemplo realista implementado** en este proyecto (post-refactor):
 - `observability-api/` — SdkLogger (interface)
-- `feature-observability-impl/` — AndroidSdkLogger + ObservabilityComponent
-- `feature-core-api/` — SdkConfig (zero deps)
+- `feature-observability-impl/` — AndroidSdkLogger + ObservabilityProvider (Dagger/Pure/KI) + ObservabilityKoinProvider + ObservabilitySweetSpiProvider
 - `feature-*-api/` — interfaces públicas per-feature (módulos top-level)
-- `sdk/di-contracts/` — Provisions + Scopes + RegistryInfra + FeatureProvider + PureFeatureProvider + KIFeatureProvider + Resolver
-- `feature-*-impl/` — Dagger Components + Default*Service + buildXxxProvisions() + XxxProvider (módulos top-level)
-- 17 variantes de wiring: `sdk/sdk-wiring/` (D), `sdk/wiring-e/` (E), `sdk/wiring-e2/` (E2), `sdk/wiring-g/` (G), `sdk/wiring-h/` (H), `sdk/wiring-i/` (I), `sdk/wiring-j/` (J), `sdk/wiring-k/` (K), `sdk/wiring-l/` (L), `sdk/wiring-m/` (M), `sdk/wiring-n/` (N), `sdk/wiring-o/` (O), `sdk/wiring-o2/` (O2), `sdk/wiring-p/` (P), `sdk/wiring-p2/` (P2), `sdk/wiring-q/` (Q), `sdk/wiring-q2/` (Q2)
+- `sdk/api/` — Umbrella: **SdkConfig** + StorageBackend + re-exports feature-apis
+- `di-contracts/` — **Neutro**: FeatureContribution + FeatureProvider (con Flavor) + SyntheticFeatureProvider + Resolver + ServiceRegistry/AutoServiceRegistry. NO importa nada de `sdk:api` ni de `feature-*-api`
+- `feature-*-impl/` — Dagger Components + Default*Service + **Bundles internos** (p.ej. EncBundle) + factory functions publicas (`buildEncBundle`, `buildAuthService`, ...) + Providers con flavor (DAGGER/PURE/KI) + KoinProvider + SweetSpiProvider
+- 17 variantes de wiring (ver lista abajo)
 - `sample-multimodule/` — app consumidora que solo depende de `sdk/wiring-h` (Pattern H)
+
+**Cambios estructurales respecto a la documentacion antigua**:
+- `Provisions` (global hierarchy en di-contracts) **eliminado**. Cada feature define su
+  Bundle local si expone multi-servicio.
+- `feature-core-api` **eliminado**. SdkConfig se movio a `sdk/api`.
+- `PureFeatureProvider` y `KIFeatureProvider` **eliminados** — unificados bajo
+  `FeatureProvider` con tag `Flavor`.
+- `CoreComponent` Dagger **eliminado** — trivialidad (SdkConfig se registra via
+  SyntheticFeatureProvider que el wiring inyecta en init).
 
 Para implementaciones Dagger, ver [patterns-overview.md](../multimodule/patterns-overview.md).
 Para conceptos DI, ver [consumer-isolation.md](../shared/consumer-isolation.md).
@@ -24,25 +33,44 @@ Para el approach hybrid, ver [patterns-overview.md](../monolithic/patterns-overv
 
 ```
 observability-api/              → SdkLogger (interface)
-feature-observability-impl/     → AndroidSdkLogger + ObservabilityComponent
+feature-observability-impl/     → AndroidSdkLogger + Observability{,Pure,KI,Koin,SweetSpi}Provider
+                                    (persistent = true; discovered via ServiceLoader/sweet-spi)
 
-feature-core-api/            → SdkConfig
 feature-enc-api/             → EncryptionApi, HashApi
 feature-auth-api/            → AuthApi, AuthToken
 feature-stor-api/            → StorageApi
 feature-ana-api/             → AnalyticsApi
 feature-syn-api/             → SyncApi, SyncResult
 
-feature-core-impl/           → CoreComponent + buildCoreProvisions()
-feature-enc-impl/            → EncComponent + DefaultEncryptionService + buildEncProvisions() + EncProvider
-feature-auth-impl/           → AuthComponent + DefaultAuthService + buildAuthProvisions() + AuthProvider
-feature-stor-impl/           → StorComponent + DefaultSecureStorageService + buildStorProvisions() + StorProvider
-feature-ana-impl/            → AnaComponent + DefaultAnalyticsService + buildAnaProvisions() + AnaProvider
-feature-syn-impl/            → SynComponent + DefaultSyncService + buildSynProvisions() + SynProvider
+feature-core-impl/           → Core{,Pure,KI}Provider (registra SdkConfig como servicio)
+feature-enc-impl/            → EncComponent (implements EncBundle) + DefaultEncryptionService/Hash
+                                + fun buildEncBundle(logger) [publica]
+                                + Enc{,Pure,KI,Koin,SweetSpi}Provider
+                                + EncFeatureId [marker neutra para E/E2]
+feature-auth-impl/           → AuthComponent + DefaultAuthService
+                                + fun buildAuthService(enc, logger) [publica]
+                                + Auth{,Pure,KI,Koin,SweetSpi}Provider + AuthFeatureId
+feature-stor-impl/           → StorComponent + DefaultSecureStorageService
+                                + fun buildStorageService(ctx, cfg, enc, hash, logger) [publica]
+                                + Stor{,Pure,KI,Koin,SweetSpi}Provider + StorFeatureId
+feature-ana-impl/            → AnaComponent + DefaultAnalyticsService
+                                + fun buildAnalyticsService(logger) [publica]
+                                + Ana{,Pure,KI,Koin,SweetSpi}Provider + AnaFeatureId
+feature-syn-impl/            → SynComponent + DefaultSyncService
+                                + fun buildSyncService(auth, stor, enc, logger) [publica]
+                                + Syn{,Pure,KI,Koin,SweetSpi}Provider + SynFeatureId
 
 sdk/
-  api/                       → Umbrella: CoreApis + re-exports all feature-apis + observability-api
-  di-contracts/              → Provisions + Scopes + RegistryInfra + FeatureProvider + PureFeatureProvider + KIFeatureProvider + Resolver
+  api/                       → SdkConfig + StorageBackend + MultiModuleSdkApi + re-exports feature-apis
+  (di-contracts vive en raiz, no en sdk/)
+
+di-contracts/                → NEUTRO: FeatureContribution + FeatureProvider (Flavor) +
+                                SyntheticFeatureProvider + Resolver + ServiceRegistry/AutoServiceRegistry
+                                + Scopes + SdkScope + LazyCreationTracker. CERO imports de
+                                `com.grinwich.sdk.api.*` ni feature-apis.
+di-contracts-koin/           → KoinFeatureProvider (implements FeatureContribution) + CreationTracker.
+
+sdk/
   sdk-wiring/                → Pattern D: direct lazy ensure*()
   wiring-e/                  → Pattern E: ProvisionRegistry + topo-sort
   wiring-e2/                 → Pattern E2: AutoProvisionRegistry + DFS lazy
@@ -64,18 +92,26 @@ sdk/
 sample-multimodule/          → App consumidora que solo depende de sdk/wiring-h (Pattern H)
 ```
 
-### Reglas de visibilidad Gradle
+### Reglas de visibilidad Gradle (post-refactor)
 
 ```
-feature-auth-impl  →  depends on  →  di-contracts (AuthProvisions, AuthScope, CoreProvisions, EncProvisions)
-                   →  NUNCA depende de →  feature-enc-impl, feature-core-impl
+feature-auth-impl  →  depends on  →  di-contracts (FeatureProvider, Flavor, Resolver) + AuthScope
+                                     feature-auth-api (AuthApi, AuthToken)
+                                     feature-enc-api (EncryptionApi — cross-feature)
+                                     observability-api (SdkLogger)
+                   →  NUNCA depende de →  feature-enc-impl, feature-core-impl, sdk:api
 
-app                →  depends on  →  sdk-wiring (implementation)
-                                     feature-x-api (solo interfaces)
-                   →  NUNCA depende de →  feature-x-impl
+app                →  depends on  →  sdk-wiring-X (implementation)
+                                     feature-x-api (solo interfaces, via api() en sdk/api)
+                   →  NUNCA depende de →  feature-x-impl directamente
 
-sdk-wiring         →  depends on  →  TODOS los feature-*-impl (para ensamblar)
-                   →  expone solo  →  tipos de feature-*-api
+sdk-wiring-X       →  Requisito 12 (abstraccion runtime-flexible):
+                   → H/I/J/K/L/M/N: runtimeOnly(feature-*-impl) — apto para BYOF
+                   → E/E2/G/sdk-wiring/O/O2/P/P2/Q/Q2: implementation(feature-*-impl) —
+                     acoplamiento compile-time
+
+di-contracts       →  depends on  →  SOLO javax.inject (para @Scope annotations)
+                   →  NUNCA importa tipos de sdk/api ni de feature-*-api — 100% neutro
 ```
 
 ### Requisitos derivados

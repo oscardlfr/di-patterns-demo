@@ -1,132 +1,113 @@
 package com.grinwich.sdk.contracts
 
 /**
- * Registry infrastructure for multi-module DI patterns using provision interfaces.
+ * Registry infrastructure for multi-module patterns that do NOT use
+ * [ServiceLoader]. Replaces the former `ProvisionRegistry` + `ProvisionEntry`.
  *
- * Unlike the monolithic E/E2 patterns (in impl-dagger-e/e2) which key entries by
- * concrete @Component class, these versions key by PROVISION INTERFACE.
- * This allows feature-impl modules to remain decoupled — they never reference
- * each other's @Component classes, only provision interfaces from di-contracts.
+ * Keyed by FEATURE ID (neutral marker class, e.g. `EncFeatureId::class.java`),
+ * not by a `Provisions` interface. Each feature-impl defines its own internal
+ * marker. `di-contracts` stays fully neutral: it imports no type from
+ * `com.grinwich.sdk.api.*` nor from any feature-api.
  *
- * Two flavors:
- * - [ProvisionRegistry] (Pattern E): eager build with topological sort at init
- * - [AutoProvisionRegistry] (Pattern E2): lazy build-on-demand via get<T>()
+ * Two variants:
+ * - [ServiceRegistry] (pattern E): eager with topological sort at init
+ * - [AutoServiceRegistry] (pattern E2): lazy build-on-demand via `get<T>()`
  */
 
 // ============================================================
-// Pattern E: ProvisionEntry + ProvisionRegistry (eager, topo-sort)
+// Pattern E: ServiceEntry + ServiceRegistry (eager, topo-sort)
 // ============================================================
 
 /**
- * Declares everything needed to integrate a feature's provision into the SDK.
+ * Declares what a feature builds and which services it exposes.
  *
- * Self-installing: the entry writes itself into the registry via [installInto],
- * where [P] is in scope. This avoids unchecked casts when the registry iterates
- * over `List<ProvisionEntry<*>>` and star-projection erases [P].
+ * Self-installing: the entry installs itself into the registry through
+ * [installInto]. Identity comes from [featureId] (neutral marker class).
  *
- * @param P The provision interface type (e.g., EncProvisions)
- * @param provisionClass Class token for registration/lookup
- * @param dependencies Provision classes that must be registered first
- * @param build Factory that creates the provision (receives registry to resolve parents)
- * @param services Explicit service bindings — compile-time checked, NO reflection
+ * @param featureId Marker class identifying the feature (e.g. `EncFeatureId::class.java`)
+ * @param dependencies Feature ids that must be registered beforehand
+ * @param build Factory returning a `service class -> instance` map
  */
-class ProvisionEntry<P : Any>(
-    val provisionClass: Class<P>,
+class ServiceEntry(
+    val featureId: Class<*>,
     val dependencies: Set<Class<*>> = emptySet(),
-    private val build: (ProvisionRegistry) -> P,
-    private val services: (P) -> Map<Class<*>, Any>,
+    private val build: (ServiceRegistry) -> Map<Class<*>, Any>,
 ) {
-    internal fun installInto(registry: ProvisionRegistry) {
+    internal fun installInto(registry: ServiceRegistry) {
         for (dep in dependencies) {
-            check(registry.hasProvision(dep)) {
-                "${dep.simpleName} must be registered before ${provisionClass.simpleName}"
+            check(registry.hasFeature(dep)) {
+                "${dep.simpleName} must be registered before ${featureId.simpleName}"
             }
         }
-        val provision: P = build(registry)
-        registry.putProvision(provisionClass, provision)
-        registry.putServices(services(provision))
+        val services = build(registry)
+        registry.putFeature(featureId)
+        registry.putServices(services)
     }
 }
 
 /**
- * Registry that holds provisions and their eagerly-resolved service instances.
- *
- * Design: identical to monolithic ComponentRegistry but keyed by provision interface types.
- * - HashMap (not ConcurrentHashMap): init is single-threaded, post-init is read-only
- * - Services stored as instances, not lambdas: Dagger scoped components already cache
- * - Topological sort via [registerAll]: entries declared in any order, registry sorts
+ * Eager registry that builds every feature at registration time, resolving
+ * dependencies via topological sort.
  */
-class ProvisionRegistry {
+class ServiceRegistry {
 
-    private val provisions = HashMap<Class<*>, Any>()
+    private val featuresBuilt = HashSet<Class<*>>()
     private val services = HashMap<Class<*>, Any>()
 
-    /** Register a single entry. Dependencies must already be registered. */
-    fun register(entry: ProvisionEntry<*>) {
+    fun register(entry: ServiceEntry) {
         entry.installInto(this)
     }
 
-    /**
-     * Register multiple entries with automatic topological sorting (Kahn's algorithm).
-     * Order-independent — the registry resolves build order from dependencies.
-     */
-    fun registerAll(entries: List<ProvisionEntry<*>>) {
+    fun registerAll(entries: List<ServiceEntry>) {
         for (entry in topoSort(entries)) {
             entry.installInto(this)
         }
     }
 
-    /** Retrieve a previously-registered provision by its interface type. */
-    fun <P : Any> provision(clazz: Class<P>): P =
-        checkNotNull(clazz.cast(provisions[clazz])) { "Provision ${clazz.simpleName} not registered." }
-
-    /** Resolve a service by its interface type. */
     fun <T : Any> get(clazz: Class<T>): T =
         checkNotNull(clazz.cast(services[clazz])) { "Service ${clazz.simpleName} not available." }
 
-    fun hasProvision(clazz: Class<*>): Boolean = provisions.containsKey(clazz)
+    fun hasFeature(featureId: Class<*>): Boolean = featureId in featuresBuilt
 
-    internal fun <P : Any> putProvision(clazz: Class<P>, provision: P) {
-        provisions[clazz] = provision
+    internal fun putFeature(featureId: Class<*>) {
+        featuresBuilt.add(featureId)
     }
 
     internal fun putServices(map: Map<Class<*>, Any>) {
         services.putAll(map)
     }
 
-    /** Number of provisions currently built. Useful for verifying lazy behavior in tests. */
-    val builtProvisionCount: Int get() = provisions.size
+    val builtFeatureCount: Int get() = featuresBuilt.size
 
     fun clear() {
-        provisions.clear()
+        featuresBuilt.clear()
         services.clear()
     }
 
     companion object {
-        /** Kahn's algorithm — topological sort by provision dependencies. O(V+E). */
-        internal fun topoSort(entries: List<ProvisionEntry<*>>): List<ProvisionEntry<*>> {
-            val byClass = entries.associateBy { it.provisionClass }
+        internal fun topoSort(entries: List<ServiceEntry>): List<ServiceEntry> {
+            val byId = entries.associateBy { it.featureId }
             val inDegree = entries.associate {
-                it.provisionClass to it.dependencies.count { d -> d in byClass }
+                it.featureId to it.dependencies.count { d -> d in byId }
             }.toMutableMap()
-            val queue = ArrayDeque(entries.filter { inDegree[it.provisionClass] == 0 })
-            val result = mutableListOf<ProvisionEntry<*>>()
+            val queue = ArrayDeque(entries.filter { inDegree[it.featureId] == 0 })
+            val result = mutableListOf<ServiceEntry>()
 
             while (queue.isNotEmpty()) {
                 val entry = queue.removeFirst()
                 result.add(entry)
                 for (other in entries) {
-                    if (entry.provisionClass in other.dependencies) {
-                        val newDeg = (inDegree[other.provisionClass] ?: 0) - 1
-                        inDegree[other.provisionClass] = newDeg
+                    if (entry.featureId in other.dependencies) {
+                        val newDeg = (inDegree[other.featureId] ?: 0) - 1
+                        inDegree[other.featureId] = newDeg
                         if (newDeg == 0) queue.add(other)
                     }
                 }
             }
 
             check(result.size == entries.size) {
-                val missing = entries.map { it.provisionClass.simpleName } -
-                    result.map { it.provisionClass.simpleName }.toSet()
+                val missing = entries.map { it.featureId.simpleName } -
+                    result.map { it.featureId.simpleName }.toSet()
                 "Dependency cycle detected involving: $missing"
             }
             return result
@@ -135,103 +116,128 @@ class ProvisionRegistry {
 }
 
 // ============================================================
-// Pattern E2: AutoProvisionEntry + AutoProvisionRegistry (lazy, DFS)
+// Pattern E2: AutoServiceEntry + AutoServiceRegistry (lazy, DFS)
 // ============================================================
 
 /**
- * Evolution from [ProvisionEntry]: declares [serviceClasses] upfront for indexing.
- * Entries are INSTALLED (cataloged) at init, BUILT on first demand via get<T>().
+ * Evolution of [ServiceEntry]: declares [serviceClasses] up front so they can
+ * be indexed at install time. Entries are INSTALLED (cataloged) at init, but
+ * BUILT only on the first `get<T>()` that requires them.
  *
- * Self-installing: [buildAndRegister] performs the build+register sequence where
- * [P] is in scope, avoiding unchecked casts when the registry iterates over
- * `AutoProvisionEntry<*>` under star projection.
+ * @param persistent When `true`, the entry's built services survive [AutoServiceRegistry.clear]
+ * and remain available across init/shutdown cycles (e.g. logger).
  */
-class AutoProvisionEntry<P : Any>(
-    val provisionClass: Class<P>,
+class AutoServiceEntry(
+    val featureId: Class<*>,
     val dependencies: Set<Class<*>> = emptySet(),
     val serviceClasses: Set<Class<*>>,
-    private val build: (AutoProvisionRegistry) -> P,
-    private val services: (P) -> Map<Class<*>, Any>,
+    val persistent: Boolean = false,
+    private val build: (AutoServiceRegistry) -> Map<Class<*>, Any>,
 ) {
-    /**
-     * Build this entry's provision and write it into [registry]. Writes services
-     * first, then the provision itself — the provision map is the thread-safety
-     * gate for concurrent readers (see [AutoProvisionRegistry]).
-     */
-    internal fun buildAndRegister(registry: AutoProvisionRegistry) {
-        val provision: P = build(registry)
-        registry.putServices(services(provision))
-        registry.putProvision(provisionClass, provision) // LAST — gate for other threads
+    internal fun buildAndRegister(registry: AutoServiceRegistry) {
+        val services = build(registry)
+        registry.putServices(services)
+        registry.putFeature(featureId) // LAST — gate for other threads
     }
 }
 
 /**
- * Auto-initializing registry — lazy build-on-demand.
- *
- * get<T>() triggers: find entry -> build dependencies recursively -> build entry -> cache.
- * After first build, subsequent get<T>() is a single HashMap lookup (~2-4 ns).
+ * Lazy registry — `get<T>()` triggers recursive on-demand construction.
+ * After the first build, subsequent `get<T>()` calls are a single HashMap
+ * read (~2-4 ns).
  */
-class AutoProvisionRegistry {
+class AutoServiceRegistry {
 
-    // Phase 1: Catalog (installed but not yet built)
-    private val catalog = HashMap<Class<*>, AutoProvisionEntry<*>>()
+    private val catalog = HashMap<Class<*>, AutoServiceEntry>()
     private val serviceIndex = HashMap<Class<*>, Class<*>>()
 
-    // Phase 2: Built state (populated on demand, thread-safe for concurrent reads)
     private val lock = Any()
-    internal val provisions = java.util.concurrent.ConcurrentHashMap<Class<*>, Any>()
+    internal val featuresBuilt = java.util.concurrent.ConcurrentHashMap<Class<*>, Boolean>()
     internal val services = java.util.concurrent.ConcurrentHashMap<Class<*>, Any>()
+    private val persistentFeatures = java.util.concurrent.ConcurrentHashMap<Class<*>, Boolean>()
 
-    /** Install an entry into the catalog. Does NOT build it. */
-    fun install(entry: AutoProvisionEntry<*>) {
-        catalog[entry.provisionClass] = entry
+    /**
+     * O(1) read of [builtFeatureCount]. Maintained by [putFeature]/[clear]
+     * instead of `featuresBuilt.keys.count { ... }`, which was O(F).
+     */
+    private val nonPersistentBuiltCount = java.util.concurrent.atomic.AtomicInteger(0)
+
+    fun install(entry: AutoServiceEntry) {
+        // Idempotent: featureId is a stable Class<*>, so repeated installs from
+        // successive `init()` cycles overwrite the same entries (no growth).
+        // ensureBuilt short-circuits on `featuresBuilt.containsKey(id)`, so
+        // persistent features are not rebuilt — the cached service in `services`
+        // wins via the fast path in `get()`.
+        catalog[entry.featureId] = entry
         for (svc in entry.serviceClasses) {
-            serviceIndex[svc] = entry.provisionClass
+            serviceIndex[svc] = entry.featureId
         }
+        if (entry.persistent) persistentFeatures[entry.featureId] = true
     }
 
-    /** Install multiple entries. Order doesn't matter — building is on-demand. */
-    fun installAll(entries: List<AutoProvisionEntry<*>>) {
+    fun installAll(entries: List<AutoServiceEntry>) {
         for (entry in entries) install(entry)
     }
 
-    /**
-     * Resolve a service by type. Auto-builds the providing provision (and all
-     * transitive dependencies) if not yet built.
-     */
     fun <T : Any> get(clazz: Class<T>): T {
         services[clazz]?.let { return checkNotNull(clazz.cast(it)) { "Cast failed for ${clazz.simpleName}" } }
 
-        val provisionClass = serviceIndex[clazz]
+        val featureId = serviceIndex[clazz]
             ?: error("No entry provides ${clazz.simpleName}.")
 
-        ensureBuilt(provisionClass)
+        ensureBuilt(featureId)
 
         return checkNotNull(clazz.cast(services[clazz])) {
-            "${clazz.simpleName} not available after building ${provisionClass.simpleName}"
+            "${clazz.simpleName} not available after building ${featureId.simpleName}"
         }
     }
 
-    /** Retrieve a built provision by its interface type. Used by entry build lambdas. */
-    fun <P : Any> provision(clazz: Class<P>): P =
-        checkNotNull(clazz.cast(provisions[clazz])) { "Provision ${clazz.simpleName} not built. Dependency not declared?" }
+    fun isBuilt(featureId: Class<*>): Boolean = featuresBuilt.containsKey(featureId)
 
-    fun isBuilt(clazz: Class<*>): Boolean = provisions.containsKey(clazz)
+    /**
+     * Count of NON-persistent features built. **O(1)**. Persistent entries
+     * (e.g. logger) are excluded because they survive shutdown and are tied to
+     * the app lifecycle.
+     */
+    val builtFeatureCount: Int get() = nonPersistentBuiltCount.get()
 
-    /** Number of provisions currently built. Useful for verifying lazy behavior in tests. */
-    val builtProvisionCount: Int get() = provisions.size
-
+    /**
+     * Clears the built graph, preserving services of persistent entries.
+     *
+     * On the next init, `installAll()` repopulates the catalog and service index
+     * with fresh entries; persistent features that were already built remain
+     * in `featuresBuilt` and their resolved services remain in `services`, so
+     * `get<T>()` returns the same instance across init/shutdown cycles.
+     */
     fun clear() {
         synchronized(lock) {
+            val persistentBuilt = persistentFeatures.keys.filter { featuresBuilt.containsKey(it) }
+            val servicesToKeep = persistentBuilt
+                .flatMap { id ->
+                    catalog[id]?.serviceClasses?.mapNotNull { svc ->
+                        services[svc]?.let { svc to it }
+                    } ?: emptyList()
+                }
+                .toMap()
+
             catalog.clear()
             serviceIndex.clear()
-            provisions.clear()
+            featuresBuilt.clear()
             services.clear()
+            // persistentFeatures survives — repopulated by install() on next init.
+
+            for (id in persistentBuilt) featuresBuilt[id] = true
+            services.putAll(servicesToKeep)
+            nonPersistentBuiltCount.set(0)
         }
     }
 
-    internal fun <P : Any> putProvision(clazz: Class<P>, provision: P) {
-        provisions[clazz] = provision
+    internal fun putFeature(featureId: Class<*>) {
+        if (featuresBuilt.putIfAbsent(featureId, true) == null
+            && !persistentFeatures.containsKey(featureId)
+        ) {
+            nonPersistentBuiltCount.incrementAndGet()
+        }
     }
 
     internal fun putServices(map: Map<Class<*>, Any>) {
@@ -239,34 +245,30 @@ class AutoProvisionRegistry {
     }
 
     /**
-     * Iterative post-order DFS — ensure a provision and all its dependencies are built.
-     * Uses an explicit stack to avoid StackOverflowError on deep chains (500+).
-     *
-     * Each stack entry is a (Class, processed) pair. On first visit, the node pushes
-     * itself back as "processed" and then pushes its deps. When popped as "processed",
-     * all deps are guaranteed to be built.
+     * Iterative post-order DFS. Explicit stack to avoid StackOverflowError on
+     * deep chains (500+).
      */
-    private fun ensureBuilt(provisionClass: Class<*>) {
-        if (provisions.containsKey(provisionClass)) return // fast path without lock
+    private fun ensureBuilt(featureId: Class<*>) {
+        if (featuresBuilt.containsKey(featureId)) return
         synchronized(lock) {
-            if (provisions.containsKey(provisionClass)) return // double-check inside lock
+            if (featuresBuilt.containsKey(featureId)) return
 
             val stack = ArrayDeque<Pair<Class<*>, Boolean>>()
-            stack.addLast(provisionClass to false)
+            stack.addLast(featureId to false)
 
             while (stack.isNotEmpty()) {
-                val (cls, processed) = stack.removeLast()
-                if (provisions.containsKey(cls)) continue
+                val (id, processed) = stack.removeLast()
+                if (featuresBuilt.containsKey(id)) continue
 
-                val entry = catalog[cls]
-                    ?: error("Provision ${cls.simpleName} not installed in catalog.")
+                val entry = catalog[id]
+                    ?: error("Feature ${id.simpleName} not installed in catalog.")
 
                 if (processed) {
                     entry.buildAndRegister(this)
                 } else {
-                    stack.addLast(cls to true)
+                    stack.addLast(id to true)
                     for (dep in entry.dependencies) {
-                        if (!provisions.containsKey(dep)) {
+                        if (!featuresBuilt.containsKey(dep)) {
                             stack.addLast(dep to false)
                         }
                     }

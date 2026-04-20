@@ -15,7 +15,7 @@ android {
 dependencies {
     api(project(":sdk:api"))
     implementation(project(":di-contracts-koin"))
-    implementation(project(":features:feature-observability-impl"))
+    runtimeOnly(project(":features:feature-observability-impl"))
     implementation(libs.koin.core)
 
     runtimeOnly(project(":features:feature-enc-impl"))

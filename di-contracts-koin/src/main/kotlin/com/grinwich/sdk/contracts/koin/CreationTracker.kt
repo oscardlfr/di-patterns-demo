@@ -7,7 +7,7 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * Injected into the Koin graph by wiring modules. Each KoinFeatureProvider's
  * `single{}` definitions call `get<CreationTracker>().mark(featureName)`
- * so that [builtProvisionCount] reflects real instantiation, not just registration.
+ * so that [builtFeatureCount] reflects real instantiation, not just registration.
  */
 class CreationTracker {
     private val _created: MutableSet<String> = ConcurrentHashMap.newKeySet()

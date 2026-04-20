@@ -3,6 +3,7 @@ package com.grinwich.sdk.wiring.k
 import android.content.Context
 import com.grinwich.sdk.api.SdkConfig
 import com.grinwich.sdk.contracts.Resolver
+import com.grinwich.sdk.contracts.SyntheticFeatureProvider
 
 /**
  * Pattern K: AndroidManifest metadata discovery (Firebase-style).
@@ -21,12 +22,14 @@ object MultiModuleSdkK : com.grinwich.sdk.api.MultiModuleSdkApi {
 
     override val isInitialized: Boolean get() = _initialized
 
-    /** Number of provisions currently built. Useful for verifying lazy behavior in tests. */
-    override val builtProvisionCount: Int get() = resolver.builtProvisionCount
+    override val builtFeatureCount: Int get() = resolver.builtFeatureCount
 
     override fun init(context: Context, config: SdkConfig) {
         check(!_initialized) { "MultiModuleSdkK already initialized. Call shutdown() first." }
-        resolver.init(context, config)
+        resolver.register(SyntheticFeatureProvider(mapOf(
+            SdkConfig::class.java to config,
+            android.content.Context::class.java to context.applicationContext,
+        )))
 
         ComponentDiscovery.discover(context).forEach { provider ->
             resolver.register(provider)

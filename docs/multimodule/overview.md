@@ -2,8 +2,15 @@
 
 Guia de los 16 patrones multi-modulo implementados en este proyecto, organizados
 en 3 categorias segun su compatibilidad con Kotlin Multiplatform. Todos comparten
-la misma arquitectura base de provision interfaces y contratos en `di-contracts/`,
+la misma API consumer (`MultiModuleSdkApi`: `init(ctx, cfg)` + `get<T>()` + `shutdown()`),
 pero difieren en el framework DI, mecanismo de discovery y estrategia de lazy init.
+
+> **Arquitectura actual (post-refactor)**: se elimino la jerarquia global de `Provisions`
+> en `di-contracts/`. Ahora `di-contracts` es 100% neutro (no importa ningun tipo de
+> `sdk/api` ni de feature-apis) y expone un `FeatureProvider` unificado con tag `Flavor`
+> (DAGGER/PURE/KI/SYNTHETIC). Features multi-servicio declaran un Bundle interno
+> (p.ej. `EncBundle` en `feature-enc-impl`), no una interface global. Detalles en
+> `docs/shared/cross-feature-deps.md`.
 
 Para patrones monoliticos (A, B, C, Koin, Hybrid), ver `docs/monolithic/`.
 
@@ -49,43 +56,43 @@ agregacion en compilacion (Metro, kotlin-inject-anvil) o discovery multiplatafor
 
 | Pattern | Framework | Discovery | Lazy | KMP | Thread-safe shutdown | Init Cold (ns) | Resolve cached (ns) |
 |---------|-----------|-----------|------|-----|----------------------|---------------:|---------------------:|
-| **D** | Dagger | Manual (when-block) | Si (ensure) | No | Si (synchronized) | 1,212 | 346 |
-| **E2** | Dagger | Auto (Registry DFS) | Si (DFS) | No | Si (CHM + lock) | 10,983 | 199 |
-| **G** | Dagger | Manual (factory fn) | Si (ensure) | No | Si (synchronized) | 1,257 | 345 |
-| **H** | Dagger + ServiceLoader | ServiceLoader | Si (Resolver DFS) | No | Si (CHM + lock) | 106,865 | 202 |
-| **I** | Ninguno | ServiceLoader | Si (Resolver DFS) | No | Si (CHM + lock) | 94,255 | 203 |
-| **J** | kotlin-inject + SL | ServiceLoader | Si (Resolver DFS) | Parcial | Si (CHM + lock) | 97,197 | 202 |
-| **K** | Dagger + Manifest | AndroidManifest | Si (Resolver DFS) | No | Si (CHM + lock) | 213,737 | 203 |
-| **L** | Koin + ServiceLoader | ServiceLoader | Si (Koin single) | Parcial | No | 154,403 | 5,664 |
-| **M** | Koin + ServiceLoader | ServiceLoader | Si (loadModules) | Parcial | Si (synchronized) | 164,353 | 6,160 |
-| **N** | sweet-spi + Koin | sweet-spi | Si (Koin single) | **Si** | No | 69,636 | 5,855 |
-| **O** | Metro | Compile-time | No (eager) | **Si** | Si (nullify) | 603 | 288 |
-| **O2** | Metro Lazy | Compile-time | Si (Lazy\<T\>) | **Si** | Si (nullify) | 1,127 | 315 |
-| **P** | kotlin-inject-anvil | Compile-time | No (eager) | **Si** | Si (nullify) | 1,064 | 336 |
-| **P2** | kotlin-inject-anvil Lazy | Compile-time | Si (LazyCreationTracker) | **Si** | Si (nullify) | 1,416 | 335 |
-| **Q** | Dagger (Hilt-style) | Compile-time | No (eager) | No | Si (nullify) | 676 | 257 |
-| **Q2** | Dagger Lazy (Hilt-style) | Compile-time | Si (dagger.Lazy) | No | Si (nullify) | 1,080 | 306 |
+| **D** | Dagger | Manual (when-block) | Si (ensure) | No | Si (synchronized) | 1,400 | 8 |
+| **E2** | Dagger | Auto (Registry DFS) | Si (DFS) | No | Si (CHM + lock) | 8,024 | 9 |
+| **G** | Dagger | Manual (factory fn) | Si (ensure) | No | Si (synchronized) | 1,379 | 9 |
+| **H** | Dagger + ServiceLoader | ServiceLoader | Si (Resolver DFS) | No | Si (CHM + lock) | 86,254 | 1 |
+| **I** | Ninguno | ServiceLoader | Si (Resolver DFS) | No | Si (CHM + lock) | 116,413 | 9 |
+| **J** | kotlin-inject + SL | ServiceLoader | Si (Resolver DFS) | Parcial | Si (CHM + lock) | 122,124 | 1 |
+| **K** | Dagger + Manifest | AndroidManifest | Si (Resolver DFS) | No | Si (CHM + lock) | 205,544 | 0 |
+| **L** | Koin + ServiceLoader | ServiceLoader | Si (Koin single) | Parcial | Si (RWLock) | 161,559 | 999 |
+| **M** | Koin + ServiceLoader | ServiceLoader | Si (loadModules) | Parcial | Si (RWLock+loadLock) | 164,713 | 1,066 |
+| **N** | sweet-spi + Koin | sweet-spi | Si (Koin single) | **Si** | Si (RWLock) | 96,719 | 1,038 |
+| **O** | Metro | Compile-time | No (eager) | **Si** | Si (nullify) | 723 | 5 |
+| **O2** | Metro Lazy | Compile-time | Si (Lazy\<T\>+withActive) | **Si** | Si (nullify) | 1,412 | 7 |
+| **P** | kotlin-inject-anvil | Compile-time | No (eager) | **Si** | Si (nullify) | 785 | 0 |
+| **P2** | kotlin-inject-anvil Lazy | Compile-time | Si (LazyCreationTracker+withActive) | **Si** | Si (nullify) | 1,722 | 5 |
+| **Q** | Dagger (Hilt-style) | Compile-time | No (eager) | No | Si (nullify) | 647 | 5 |
+| **Q2** | Dagger Lazy (Hilt-style) | Compile-time | Si (dagger.Lazy+withActive) | No | Si (nullify) | 1,502 | 7 |
 
 ### Ranking por Init Cold
 
 | Rank | Pattern | Init Cold (ns) | Categoria |
 |-----:|---------|---------------:|-----------|
-| 1 | O (Metro) | 603 | KMP |
-| 2 | Q (Dagger Hilt) | 676 | Android |
-| 3 | P (kotlin-inject-anvil) | 1,064 | KMP |
-| 4 | Q2 (Dagger Lazy) | 1,080 | Android |
-| 5 | O2 (Metro Lazy) | 1,127 | KMP |
-| 6 | D (Component Deps) | 1,212 | Android |
-| 7 | G (Factory Functions) | 1,257 | Android |
-| 8 | P2 (kotlin-inject-anvil Lazy) | 1,416 | KMP |
-| 9 | E2 (Auto-Init Registry) | 10,983 | Android |
-| 10 | N (sweet-spi + Koin) | 69,636 | KMP |
-| 11 | I (Pure, zero DI) | 94,255 | Android |
-| 12 | J (kotlin-inject + SL) | 97,197 | Partial KMP |
-| 13 | H (Dagger + ServiceLoader) | 106,865 | Android |
-| 14 | L (Koin + ServiceLoader) | 154,403 | Partial KMP |
-| 15 | M (Koin + SL lazy) | 164,353 | Partial KMP |
-| 16 | K (AndroidManifest) | 213,737 | Android |
+| 1 | Q (Dagger Hilt) | 647 | Android |
+| 2 | O (Metro) | 723 | KMP |
+| 3 | P (kotlin-inject-anvil) | 785 | KMP |
+| 4 | G (Factory Functions) | 1,379 | Android |
+| 5 | D (Component Deps) | 1,400 | Android |
+| 6 | O2 (Metro Lazy) | 1,412 | KMP |
+| 7 | Q2 (Dagger Lazy) | 1,502 | Android |
+| 8 | P2 (kotlin-inject-anvil Lazy) | 1,722 | KMP |
+| 9 | E2 (Auto-Init Registry) | 8,024 | Android |
+| 10 | H (Dagger + ServiceLoader) | 86,254 | Android |
+| 11 | N (sweet-spi + Koin) | 96,719 | KMP |
+| 12 | I (Pure, zero DI) | 116,413 | Android |
+| 13 | J (kotlin-inject + SL) | 122,124 | Partial KMP |
+| 14 | L (Koin + ServiceLoader) | 161,559 | Partial KMP |
+| 15 | M (Koin + SL lazy) | 164,713 | Partial KMP |
+| 16 | K (AndroidManifest) | 205,544 | Android |
 
 ---
 
@@ -133,10 +140,12 @@ Necesitas KMP (iOS, macOS, WASM)?
 | SDK Android con auto-discovery | **H** (ServiceLoader) | Wiring inmutable end-to-end, escala a 50+ features × N APIs | Init lento (107 us). Compile-time parcial -- mitigable con `verify()` |
 | Migracion gradual a KMP | **P** (kotlin-inject-anvil) | KSP genera Kotlin, same aggregation pattern | Mismo caveat de facade que O/P2 |
 
-**Trade-off resumen** (ver `docs/shared/requirements.md` para criterio bidimensional):
+**Trade-off resumen** (ver `docs/shared/requirements.md` para criterios completos):
 - Patrones con **facade inmutable nativo** (HashMap/runtime lookup): H, I, J, K, L, M, N, E2
 - Patrones con **`when` manual en facade** (compile-time DI): O, O2, P, P2, Q, Q2
-- Mitigacion para los segundos: KSP propio (~200 LOC) que genere el `when` desde el componente
+  - Mitigacion: KSP propio (~200 LOC) que genere el `when` desde el componente
+- Patrones con **abstraccion runtime-flexible** (sdk-integration publicable con `runtimeOnly(features)`, permitiendo BYOF): **H, I, J, K, L, M, N** (7 de 16)
+  - Los otros 9 acoplan el sdk-integration a feature-impls en compile-time (por merge de `@ContributesTo`/`@InstallIn` o por imports directos de factories)
 
 ---
 
@@ -169,10 +178,14 @@ Necesitas KMP (iOS, macOS, WASM)?
 
 | Termino | Definicion |
 |---------|-----------|
-| **Provision Interface** | Interfaz Kotlin que declara los servicios de una feature (e.g. `EncProvisions`) |
+| **FeatureProvider** | Clase base neutra en `di-contracts` con tag `Flavor` y `build(resolver)` que devuelve `Map<Class<*>, Any>`. Reemplaza a la antigua jerarquia `Provisions` |
+| **Flavor** | Enum `{ DAGGER, PURE, KI, SYNTHETIC }` que discrimina proveedores dentro del mismo ServiceLoader. Los wirings H/I/J filtran por flavor |
+| **SyntheticFeatureProvider** | Provider inyectado por el wiring en `init()` para publicar `Context` + `SdkConfig` como servicios normales (no hay path especial `bootstrap`) |
+| **Bundle (local)** | Interfaz `internal` a una feature-impl que agrupa multiples servicios del mismo Component (p.ej. `EncBundle`). Reemplaza al antiguo concepto global de `Provisions` |
 | **Wiring Module** | Modulo Gradle `sdk/wiring-X` que conecta features con el facade publico |
 | **Discovery** | Mecanismo para encontrar features disponibles (ServiceLoader, Manifest, compile-time) |
 | **Resolver DFS** | Resolucion de dependencias via busqueda en profundidad (depth-first search) |
 | **Eager init** | Todo el grafo se construye en `init()` |
 | **Lazy init** | Singletons se crean on-demand al primer `get<T>()` |
 | **Compile-time aggregation** | El compilador/KSP reune todos los bindings en build time (Metro, kotlin-inject-anvil, Dagger) |
+| **BYOF (Bring Your Own Features)** | Modelo de distribucion en el que el sdk-integration se publica sin `runtimeOnly(features)` y la app elige versiones de feature-impl. Requiere Req 12 |

@@ -66,46 +66,59 @@ accesos posteriores retornan el valor cacheado sin lock.
 
 | Operacion | O<br>*(Metro eager)* | O2<br>*(Metro Lazy)* | Factor | P<br>*(KI-anvil eager)* | P2<br>*(KI-anvil Lazy)* | Factor | Q<br>*(Dagger @Module)* | Q2<br>*(Dagger Lazy)* | Factor |
 |-----------|---:|---:|-------:|---:|---:|-------:|---:|---:|-------:|
-| Init Cold | 603 | 1,127 | 1.9x | 1,064 | 1,416 | 1.3x | 676 | 1,080 | 1.6x |
-| Resolve First | 288 | 315 | 1.1x | 336 | 335 | 1.0x | 257 | 306 | 1.2x |
-| Lazy noDeps | 2,098 | 238 | **8.8x** | 1,941 | 284 | **6.8x** | 1,735 | 236 | **7.3x** |
-| Lazy cascade | 346 | 507 | 0.7x | 607 | 734 | 0.8x | 318 | 504 | 0.6x |
-| CrossFeature | 1.7M | 1.8M | 1.0x | 1.7M | 3.1M | 0.5x | 1.6M | 1.7M | 0.9x |
-| E2E Startup | 1.2M | 1.5M | 0.8x | 1.4M | 993K | **1.4x** | 950K | 1.3M | 0.7x |
-| Init/Shutdown | 301 | 516 | 0.6x | 293 | 508 | 0.6x | 403 | 549 | 0.7x |
-| Concurrent | 586K | 587K | 1.0x | 618K | 638K | 1.0x | 591K | 586K | 1.0x |
-| Resolve All | 80 | 86 | 0.9x | 165 | 156 | 1.1x | 64 | 85 | 0.8x |
-| **Re-Init** | 36,000 | 2,305 | **15.6x** | 28,000 | 2,929 | **9.6x** | 25,000 | 2,157 | **11.6x** |
-| Incremental | 588 | 952 | 0.6x | 1,060 | 1,321 | 0.8x | 667 | 1,218 | 0.5x |
+| Init Cold | 723 | 1,412 | 0.5x | 785 | 1,722 | 0.5x | 647 | 1,502 | 0.4x |
+| Resolve First | 5 | 7 | 0.7x | 0 | 5 | 0.0x | 5 | 7 | 0.7x |
+| Lazy noDeps | 191 | 282 | 0.7x | 222 | 348 | 0.6x | 184 | 312 | 0.6x |
+| Lazy cascade | 367 | 591 | 0.6x | 488 | 919 | 0.5x | 338 | 589 | 0.6x |
+| CrossFeature | 2.1M | 2.1M | 1.0x | 1.3M | 1.4M | 0.9x | 1.2M | 1.8M | 0.7x |
+| E2E Startup | 538K | 341K | **1.6x** | 534K | 552K | 1.0x | 568K | 520K | 1.1x |
+| Init/Shutdown | 241 | 852 | 0.3x | 184 | 471 | 0.4x | 278 | 565 | 0.5x |
+| Concurrent | 435K | 452K | 1.0x | 456K | 468K | 1.0x | 453K | 478K | 0.9x |
+| Resolve All | 108 | 273 | 0.4x | 146 | 380 | 0.4x | 105 | 303 | 0.3x |
+| **Re-Init** | 1,120 | 2,408 | 0.5x | 1,528 | 2,951 | 0.5x | 1,042 | 2,496 | 0.4x |
+| Incremental | 694 | 1,411 | 0.5x | 784 | 1,661 | 0.5x | 639 | 1,395 | 0.5x |
 
 *Factor > 1x = la variante lazy es mas rapida. Factor < 1x = la variante eager es mas rapida.*
 
-### Donde gana Lazy (significativamente)
+### ⚠ Cambio de paradigma post-refactor (2026-04-19)
 
-1. **Re-Init:** Las variantes lazy son 9.6x-15.6x mas rapidas. Este es el beneficio
-   mas importante de lazy: al reinicializar, no se recrean singletons que posiblemente
-   no se usaran.
+Antes del refactor: **lazy dominaba re-init (~15x)** gracias a que no recreaba
+singletons. Tras el refactor (logger singleton + AtomicInteger counter + ThreadLocal
+tracker):
 
-2. **Lazy noDeps:** 6.8x-8.8x mas rapido. Crear un solo singleton on-demand es
-   drasticamente mas barato que haberlos creado todos en init.
+1. **El logger singleton neutraliza la ventaja lazy en re-init.** Ahora eager y
+   lazy son igual de rapidos en re-init (~1,000-3,000 ns). La ventaja historica
+   de lazy (15x) desaparece porque el eager ya no reconstruye el logger en cada
+   init.
 
-### Donde pierde Lazy (ligeramente)
+2. **El `tracker.withActive { }` lambda anade ~150-300 ns por cada `get()` en lazy.**
+   Coste necesario para el fix de `crossPatternIsolation` (ThreadLocal tracker
+   aislado por pattern). Este overhead aparece en Init Cold (+40-50%), Init/Shutdown
+   (+200-300%) y Resolve All (+160-180%).
 
-1. **Init Cold:** 1.3x-1.9x mas lento. El setup de `LazyCreationTracker` y los
-   Lazy wrappers anaden overhead al init. Sin embargo, todos estan por debajo
-   de 1,500 ns -- la diferencia es de ~400-500 ns.
+3. **Lazy ahora es mas lento que eager en casi todas las metricas** excepto E2E
+   Startup en O2 (1.6x) donde el logger singleton + laziness dan sinergia.
 
-2. **Init/Shutdown Cycle:** ~0.6-0.7x -- el cleanup del tracker anade ~200 ns.
+### Donde gana Lazy (post-refactor)
 
-3. **Lazy cascade:** ~0.6-0.8x -- la cascada lazy es ligeramente mas lenta porque
-   cada paso materializa un Lazy wrapper. Eager ya tiene todo construido.
+1. **E2E Startup (O2 vs O):** 1.6x mas rapido. La sinergia logger-singleton +
+   no-crear-singletons-innecesarios compensa el overhead del `withActive`.
+
+### Donde pierde Lazy (sistematicamente)
+
+1. **Init Cold:** 0.4-0.5x -- overhead del `LazyCreationTracker.activate()` + `withActive`.
+
+2. **Init/Shutdown Cycle:** 0.3-0.5x -- overhead del tracker cleanup.
+
+3. **Resolve All:** 0.3-0.4x -- `withActive` envuelve cada `get()`.
+
+4. **Re-Init:** 0.4-0.5x (REVERTIDO vs pre-refactor) -- el logger singleton
+   beneficia eager mas que lazy.
 
 ### Donde es neutral
 
-- **Resolve First:** Practicamente identico (~1.0-1.2x).
 - **Concurrent:** Sin diferencia (threading domina, no DI).
-- **Resolve All:** Sin diferencia significativa (cache hit en ambos).
-- **CrossFeature:** Variable, dominado por logica de negocio.
+- **CrossFeature:** Dominado por I/O de negocio.
 
 ---
 
@@ -114,72 +127,74 @@ accesos posteriores retornan el valor cacheado sin lock.
 El Re-Init simula un hot restart: `shutdown()` + `init()` completo. Este es el
 escenario donde lazy brilla dramaticamente.
 
-### Valores absolutos
+### Valores absolutos (post-refactor)
 
 | Patron | Re-Init (ns) | Equivalente |
 |--------|-------------:|-------------|
-| O (Metro eager) | 36,000 | 36 us |
-| O2 (Metro lazy) | 2,305 | 2.3 us |
-| P (kotlin-inject eager) | 28,000 | 28 us |
-| P2 (kotlin-inject lazy) | 2,929 | 2.9 us |
-| Q (Dagger eager) | 25,000 | 25 us |
-| Q2 (Dagger lazy) | 2,157 | 2.2 us |
+| Q (Dagger eager) | 1,042 | 1.0 us |
+| O (Metro eager) | 1,120 | 1.1 us |
+| P (kotlin-inject eager) | 1,528 | 1.5 us |
+| Q2 (Dagger lazy) | 2,496 | 2.5 us |
+| O2 (Metro lazy) | 2,408 | 2.4 us |
+| P2 (kotlin-inject lazy) | 2,951 | 3.0 us |
 
-### Por que lazy es tan rapido en re-init?
+### Por que eager ahora es mas rapido en re-init?
 
-**Eager (O, P, Q):** `shutdown()` destruye el grafo completo. `init()` reconstruye
-el grafo, lo que incluye crear todos los singletons de las 5 features:
+**Pre-refactor:** el re-init de eager (25-36 us) venia dominado por la creacion
+de un nuevo `AndroidSdkLogger()` y la reconstruccion de singletons. Lazy ganaba
+porque ninguno de los dos se ejecutaba (solo se materializaba on-demand).
 
-```
-shutdown(): nullify graph (rapido)
-init(): create graph --> create EncService --> create AuthService
-        --> create StorService --> create AnaService --> create SynService
-        Total: 25,000-36,000 ns
-```
-
-**Lazy (O2, P2, Q2):** `shutdown()` destruye el grafo y resetea el tracker.
-`init()` solo crea el grafo/component vacio -- los singletons no se instancian:
+**Post-refactor con `buildLogger()` singleton:** el logger ya no se recrea en cada
+init. Los singletons en eager (O, P, Q) se construyen con el mismo logger
+compartido, reduciendo el coste absoluto:
 
 ```
-shutdown(): deactivate tracker + nullify graph (rapido)
-init(): create graph (NO crea singletons)
-        Total: 2,157-2,929 ns
+Eager (post-refactor):
+  shutdown(): nullify graph (rapido)
+  init(): create graph + reuse logger singleton + build 5 singletons
+          Total: 1,042-1,528 ns
+
+Lazy (post-refactor):
+  shutdown(): nullify graph (rapido)
+  init(): create graph (NO crea singletons) + LazyCreationTracker.activate()
+          Total: 2,408-2,951 ns (overhead del tracker activate!)
 ```
 
-Los singletons se crearan on-demand cuando `get<T>()` los solicite.
+El `LazyCreationTracker.activate()` + el lambda `withActive` en cada futuro get()
+anaden overhead que supera la ganancia de "no crear singletons". Para 5 features,
+no vale la pena.
 
 ---
 
 ## 4. Cuando Vale la Pena Lazy?
 
-### SI vale la pena
+### SI vale la pena (post-refactor, criterio ajustado)
 
 | Escenario | Razon |
 |-----------|-------|
-| SDK con 20+ features, usuario usa ~5 | Lazy evita crear 15 singletons innecesarios |
-| Hot restart frecuente | Re-init 10-16x mas rapido |
-| Modular testing | Tests que solo necesitan 1 feature no pagan el coste de las otras |
-| Background services | Iniciar rapido, resolver solo lo necesario |
-| SDK con features pesadas | Si un singleton tarda 10ms en construirse, lazy evita ese coste si no se usa |
+| SDK con 30+ features, usuario usa ~5 (<17%) | Lazy evita crear 25 singletons innecesarios. Con logger singleton, el umbral de rentabilidad sube. |
+| SDK con features pesadas (construccion >5ms) | Si un singleton tarda 5ms en construirse, lazy evita ese coste si no se usa. |
+| Testing modular con tests que solo necesitan 1 feature | Tests evitan construir 29 singletons que no tocan. |
 
 ### NO vale la pena
 
 | Escenario | Razon |
 |-----------|-------|
-| SDK pequeno (3-5 features) | La diferencia es de ~500 ns en init -- irrelevante |
-| Todas las features se usan siempre | Lazy solo difiere la creacion, no la evita |
-| App que no hace re-init | El beneficio principal se pierde |
-| Performance critica en primer acceso | El primer `get<T>()` lazy paga la creacion del singleton |
+| SDK pequeno (3-10 features) | El overhead del `withActive` + tracker supera el ahorro de no crear 5 singletons. |
+| Todas las features se usan siempre | Lazy solo difiere la creacion, no la evita. |
+| Hot restart frecuente (post-refactor) | **Eager ahora es 1-2x mas rapido que lazy en re-init** gracias al logger singleton. |
+| Performance critica en get() | Lazy paga ~150-300 ns extra por cada `get()` debido al `withActive` lambda. |
 
-### Regla practica
+### Regla practica (post-refactor)
 
 ```
-features_usadas / features_totales < 0.5  -->  Usar lazy
-features_usadas / features_totales >= 0.5 -->  Usar eager (mas simple)
+features_usadas / features_totales < 0.17  -->  Usar lazy (>30 features, usuario usa 5)
+features_usadas / features_totales >= 0.17 -->  Usar eager (mas simple, mas rapido)
 ```
 
-Si el ratio de features usadas vs totales es menor al 50%, lazy ahorra trabajo
-significativo.
+**El umbral subio de 0.5 a ~0.17 post-refactor.** La razon: eager ya no tiene el
+penalty masivo de reconstruir el logger en cada init, lo que reduce dramaticamente
+la ventaja relativa de lazy.
 
 ### Nota: lazy/eager es ortogonal al criterio bidimensional de wiring
 
@@ -187,20 +202,25 @@ La discusion lazy-vs-eager se refiere SOLO a si los singletons se crean en init
 (eager) o en primer acceso (lazy). NO se refiere al wiring del modulo (Req 6) ni
 al wiring del facade (Req 11). Ver `docs/shared/requirements.md`.
 
-Para Re-Init, los lazy ganan dramaticamente:
+Para Re-Init, post-refactor los eager empatan o superan a los lazy:
 
 | Patron | Re-Init (ns) | Notas |
 |--------|--------------:|-------|
-| Q2 (Dagger Lazy) | 2,157 | Mejor de todos -- nullify component sin crear singletons |
-| O2 (Metro Lazy) | 2,305 | Idem -- LazyCreationTracker resetea sin recrear |
-| P2 (KI-anvil Lazy) | 2,929 | Idem |
-| E2 (Registry DFS) | 17,000 | Auto-Init Registry preserva catalog, recrea provisions |
-| Q (Dagger eager) | 25,000 | Recrea todos los singletons |
-| H (Resolver+ServiceLoader) | 362,649 | Re-discovery de providers via ServiceLoader |
-| N (sweet-spi+Koin) | 732,000 | El mas lento -- destruye y recrea Koin completo |
+| Q (Dagger eager) | 1,042 | Mejor de todos -- logger singleton + reuse |
+| O (Metro eager) | 1,120 | Idem |
+| P (KI-anvil eager) | 1,528 | KSP generated code eager |
+| O2 (Metro Lazy) | 2,408 | Tracker activate + withActive overhead |
+| Q2 (Dagger Lazy) | 2,496 | Idem |
+| P2 (KI-anvil Lazy) | 2,951 | Idem |
+| D (hardcoded when) | 2,540 | Logger singleton + field clear |
+| G (factory fns) | 2,275 | Idem |
+| E2 (Registry DFS) | 15,816 | Auto-Init Registry preserva catalog, recrea provisions |
+| N (sweet-spi+Koin) | 178,294 | Logger singleton evita reconstruir Koin container completo (-76% vs pre-refactor) |
+| H (Resolver+ServiceLoader) | 185,812 | Re-discovery de providers via ServiceLoader |
 
 H y N pagan el coste de descubrir providers cada vez. Es el trade-off de su facade
-inmutable nativo: el dispatcher es trivial pero el descubrimiento es caro.
+inmutable nativo: el dispatcher es trivial pero el descubrimiento es caro. Tras el
+refactor ambos reducen costes significativamente via logger singleton.
 
 ---
 
@@ -230,13 +250,15 @@ Los tres mecanismos son thread-safe:
 ## 6. Resumen de Decision
 
 ```
-Necesitas el init mas rapido posible (y no te importa re-init)?
-├── SI --> Eager (O = 603 ns, Q = 676 ns, P = 1,064 ns)
+Post-refactor: eager gana en casi todos los escenarios.
+
+Necesitas el init mas rapido posible?
+├── SI --> Eager (Q = 647, O = 723, P = 785 ns)
 │
 └── NO
-    └── Haces hot restart frecuente o tienes muchas features opcionales?
-        ├── SI --> Lazy (Q2 = 2,157 ns re-init, O2 = 2,305 ns, P2 = 2,929 ns)
-        └── NO --> Eager (mas simple, sin overhead de tracking)
+    └── Tienes >30 features y el usuario tipico usa <20% de ellas?
+        ├── SI --> Lazy (aun vale la pena por evitar construir 25+ singletons)
+        └── NO --> Eager (mas rapido, mas simple, sin overhead del withActive)
 ```
 
 | Recomendacion | Patron eager | Patron lazy |

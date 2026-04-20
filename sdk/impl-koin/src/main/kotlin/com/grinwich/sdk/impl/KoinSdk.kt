@@ -2,7 +2,7 @@ package com.grinwich.sdk.impl
 
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.common.*
-import com.grinwich.sdk.feature.observability.AndroidSdkLogger
+import com.grinwich.sdk.feature.observability.buildLogger
 import org.koin.core.Koin
 import org.koin.core.KoinApplication
 import org.koin.core.module.Module
@@ -150,7 +150,7 @@ object SyncRegistration : SdkModuleRegistration {
 // ============================================================
 
 internal object FoundationSingletons {
-    val logger: SdkLogger = AndroidSdkLogger()
+    val logger: SdkLogger = buildLogger()
 }
 
 private fun foundationModule(context: android.content.Context, config: SdkConfig, storageBackend: StorageBackend) = module {
@@ -192,7 +192,7 @@ object KoinSdk {
     val initializedModules: Set<SdkModule> get() = _initializedModules.toSet()
 
     /** Number of feature modules currently initialized. Useful for verifying lazy behavior in tests. */
-    val builtProvisionCount: Int get() = _initializedModules.size + (if (_initialized) 1 else 0) // +1 for foundation (Core+Logger)
+    val builtFeatureCount: Int get() = _initializedModules.size + (if (_initialized) 1 else 0) // +1 for foundation (Core+Logger)
 
     val koin: Koin
         get() {

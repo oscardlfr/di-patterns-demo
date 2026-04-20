@@ -1,17 +1,16 @@
 package com.grinwich.sdk.feature.ana
 
 import com.grinwich.sdk.api.AnalyticsApi
-import com.grinwich.sdk.contracts.*
+import com.grinwich.sdk.api.SdkLogger
+import com.grinwich.sdk.contracts.FeatureProvider
+import com.grinwich.sdk.contracts.Flavor
+import com.grinwich.sdk.contracts.Resolver
 
-class AnaPureProvider : PureFeatureProvider<AnaProvisions>(AnaProvisions::class.java) {
-    override val services: Map<Class<*>, (AnaProvisions) -> Any> = mapOf(
-        AnalyticsApi::class.java to AnaProvisions::analytics,
-    )
-    override fun build(resolver: Resolver): AnaProvisions {
-        val logger = resolver.logger
-        val ana = DefaultAnalyticsService(logger)
-        return object : AnaProvisions {
-            override fun analytics() = ana
-        }
-    }
+/** Analytics provider with flavor [Flavor.PURE]. Consumed by pattern I. */
+class AnaPureProvider : FeatureProvider() {
+    override val flavor = Flavor.PURE
+    override val services = setOf(AnalyticsApi::class.java)
+
+    override fun build(resolver: Resolver): Map<Class<*>, Any> =
+        mapOf(AnalyticsApi::class.java to DefaultAnalyticsService(resolver.get(SdkLogger::class.java)))
 }

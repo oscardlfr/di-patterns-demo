@@ -14,6 +14,8 @@ android {
 }
 
 dependencies {
+    // FeatureContribution vive en di-contracts — KoinFeatureProvider lo implementa.
+    api(project(":di-contracts"))
     implementation(libs.koin.core)
     implementation(libs.sweet.spi.runtime)  // @Service annotation for Pattern N discovery
     ksp(libs.sweet.spi.processor)  // Generates service type registration for @Service

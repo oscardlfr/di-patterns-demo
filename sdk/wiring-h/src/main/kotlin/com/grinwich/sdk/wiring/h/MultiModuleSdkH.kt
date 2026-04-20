@@ -3,7 +3,9 @@ package com.grinwich.sdk.wiring.h
 import com.grinwich.sdk.api.MultiModuleSdkApi
 import com.grinwich.sdk.api.SdkConfig
 import com.grinwich.sdk.contracts.FeatureProvider
+import com.grinwich.sdk.contracts.Flavor
 import com.grinwich.sdk.contracts.Resolver
+import com.grinwich.sdk.contracts.SyntheticFeatureProvider
 import java.util.ServiceLoader
 
 /**
@@ -22,16 +24,19 @@ object MultiModuleSdkH : MultiModuleSdkApi {
 
     override val isInitialized: Boolean get() = _initialized
 
-    /** Number of provisions currently built. Useful for verifying lazy behavior in tests. */
-    override val builtProvisionCount: Int get() = resolver.builtProvisionCount
+    override val builtFeatureCount: Int get() = resolver.builtFeatureCount
 
     override fun init(context: android.content.Context, config: SdkConfig) {
         check(!_initialized) { "MultiModuleSdkH already initialized. Call shutdown() first." }
-        resolver.init(context, config)
+        resolver.register(SyntheticFeatureProvider(mapOf(
+            SdkConfig::class.java to config,
+            android.content.Context::class.java to context.applicationContext,
+        )))
 
-        ServiceLoader.load(FeatureProvider::class.java).forEach { provider ->
-            resolver.register(provider)
-        }
+        // H filters by DAGGER: only consumes providers with the Dagger flavor.
+        ServiceLoader.load(FeatureProvider::class.java)
+            .filter { it.flavor == Flavor.DAGGER }
+            .forEach { resolver.register(it) }
 
         _initialized = true
     }

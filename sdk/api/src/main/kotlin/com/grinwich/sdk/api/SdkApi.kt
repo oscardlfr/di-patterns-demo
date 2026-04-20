@@ -23,7 +23,12 @@ interface CoreApis {
  */
 interface MultiModuleSdkApi {
     val isInitialized: Boolean
-    val builtProvisionCount: Int
+    /**
+     * Número de contribuciones (features) no-persistentes construidas.
+     * Excluye provisiones persistentes (logger, context) que sobreviven a
+     * `shutdown()` por estar atadas al ciclo de vida de la app.
+     */
+    val builtFeatureCount: Int
     fun init(context: Context, config: SdkConfig)
     fun <T : Any> get(clazz: Class<T>): T
     fun shutdown()

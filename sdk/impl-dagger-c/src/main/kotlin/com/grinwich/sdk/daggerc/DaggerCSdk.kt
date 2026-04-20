@@ -2,7 +2,7 @@ package com.grinwich.sdk.daggerc
 
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.common.*
-import com.grinwich.sdk.feature.observability.AndroidSdkLogger
+import com.grinwich.sdk.feature.observability.buildLogger
 import java.util.ServiceLoader
 
 /**
@@ -19,7 +19,7 @@ import java.util.ServiceLoader
  */
 object DaggerCSdk {
 
-    internal val foundationLogger: SdkLogger = AndroidSdkLogger()
+    internal val foundationLogger: SdkLogger = buildLogger()
 
     private val _initializers = mutableMapOf<String, FeatureInitializer>()
     private var _available: Map<String, FeatureInitializer>? = null

@@ -1,19 +1,18 @@
 package com.grinwich.sdk.feature.observability
 
 import com.grinwich.sdk.api.SdkLogger
-import com.grinwich.sdk.contracts.KIFeatureProvider
-import com.grinwich.sdk.contracts.ObservabilityProvisions
+import com.grinwich.sdk.contracts.FeatureProvider
+import com.grinwich.sdk.contracts.Flavor
 import com.grinwich.sdk.contracts.Resolver
 
-class ObservabilityKIProvider : KIFeatureProvider<ObservabilityProvisions>(ObservabilityProvisions::class.java) {
+/** Observability provider with flavor [Flavor.KI]. */
+class ObservabilityKIProvider : FeatureProvider() {
+    override val flavor = Flavor.KI
+    override val services = setOf(SdkLogger::class.java)
+
+    /** Logger survives shutdown — tied to the app lifecycle, not the SDK lifecycle. */
     override val persistent = true
-    override val services: Map<Class<*>, (ObservabilityProvisions) -> Any> = mapOf(
-        SdkLogger::class.java to ObservabilityProvisions::logger,
-    )
-    override fun build(resolver: Resolver): ObservabilityProvisions {
-        val logger = AndroidSdkLogger()
-        return object : ObservabilityProvisions {
-            override fun logger() = logger
-        }
-    }
+
+    override fun build(resolver: Resolver): Map<Class<*>, Any> =
+        mapOf(SdkLogger::class.java to buildLogger())
 }

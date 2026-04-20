@@ -2,7 +2,7 @@ package com.grinwich.sdk.daggerb
 
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.common.*
-import com.grinwich.sdk.feature.observability.AndroidSdkLogger
+import com.grinwich.sdk.feature.observability.buildLogger
 
 /**
  * Approach B SDK facade — Per-Feature Components with CoreApis bridge.
@@ -15,7 +15,7 @@ import com.grinwich.sdk.feature.observability.AndroidSdkLogger
  */
 object DaggerBSdk {
 
-    internal val foundationLogger: SdkLogger = AndroidSdkLogger()
+    internal val foundationLogger: SdkLogger = buildLogger()
 
     enum class Feature {
         ENCRYPTION, AUTH, STORAGE, ANALYTICS, SYNC;

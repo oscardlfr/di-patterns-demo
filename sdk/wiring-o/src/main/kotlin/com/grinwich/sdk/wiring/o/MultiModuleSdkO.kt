@@ -2,7 +2,7 @@ package com.grinwich.sdk.wiring.o
 
 import android.content.Context
 import com.grinwich.sdk.api.*
-import com.grinwich.sdk.feature.observability.AndroidSdkLogger
+import com.grinwich.sdk.feature.observability.buildLogger
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.DependencyGraph
 import dev.zacsweers.metro.Provides
@@ -45,16 +45,16 @@ object MultiModuleSdkO : MultiModuleSdkApi {
     private var _initialized = false
 
     // Persistent — survive shutdown/reinit cycles (intentional: ApplicationContext-level singleton)
-    private var _logger: SdkLogger = AndroidSdkLogger()
+    private var _logger: SdkLogger = buildLogger()
 
     override val isInitialized: Boolean get() = _initialized
 
     /**
-     * Metro creates all bindings at graph construction. builtProvisionCount
+     * Metro creates all bindings at graph construction. builtFeatureCount
      * reflects feature groups (5 business features). Always 5 after init,
      * 0 after shutdown — this IS the data point: eager compile-time DI.
      */
-    override val builtProvisionCount: Int get() = if (_initialized) 5 else 0
+    override val builtFeatureCount: Int get() = if (_initialized) 5 else 0
 
     override fun init(context: Context, config: SdkConfig) {
         check(!_initialized) { "MultiModuleSdkO already initialized. Call shutdown() first." }

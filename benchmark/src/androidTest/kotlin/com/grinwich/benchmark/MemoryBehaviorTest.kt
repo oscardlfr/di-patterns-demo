@@ -53,7 +53,7 @@ class MemoryBehaviorTest {
         val sdk = sdkByName(name)
         val expected = EXPECTED_COUNTS[name]!!
         sdk.init(testContext, config)
-        assertEquals("$name: after init", expected.afterInit, sdk.builtProvisionCount)
+        assertEquals("$name: after init", expected.afterInit, sdk.builtFeatureCount)
     }
 
     // ════════════════════════════════════════════════════════
@@ -82,7 +82,7 @@ class MemoryBehaviorTest {
         val expected = EXPECTED_COUNTS[name]!!
         sdk.init(testContext, config)
         sdk.get(EncryptionApi::class.java)
-        assertEquals("$name: after get<Enc>", expected.afterEnc, sdk.builtProvisionCount)
+        assertEquals("$name: after get<Enc>", expected.afterEnc, sdk.builtFeatureCount)
     }
 
     // ════════════════════════════════════════════════════════
@@ -111,7 +111,7 @@ class MemoryBehaviorTest {
         val expected = EXPECTED_COUNTS[name]!!
         sdk.init(testContext, config)
         sdk.get(AnalyticsApi::class.java)
-        assertEquals("$name: after get<Ana>", expected.afterAna, sdk.builtProvisionCount)
+        assertEquals("$name: after get<Ana>", expected.afterAna, sdk.builtFeatureCount)
     }
 
     // ════════════════════════════════════════════════════════
@@ -140,7 +140,7 @@ class MemoryBehaviorTest {
         val expected = EXPECTED_COUNTS[name]!!
         sdk.init(testContext, config)
         sdk.get(SyncApi::class.java)
-        assertEquals("$name: after get<Sync>", expected.afterSync, sdk.builtProvisionCount)
+        assertEquals("$name: after get<Sync>", expected.afterSync, sdk.builtFeatureCount)
     }
 
     // ════════════════════════════════════════════════════════
@@ -170,7 +170,7 @@ class MemoryBehaviorTest {
         sdk.init(testContext, config)
         sdk.get(SyncApi::class.java)
         sdk.get(AnalyticsApi::class.java)
-        assertEquals("$name: full graph", expected.fullGraph, sdk.builtProvisionCount)
+        assertEquals("$name: full graph", expected.fullGraph, sdk.builtFeatureCount)
     }
 
     // ════════════════════════════════════════════════════════
@@ -199,7 +199,7 @@ class MemoryBehaviorTest {
         sdk.init(testContext, config)
         sdk.get(SyncApi::class.java)
         sdk.shutdown()
-        assertEquals("$name: after shutdown", 0, sdk.builtProvisionCount)
+        assertEquals("$name: after shutdown", 0, sdk.builtFeatureCount)
     }
 
     // ════════════════════════════════════════════════════════
@@ -266,9 +266,9 @@ class MemoryBehaviorTest {
             sdk.init(testContext, config)
             sdk.get(SyncApi::class.java)
             sdk.get(AnalyticsApi::class.java)
-            assertEquals(expected.fullGraph, sdk.builtProvisionCount)
+            assertEquals(expected.fullGraph, sdk.builtFeatureCount)
             sdk.shutdown()
-            assertEquals(0, sdk.builtProvisionCount)
+            assertEquals(0, sdk.builtFeatureCount)
         }
         forceGc()
         val heapAfter = usedHeapKb()
@@ -296,7 +296,7 @@ class MemoryBehaviorTest {
             sdk.get(AnalyticsApi::class.java)
             forceGc()
             val afterFull = usedHeapKb()
-            results.add("$name | init: +${afterInit - before} KB (${sdk.builtProvisionCount} prov) | full: +${afterFull - before} KB")
+            results.add("$name | init: +${afterInit - before} KB (${sdk.builtFeatureCount} prov) | full: +${afterFull - before} KB")
             sdk.shutdown()
         }
 

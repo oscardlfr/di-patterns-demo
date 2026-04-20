@@ -3,42 +3,38 @@ package com.grinwich.sdk.feature.auth
 import com.grinwich.sdk.api.AuthApi
 import com.grinwich.sdk.api.EncryptionApi
 import com.grinwich.sdk.api.SdkLogger
-import com.grinwich.sdk.contracts.AuthProvisions
 import com.grinwich.sdk.contracts.AuthScope
-import com.grinwich.sdk.contracts.CoreProvisions
-import com.grinwich.sdk.contracts.EncProvisions
 import dagger.Binds
 import dagger.BindsInstance
 import dagger.Component
 import dagger.Module
 
-/** Factory: builds AuthProvisions without exposing DaggerAuthComponent. */
-fun buildAuthProvisions(core: CoreProvisions, logger: SdkLogger, enc: EncProvisions): AuthProvisions =
-    DaggerAuthComponent.builder().core(core).logger(logger).enc(enc).build()
+/**
+ * Factory: builds [AuthApi] directly — the feature is single-service, so it
+ * does not need a Bundle. Public for wirings G / sdk-wiring baseline.
+ */
+fun buildAuthService(encryption: EncryptionApi, logger: SdkLogger): AuthApi =
+    DaggerAuthComponent.builder()
+        .encryption(encryption)
+        .logger(logger)
+        .build()
+        .auth()
 
 /**
- * AuthComponent — cross-feature dependency via provision interfaces.
+ * AuthComponent — single-service Dagger component.
  *
- * dependencies = [CoreProvisions, EncProvisions]:
- *   - CoreProvisions.logger() → Dagger can inject SdkLogger
- *   - EncProvisions.encryption() → Dagger can inject EncryptionApi
- *
- * This module NEVER imports EncComponent or CoreComponent.
- * It only knows contracts (provision interfaces) from di-contracts.
+ * Does not declare `dependencies = [...]`. Everything enters via `@BindsInstance`
+ * in the builder: `EncryptionApi` (cross-feature) and `SdkLogger` (infra).
  */
 @AuthScope
-@Component(
-    dependencies = [CoreProvisions::class, EncProvisions::class],
-    modules = [AuthModule::class],
-)
-interface AuthComponent : AuthProvisions {
+@Component(modules = [AuthModule::class])
+internal interface AuthComponent {
 
-    override fun auth(): AuthApi
+    fun auth(): AuthApi
 
     @Component.Builder interface Builder {
-        fun core(core: CoreProvisions): Builder
+        @BindsInstance fun encryption(encryption: EncryptionApi): Builder
         @BindsInstance fun logger(logger: SdkLogger): Builder
-        fun enc(enc: EncProvisions): Builder
         fun build(): AuthComponent
     }
 }

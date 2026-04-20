@@ -3,39 +3,30 @@ package com.grinwich.sdk.feature.enc
 import com.grinwich.sdk.api.EncryptionApi
 import com.grinwich.sdk.api.HashApi
 import com.grinwich.sdk.api.SdkLogger
-import com.grinwich.sdk.contracts.CoreProvisions
-import com.grinwich.sdk.contracts.EncProvisions
 import com.grinwich.sdk.contracts.EncScope
 import dagger.Binds
 import dagger.BindsInstance
 import dagger.Component
 import dagger.Module
 
-/** Factory: builds EncProvisions without exposing DaggerEncComponent. */
-fun buildEncProvisions(core: CoreProvisions, logger: SdkLogger): EncProvisions =
-    DaggerEncComponent.builder().core(core).logger(logger).build()
+/** Factory: builds the [EncBundle] without exposing [DaggerEncComponent] to the wiring. */
+fun buildEncBundle(logger: SdkLogger): EncBundle =
+    DaggerEncComponent.builder().logger(logger).build()
 
 /**
- * EncComponent depends on CoreProvisions (contract), NOT CoreComponent (impl).
+ * EncComponent — Dagger component implementing [EncBundle] (internal handle).
  *
- * Dagger sees CoreProvisions.logger() and CoreProvisions.config() as provision
- * methods — it can inject SdkLogger and SdkConfig into this component's modules.
- *
- * At runtime, sdk-wiring passes a CoreComponent instance (which implements
- * CoreProvisions) to the builder. This module never imports CoreComponent.
+ * Does not declare `dependencies = [...]`: receives `SdkLogger` via `@BindsInstance`.
+ * Everything it needs is passed from the provider in `build()`.
  */
 @EncScope
-@Component(
-    dependencies = [CoreProvisions::class],
-    modules = [EncModule::class],
-)
-interface EncComponent : EncProvisions {
+@Component(modules = [EncModule::class])
+internal interface EncComponent : EncBundle {
 
     override fun encryption(): EncryptionApi
     override fun hash(): HashApi
 
     @Component.Builder interface Builder {
-        fun core(core: CoreProvisions): Builder
         @BindsInstance fun logger(logger: SdkLogger): Builder
         fun build(): EncComponent
     }

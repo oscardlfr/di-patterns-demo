@@ -14,6 +14,7 @@ object SynSweetSpiProvider : KoinFeatureProvider("sync") {
         AuthApi::class.java,
         StorageApi::class.java,
         EncryptionApi::class.java,
+        SdkLogger::class.java,
     )
     override fun module() = module {
         single<SyncApi> { get<CreationTracker>().mark("sync"); DefaultSyncService(get(), get(), get(), get()) }

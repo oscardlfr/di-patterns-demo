@@ -8,8 +8,15 @@ multiplataforma, pero el wiring no compila para iOS, macOS ni WASM.
 La buena noticia: **convertirlos en Full KMP es trivial**. Basta con reemplazar
 `java.util.ServiceLoader` por sweet-spi (como hace Pattern N).
 
-Todos implementan la misma interfaz `MultiModuleSdkApi` y usan las mismas
-provision interfaces definidas en `di-contracts/`.
+Todos implementan la misma interfaz `MultiModuleSdkApi` y comparten el contrato
+neutro `FeatureProvider`/`KoinFeatureProvider` (post-refactor: sin `Provisions`
+globales; Bundles locales en cada feature-impl).
+
+**Abstraccion runtime-flexible (Req 12)**: **J, L, M cumplen**. Tras el refactor que
+movio `ObservabilityKoinProvider` dentro de feature-observability-impl, los tres
+declaran las feature-impls como `runtimeOnly(...)` — ninguno importa tipos de
+`com.grinwich.sdk.feature.*` en su codigo fuente. Son distribuibles como
+sdk-integration BYOF.
 
 ---
 
@@ -138,7 +145,7 @@ object MultiModuleSdkL : MultiModuleSdkApi {
     private var _koinApp: KoinApplication? = null
     private var _initialized = false
     private var _tracker: CreationTracker? = null
-    private var _logger: SdkLogger = AndroidSdkLogger()
+    private var _logger: SdkLogger = buildLogger()
 
     override val builtProvisionCount: Int get() = _tracker?.count ?: 0
 

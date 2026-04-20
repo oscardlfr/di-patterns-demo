@@ -5,7 +5,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.grinwich.sdk.api.*
-import com.grinwich.sdk.feature.observability.AndroidSdkLogger
+import com.grinwich.sdk.feature.observability.buildLogger
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.map
 
 class CoreApisImpl(
     override val config: SdkConfig,
-    override val logger: SdkLogger = AndroidSdkLogger(),
+    override val logger: SdkLogger = buildLogger(),
 ) : CoreApis
 
 // ============================================================
@@ -84,8 +84,8 @@ class DefaultAuthService(
 // ============================================================
 // Storage — THREE backends for benchmark comparison
 // ============================================================
-// StorageBackend enum is now in :features:feature-core-api (com.grinwich.sdk.api.StorageBackend)
-// so both monolithic and multi-module patterns share the same type.
+// StorageBackend enum vive en :sdk:api (com.grinwich.sdk.api.StorageBackend)
+// para que tanto patrones monolíticos como multi-module compartan el mismo tipo.
 
 /**
  * Fake backend — in-memory HashMap, zero I/O, zero Context.

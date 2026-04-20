@@ -1,1 +1,3 @@
 com.grinwich.sdk.feature.core.CoreProvider
+com.grinwich.sdk.feature.core.CorePureProvider
+com.grinwich.sdk.feature.core.CoreKIProvider

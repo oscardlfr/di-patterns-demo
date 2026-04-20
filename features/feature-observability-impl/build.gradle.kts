@@ -14,10 +14,13 @@ android {
 }
 
 dependencies {
-    implementation(project(":di-contracts"))  // ObservabilityProvisions, Resolver
+    implementation(project(":di-contracts"))  // FeatureProvider, Flavor, Resolver
     implementation(project(":features:observability-api"))  // SdkLogger
 
-    implementation(libs.dagger)
-    ksp(libs.dagger.compiler)
-    implementation(libs.javax.inject)
+    // Koin providers para L/M/N — así el wiring Koin descubre Observability
+    // por ServiceLoader/sweet-spi y deja de necesitar `implementation` directa.
+    implementation(project(":di-contracts-koin"))
+    implementation(libs.koin.core)
+    implementation(libs.sweet.spi.runtime)
+    ksp(libs.sweet.spi.processor)
 }

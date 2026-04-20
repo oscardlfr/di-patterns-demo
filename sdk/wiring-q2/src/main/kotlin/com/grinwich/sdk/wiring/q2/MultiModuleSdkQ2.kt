@@ -6,7 +6,7 @@ import com.grinwich.sdk.contracts.LazyCreationTracker
 import com.grinwich.sdk.feature.ana.HiltAnaModule
 import com.grinwich.sdk.feature.auth.HiltAuthModule
 import com.grinwich.sdk.feature.enc.HiltEncModule
-import com.grinwich.sdk.feature.observability.AndroidSdkLogger
+import com.grinwich.sdk.feature.observability.buildLogger
 import com.grinwich.sdk.feature.stor.HiltStorModule
 import com.grinwich.sdk.feature.syn.HiltSynModule
 import dagger.BindsInstance
@@ -58,16 +58,16 @@ object MultiModuleSdkQ2 : MultiModuleSdkApi {
     private var _tracker: LazyCreationTracker.Instance? = null
 
     // Persistent — survive shutdown/reinit cycles (intentional: ApplicationContext-level singleton)
-    private var _logger: SdkLogger = AndroidSdkLogger()
+    private var _logger: SdkLogger = buildLogger()
 
     override val isInitialized: Boolean get() = _initialized
 
     /**
      * Lazy Dagger: component is created at init but @Singleton bindings are
      * NOT instantiated until first access via dagger.Lazy.get().
-     * builtProvisionCount reads from [LazyCreationTracker].
+     * builtFeatureCount reads from [LazyCreationTracker].
      */
-    override val builtProvisionCount: Int get() = _tracker?.count ?: 0
+    override val builtFeatureCount: Int get() = _tracker?.count ?: 0
 
     override fun init(context: Context, config: SdkConfig) {
         check(!_initialized) { "MultiModuleSdkQ2 already initialized. Call shutdown() first." }
@@ -87,16 +87,19 @@ object MultiModuleSdkQ2 : MultiModuleSdkApi {
     override fun <T : Any> get(clazz: Class<T>): T {
         check(_initialized) { "MultiModuleSdkQ2 not initialized." }
         val component = _component ?: error("component is null")
-        val instance: Any = when (clazz) {
-            EncryptionApi::class.java -> component.encryption().get()
-            HashApi::class.java -> component.hash().get()
-            AuthApi::class.java -> component.auth().get()
-            StorageApi::class.java -> component.storage().get()
-            AnalyticsApi::class.java -> component.analytics().get()
-            SyncApi::class.java -> component.sync().get()
-            SdkLogger::class.java -> _logger
-            Context::class.java -> component.context()
-            else -> error("No binding for ${clazz.simpleName} in SdkComponent")
+        val tracker = _tracker ?: error("tracker is null")
+        val instance: Any = tracker.withActive {
+            when (clazz) {
+                EncryptionApi::class.java -> component.encryption().get()
+                HashApi::class.java -> component.hash().get()
+                AuthApi::class.java -> component.auth().get()
+                StorageApi::class.java -> component.storage().get()
+                AnalyticsApi::class.java -> component.analytics().get()
+                SyncApi::class.java -> component.sync().get()
+                SdkLogger::class.java -> _logger
+                Context::class.java -> component.context()
+                else -> error("No binding for ${clazz.simpleName} in SdkComponent")
+            }
         }
         return checkNotNull(clazz.cast(instance)) { "Cast failed for ${clazz.simpleName}" }
     }

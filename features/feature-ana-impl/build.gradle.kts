@@ -15,9 +15,8 @@ android {
 }
 
 dependencies {
-    implementation(project(":di-contracts"))  // CoreProvisions, AnaProvisions, Resolver
+    implementation(project(":di-contracts"))  // FeatureProvider, Flavor, Resolver
     implementation(project(":features:feature-ana-api"))  // AnalyticsApi
-    implementation(project(":features:feature-core-api"))  // SdkConfig
     implementation(project(":features:observability-api"))  // SdkLogger
 
     implementation(libs.dagger)

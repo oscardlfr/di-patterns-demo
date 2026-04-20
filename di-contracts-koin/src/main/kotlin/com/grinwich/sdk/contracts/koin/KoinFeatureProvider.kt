@@ -1,46 +1,51 @@
 package com.grinwich.sdk.contracts.koin
 
+import com.grinwich.sdk.contracts.FeatureContribution
 import dev.whyoleg.sweetspi.Service
 import org.koin.core.module.Module
 
 /**
- * Patterns L, M, N: feature provider that contributes a Koin Module.
+ * Patterns L, M, N, O, P, Q: provider that contributes a Koin `Module`.
  *
- * Unlike [com.grinwich.sdk.contracts.FeatureProvider] (which uses the custom
- * Resolver for DFS), KoinFeatureProvider delegates dependency resolution
- * entirely to Koin. Each feature-impl declares its Koin module, services,
- * and required deps.
+ * Unlike [com.grinwich.sdk.contracts.FeatureProvider] (which delegates
+ * resolution to the imperative `Resolver`), KoinFeatureProvider delegates
+ * resolution entirely to Koin. Each feature-impl declares its `Module`, the
+ * services it exposes, and (optionally) the services it requires.
+ *
+ * Implements [FeatureContribution]: shares the `services` + `persistent`
+ * header with the Resolver axis. What diverges (declarative `module()` DSL
+ * vs imperative `build(resolver)`) stays outside the shared contract.
  *
  * Discovery:
- * - L/M: java.util.ServiceLoader via hand-written META-INF/services (class providers)
- * - N: sweet-spi via @ServiceProvider annotation (object providers, KMP-compatible)
+ * - L/M: `java.util.ServiceLoader` with a hand-written META-INF/services
+ * - N: sweet-spi via `@ServiceProvider` (objects, KMP-compatible)
  *
- * @Service enables sweet-spi to recognize this as a discoverable service type.
+ * @Service lets sweet-spi recognize it as a discoverable type.
  *
- * @param featureName Human-readable name for tracking/debugging
+ * @param featureName Human-readable name for tracking/debug
  */
 @Service
-abstract class KoinFeatureProvider(val featureName: String) {
+abstract class KoinFeatureProvider(val featureName: String) : FeatureContribution {
 
-    /** Returns a Koin Module with this feature's bindings. */
+    /** Returns a Koin `Module` with this feature's bindings. */
     abstract fun module(): Module
 
-    /** Service interfaces this provider exposes (e.g., EncryptionApi::class.java). */
-    abstract val services: Set<Class<*>>
+    /** Service interfaces this provider exposes (e.g. `EncryptionApi::class.java`). */
+    abstract override val services: Set<Class<*>>
 
     /**
-     * Service interfaces this feature requires from other providers.
-     * Used by Pattern M for cascade loading: when this provider's module
-     * is loaded on demand, requiredServices triggers loading of
-     * providers that expose those services first.
+     * Service interfaces this feature REQUIRES from other providers.
+     * Used by Pattern M (cascade loading): when this module is loaded on
+     * demand, `requiredServices` first triggers loading of providers that
+     * expose those services.
      *
-     * Pattern L ignores this (all modules loaded eagerly).
+     * Pattern L ignores this (all modules are loaded eagerly).
      */
     open val requiredServices: Set<Class<*>> = emptySet()
 
     /**
-     * If true, this provider survives shutdown() and persists across
-     * init/shutdown cycles (e.g., logger, context).
+     * If `true`, this provider survives `shutdown()` and persists across
+     * init/shutdown cycles (e.g. logger, applicationContext).
      */
-    open val persistent: Boolean = false
+    override val persistent: Boolean = false
 }

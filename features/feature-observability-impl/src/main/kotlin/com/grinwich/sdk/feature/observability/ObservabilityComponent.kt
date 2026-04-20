@@ -1,20 +1,22 @@
 package com.grinwich.sdk.feature.observability
 
 import com.grinwich.sdk.api.SdkLogger
-import com.grinwich.sdk.contracts.ObservabilityProvisions
-import dagger.Binds
-import dagger.Component
-import dagger.Module
-import javax.inject.Singleton
 
-@Singleton
-@Component(modules = [ObservabilityModule::class])
-interface ObservabilityComponent : ObservabilityProvisions {
-    override fun logger(): SdkLogger
-}
+/**
+ * Factory: returns a process-scoped [SdkLogger] singleton.
+ *
+ * The logger is tied to the app lifecycle, not the SDK lifecycle — it must
+ * survive every init/shutdown cycle so correlation ids, buffers and file
+ * handles remain consistent. Every caller (`ObservabilityProvider`,
+ * `ObservabilityKoinProvider`, `ObservabilitySweetSpiProvider`,
+ * `observabilityAutoEntry()`, …) goes through this factory, so all wirings
+ * share the same instance regardless of how many times the SDK is re-initialized.
+ *
+ * Observability is single-service and has no injected dependencies, so it does
+ * not need Dagger — a lazy-initialised [AndroidSdkLogger] is sufficient.
+ */
+fun buildLogger(): SdkLogger = SharedLogger.instance
 
-@Module
-internal abstract class ObservabilityModule {
-    @Binds @Singleton
-    abstract fun logger(impl: AndroidSdkLogger): SdkLogger
+private object SharedLogger {
+    val instance: SdkLogger by lazy { AndroidSdkLogger() }
 }

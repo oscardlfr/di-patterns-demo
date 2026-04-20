@@ -20,6 +20,7 @@ No todos tienen el mismo peso -- depende del contexto del proyecto.
 | 9 | Seguridad en compilacion | Los bindings faltantes se detectan en tiempo de compilacion? |
 | 10 | Soporte KMP | Funciona en iOS, macOS, Desktop? |
 | 11 | Wiring del facade inmutable | El dispatcher `get<T>(Class)` NO requiere editar ramas manualmente al anadir una API? |
+| 12 | Abstraccion runtime-flexible | El modulo sdk-integration declara las feature-impls como `runtimeOnly` (no compile-time), permitiendo a la app elegir versiones o subsets? |
 
 ### Por que "Auto-registro (grafo)" y "Wiring del facade inmutable" son dos criterios distintos
 
@@ -50,6 +51,33 @@ Un patron que cumple Req 6 pero no Req 11 (O2, P2) **parece** zero-touch pero de
 deuda oculta en el facade. Un patron que cumple ambos (H, E2, N, Koin) es zero-touch
 end-to-end.
 
+### Por que "Abstraccion runtime-flexible" es un criterio distinto
+
+Los Req 5 (Independencia del core) y Req 7 (Binario eficiente) hablan de **aislamiento a
+nivel de codigo fuente** dentro de un solo binario. Req 12 es diferente: habla de como se
+**distribuye** el modulo sdk-integration (`sdk:wiring-X`).
+
+Un sdk-integration cumple Req 12 si su `build.gradle.kts` declara las feature-impls como
+`runtimeOnly(project(":features:feature-*-impl"))` en vez de `implementation(...)`. Esto
+permite dos modelos de distribucion:
+
+- **Bundled** (baterias incluidas): el artefacto publicado contiene `runtimeOnly` con las
+  feature-impls canonicas. La app consumidora solo hace `implementation(sdk-integration)`.
+- **BYOF** (Bring Your Own Features): el artefacto se publica sin `runtimeOnly`. La app
+  declara `implementation(sdk-integration)` + `runtimeOnly(feature-auth-impl:1.2.0)` +
+  `runtimeOnly(feature-enc-impl:1.5.0)`, eligiendo versiones concretas.
+
+Para que este modelo funcione, el sdk-integration **no puede importar tipos de
+feature-*-impl en su codigo fuente**. Si lo hace (p.ej. `import
+com.grinwich.sdk.feature.enc.buildEncBundle`), la dep tiene que ser `implementation`, el
+consumer no puede cambiar la version, y falla Req 12.
+
+Solo los patrones con **descubrimiento runtime puro** (ServiceLoader, sweet-spi, manifest
+merger) cumplen Req 12 sin concesiones. Compile-time DI (Metro, kotlin-inject-anvil, Hilt)
+es estructuralmente incompatible: el proceso de merge (`@ContributesTo`/`@InstallIn`) se
+ejecuta al compilar el sdk-integration y necesita las feature-impls en el classpath de
+compilacion.
+
 ---
 
 ## Cumplimiento por Patron
@@ -71,6 +99,7 @@ end-to-end.
 | 9 | Seguridad en compilacion | PARCIAL | Por feature, no global. CoreApis no validado |
 | 10 | KMP | NO | Dagger es JVM |
 | 11 | Wiring del facade inmutable | NO | `when (clazz)` en `DaggerBSdk.get()` crece por cada servicio (confirmado en codigo) |
+| 12 | Abstraccion runtime-flexible | NO | Monolitico: no hay modulo wiring separado; features compiladas en `impl-dagger-b` |
 
 #### Dagger C -- ServiceLoader Discovery
 
@@ -87,6 +116,7 @@ end-to-end.
 | 9 | Seguridad en compilacion | PARCIAL | Per-feature + descubrimiento runtime |
 | 10 | KMP | NO | ServiceLoader es JVM |
 | 11 | Wiring del facade inmutable | NO | `when (serviceClass)` en cada Component wrapper (5 lugares confirmados en InternalComponents.kt) |
+| 12 | Abstraccion runtime-flexible | NO | Monolitico: features compiladas en `impl-dagger-c` |
 
 #### Koin
 
@@ -103,6 +133,7 @@ end-to-end.
 | 9 | Seguridad en compilacion | NO | Resolucion runtime -- errores en ejecucion |
 | 10 | KMP | OK | Soporte completo (JVM + Native + JS) |
 | 11 | Wiring del facade inmutable | OK | `koin.get(clazz.kotlin)` -- runtime registry nativo, sin `when` |
+| 12 | Abstraccion runtime-flexible | NO | Monolitico: features compiladas en `impl-koin` |
 
 #### Hybrid (Koin SDK + Dagger 2 app)
 
@@ -119,6 +150,7 @@ end-to-end.
 | 9 | Seguridad en compilacion | PARCIAL | Koin runtime + Dagger compile-time en el bridge |
 | 10 | KMP | OK | SDK KMP, bridge solo Android |
 | 11 | Wiring del facade inmutable | OK | Hereda de Koin -- `koin.get()` runtime sin `when` |
+| 12 | Abstraccion runtime-flexible | NO | Monolitico (hereda de Koin) |
 
 ### Patrones Multi-Modulo
 
@@ -137,6 +169,7 @@ end-to-end.
 | 9 | Seguridad en compilacion | OK | Missing binding o parent = error de compilacion |
 | 10 | KMP | NO | Dagger es JVM |
 | 11 | Wiring del facade inmutable | NO | `when (clazz)` en `MultiModuleSdk.get()` crece por API |
+| 12 | Abstraccion runtime-flexible | NO | `implementation(feature-*-impl)` — wiring importa `DaggerXxxComponent` en codigo fuente |
 
 #### E2 -- Auto-Init Registry (wiring-e2)
 
@@ -153,6 +186,7 @@ end-to-end.
 | 9 | Seguridad en compilacion | OK | Explicit bindings. Missing binding = error Dagger |
 | 10 | KMP | NO | Dagger es JVM |
 | 11 | Wiring del facade inmutable | OK | `registry.get(clazz)` -- HashMap lookup, sin `when` |
+| 12 | Abstraccion runtime-flexible | NO | `implementation(feature-*-impl)` — Entries.kt importa factories (`buildEncBundle`, ...) en codigo fuente |
 
 #### G -- Factory Functions (wiring-g)
 
@@ -169,6 +203,7 @@ end-to-end.
 | 9 | Seguridad en compilacion | OK | Dagger valida cada Component |
 | 10 | KMP | NO | Dagger es JVM |
 | 11 | Wiring del facade inmutable | NO | `when (clazz)` en `MultiModuleSdkG.get()` crece por API |
+| 12 | Abstraccion runtime-flexible | NO | `implementation(feature-*-impl)` — wiring importa factories en codigo fuente |
 
 #### H -- Auto-Discovery FeatureProviders (wiring-h)
 
@@ -185,6 +220,7 @@ end-to-end.
 | 9 | Seguridad en compilacion | PARCIAL | Dagger valida cada Component, pero provider faltante es error runtime |
 | 10 | KMP | NO | Dagger es JVM |
 | 11 | Wiring del facade inmutable | OK | `resolver.get(clazz)` -- HashMap lookup, sin `when` |
+| 12 | Abstraccion runtime-flexible | OK | `runtimeOnly(feature-*-impl)`. Cero imports de `com.grinwich.sdk.feature.*` en el codigo del wiring |
 
 #### I -- Pure Resolver (wiring-i)
 
@@ -201,6 +237,7 @@ end-to-end.
 | 9 | Seguridad en compilacion | NO | Zero DI framework = zero validacion en compilacion. Errores runtime |
 | 10 | KMP | PARCIAL | Sin Dagger. Constructor injection puro. ServiceLoader es JVM, pero la logica es portable |
 | 11 | Wiring del facade inmutable | OK | Mismo Resolver que H -- HashMap lookup, sin `when` |
+| 12 | Abstraccion runtime-flexible | OK | `runtimeOnly(feature-*-impl)`. Mismo patron que H |
 
 #### J -- kotlin-inject (wiring-j)
 
@@ -217,6 +254,7 @@ end-to-end.
 | 9 | Seguridad en compilacion | PARCIAL | kotlin-inject valida cada Component, pero provider faltante es error runtime (= H) |
 | 10 | KMP | PARCIAL | kotlin-inject soporta KMP. ServiceLoader es JVM, pero podria sustituirse por expect/actual |
 | 11 | Wiring del facade inmutable | OK | Mismo Resolver que H -- HashMap lookup, sin `when` |
+| 12 | Abstraccion runtime-flexible | OK | `runtimeOnly(feature-*-impl)`. Mismo patron que H |
 
 #### K -- AndroidManifest Discovery (wiring-k)
 
@@ -233,6 +271,7 @@ end-to-end.
 | 9 | Seguridad en compilacion | PARCIAL | Dagger valida cada Component, pero provider faltante es error runtime (= H) |
 | 10 | KMP | NO | AndroidManifest + PackageManager son Android-only |
 | 11 | Wiring del facade inmutable | OK | Mismo Resolver que H -- HashMap lookup, sin `when` |
+| 12 | Abstraccion runtime-flexible | OK | `runtimeOnly(feature-*-impl)`. Mismo patron que H |
 
 #### L -- Koin + ServiceLoader Eager (wiring-l)
 
@@ -249,6 +288,7 @@ end-to-end.
 | 9 | Seguridad en compilacion | NO | Koin resuelve en runtime. Binding faltante = crash en ejecucion |
 | 10 | KMP | PARCIAL | Koin es KMP, pero ServiceLoader es JVM-only. Requiere sustituir por sweet-spi para KMP completo |
 | 11 | Wiring del facade inmutable | OK | `koin.get(clazz.kotlin)` -- sin `when` |
+| 12 | Abstraccion runtime-flexible | OK | `runtimeOnly(feature-*-impl)`. Tras mover `ObservabilityKoinProvider` a feature-observability-impl, L no importa ningun tipo de feature-* en su codigo fuente |
 
 #### M -- Koin + ServiceLoader Lazy loadModules (wiring-m)
 
@@ -265,6 +305,7 @@ end-to-end.
 | 9 | Seguridad en compilacion | NO | Koin resuelve en runtime. Binding faltante = crash en ejecucion |
 | 10 | KMP | PARCIAL | Koin es KMP, pero ServiceLoader es JVM-only. Requiere sustituir por sweet-spi para KMP completo |
 | 11 | Wiring del facade inmutable | OK | `koin.get(clazz.kotlin)` -- sin `when` |
+| 12 | Abstraccion runtime-flexible | OK | `runtimeOnly(feature-*-impl)`. Mismo patron que L |
 
 #### N -- sweet-spi + Koin (wiring-n)
 
@@ -281,6 +322,7 @@ end-to-end.
 | 9 | Seguridad en compilacion | NO | Koin resuelve en runtime. Binding faltante = crash en ejecucion |
 | 10 | KMP | OK | sweet-spi genera expect/actual para cada target. Koin es full KMP |
 | 11 | Wiring del facade inmutable | OK | `koin.get(clazz.kotlin)` -- sin `when` |
+| 12 | Abstraccion runtime-flexible | OK | `runtimeOnly(feature-*-impl)`. `ObservabilitySweetSpiProvider` descubierto via sweet-spi |
 
 #### O -- Metro Eager (wiring-o)
 
@@ -297,6 +339,7 @@ end-to-end.
 | 9 | Seguridad en compilacion | OK | Compiler plugin valida grafo completo. Binding faltante = error de compilacion |
 | 10 | KMP | OK | Compiler plugin genera codigo para cada target KMP |
 | 11 | Wiring del facade inmutable | NO | `when (clazz)` manual en `MultiModuleSdkO.get()` -- 1 rama por API. Mitigable con KSP codegen propio |
+| 12 | Abstraccion runtime-flexible | NO | Metro compile-time merge: `@ContributesTo(AppScope)` requiere feature-impls en classpath de compilacion del wiring |
 
 #### O2 -- Metro Lazy (wiring-o2)
 
@@ -313,6 +356,7 @@ end-to-end.
 | 9 | Seguridad en compilacion | OK | Compiler plugin valida grafo completo. Binding faltante = error de compilacion |
 | 10 | KMP | OK | Compiler plugin genera codigo para cada target KMP |
 | 11 | Wiring del facade inmutable | NO | `when (clazz)` manual en `MultiModuleSdkO2.get()` -- 1 rama por API. Mitigable con KSP codegen propio |
+| 12 | Abstraccion runtime-flexible | NO | Idem O — Metro compiler plugin no puede fusionar contribuciones que no ve en compile |
 
 #### P -- kotlin-inject-anvil Eager (wiring-p)
 
@@ -329,6 +373,7 @@ end-to-end.
 | 9 | Seguridad en compilacion | PARCIAL | KSP valida cada Component, pero merge graph puede tener gaps detectados en link |
 | 10 | KMP | OK | kotlin-inject es full KMP. KSP genera per-target |
 | 11 | Wiring del facade inmutable | NO | `when (clazz)` manual en `MultiModuleSdkP.get()` -- 1 rama por API. Mitigable con KSP codegen propio |
+| 12 | Abstraccion runtime-flexible | NO | kotlin-inject-anvil KSP merge: `@MergeComponent(SdkScope)` requiere feature-impls en classpath |
 
 #### P2 -- kotlin-inject-anvil Lazy (wiring-p2)
 
@@ -345,6 +390,7 @@ end-to-end.
 | 9 | Seguridad en compilacion | PARCIAL | KSP valida cada Component, pero merge graph puede tener gaps detectados en link |
 | 10 | KMP | OK | kotlin-inject es full KMP. KSP genera per-target |
 | 11 | Wiring del facade inmutable | NO | `when (clazz)` manual en `MultiModuleSdkP2.get()` -- 1 rama por API. Mitigable con KSP codegen propio |
+| 12 | Abstraccion runtime-flexible | NO | Idem P |
 
 #### Q -- Hilt-style Dagger Eager (wiring-q)
 
@@ -361,6 +407,7 @@ end-to-end.
 | 9 | Seguridad en compilacion | OK | Dagger valida grafo completo. Binding faltante = error de compilacion |
 | 10 | KMP | NO | Dagger es JVM-only. No soporta iOS, macOS ni Desktop nativos |
 | 11 | Wiring del facade inmutable | NO | `when (clazz)` manual en `MultiModuleSdkQ.get()` -- 1 rama por API. Mitigable con KSP codegen propio |
+| 12 | Abstraccion runtime-flexible | NO | Hilt annotation processor merge: `@InstallIn(SingletonComponent)` requiere feature-impls en classpath |
 
 #### Q2 -- Hilt-style Dagger Lazy (wiring-q2)
 
@@ -377,6 +424,7 @@ end-to-end.
 | 9 | Seguridad en compilacion | OK | Dagger valida grafo completo. Binding faltante = error de compilacion |
 | 10 | KMP | NO | Dagger es JVM-only. No soporta iOS, macOS ni Desktop nativos |
 | 11 | Wiring del facade inmutable | NO | `when (clazz)` manual en `MultiModuleSdkQ2.get()` -- 1 rama por API. Mitigable con KSP codegen propio |
+| 12 | Abstraccion runtime-flexible | NO | Idem Q |
 
 ---
 
@@ -395,7 +443,8 @@ end-to-end.
 | 9. Compile-time | ~ | ~ | NO | ~ | OK | OK | OK | ~ | NO | ~ | ~ | NO | NO | NO | OK | OK | ~ | ~ | OK | OK |
 | 10. KMP | NO | NO | OK | OK | NO | NO | NO | NO | ~ | ~ | NO | ~ | ~ | OK | OK | OK | OK | OK | NO | NO |
 | **11. Facade inmutable** | **NO** | **NO** | **OK** | **OK** | **NO** | **OK** | **NO** | **OK** | **OK** | **OK** | **OK** | **OK** | **OK** | **OK** | **NO** | **NO** | **NO** | **NO** | **NO** | **NO** |
-| **Total OK** | **4** | **5** | **10** | **10** | **8** | **8** | **8** | **8** | **8** | **8** | **8** | **8** | **7** | **9** | **8** | **9** | **7** | **8** | **5** | **6** |
+| **12. Abstr. runtime-flex** | **NO** | **NO** | **NO** | **NO** | **NO** | **NO** | **NO** | **OK** | **OK** | **OK** | **OK** | **OK** | **OK** | **OK** | **NO** | **NO** | **NO** | **NO** | **NO** | **NO** |
+| **Total OK** | **4** | **5** | **10** | **10** | **8** | **8** | **8** | **9** | **9** | **9** | **9** | **9** | **8** | **10** | **8** | **9** | **7** | **8** | **5** | **6** |
 
 **Leyenda:** OK = cumple, ~ = cumple parcialmente, NO = no cumple
 
@@ -433,6 +482,22 @@ end-to-end.
   spot KMP con compile-time safety completa.
 
 - **Los totales numericos no capturan la forma del compromiso**. Dos patrones con mismo
-  total (p.ej. O2=9, N=9) pueden estar optimizando para ejes opuestos. Leer el total solo
+  total (p.ej. O2=9, N=10) pueden estar optimizando para ejes opuestos. Leer el total solo
   como "cuantos requisitos cumple", no como ranking directo. El ranking real depende de
   que ejes valora cada proyecto (compile-time vs runtime, KMP vs Android-only, etc).
+
+- **Req 12 redefine el "sweet spot" para distribucion**: solo H, I, J, K, L, M, N cumplen
+  los tres criterios zero-touch distribuible (6 + 11 + 12). Estos 7 patrones permiten
+  publicar el sdk-integration como artefacto independiente (`runtimeOnly(features)`) y
+  dejar que la app consumidora elija versiones de feature-impl a la carta (modelo BYOF).
+  Los 13 patrones restantes atan el sdk-integration a versiones concretas de feature-impl
+  en compile-time.
+
+- **Compile-time DI (O/O2/P/P2/Q/Q2) estructuralmente no puede cumplir Req 12**: el merge
+  de `@ContributesTo`/`@InstallIn` ocurre al compilar el sdk-integration. No hay
+  workaround sin cambiar el paradigma a "consumer-side merge" (que obliga a la app a usar
+  el mismo framework DI que el SDK).
+
+- **N (10/12)** se consolida como el top KMP zero-touch distribuible. Tras el refactor
+  que movio `ObservabilityKoinProvider` dentro de feature-observability-impl, L/M/N
+  pasaron de 8 a 10 OKs y lograron Req 12.

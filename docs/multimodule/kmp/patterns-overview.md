@@ -5,8 +5,14 @@ Windows, WASM-JS, WASM-WASI). No dependen de `java.util.ServiceLoader`,
 `android.content.Context`, ni ninguna API platform-specific en su mecanismo
 de discovery o wiring.
 
-Todos implementan la misma interfaz `MultiModuleSdkApi` y usan las mismas
-provision interfaces definidas en `di-contracts/`.
+Todos implementan la misma interfaz `MultiModuleSdkApi` y comparten el contrato
+neutro `FeatureProvider`/`KoinFeatureProvider` de `di-contracts`/`di-contracts-koin`
+(post-refactor: sin `Provisions` globales, Bundles locales en cada feature-impl).
+
+**Abstraccion runtime-flexible (Req 12)**: solo **N** cumple en este grupo. O/O2/P/P2
+ejecutan merge de `@ContributesTo`/`@MergeComponent` en tiempo de compilacion del
+wiring — estructuralmente incompatible con `runtimeOnly(features)`. N usa sweet-spi
+discovery puro y publica el sdk-integration sin acoplar feature-impls en compile.
 
 ---
 
@@ -33,7 +39,7 @@ object MultiModuleSdkN : MultiModuleSdkApi {
     private var _koinApp: KoinApplication? = null
     private var _initialized = false
     private var _tracker: CreationTracker? = null
-    private var _logger: SdkLogger = AndroidSdkLogger()
+    private var _logger: SdkLogger = buildLogger()
 
     override val isInitialized: Boolean get() = _initialized
     override val builtProvisionCount: Int get() = _tracker?.count ?: 0
@@ -154,7 +160,7 @@ object MultiModuleSdkO : MultiModuleSdkApi {
 
     private var _graph: SdkGraph? = null
     private var _initialized = false
-    private var _logger: SdkLogger = AndroidSdkLogger()
+    private var _logger: SdkLogger = buildLogger()
 
     override val isInitialized: Boolean get() = _initialized
     override val builtProvisionCount: Int get() = if (_initialized) 5 else 0
@@ -246,7 +252,7 @@ object MultiModuleSdkO2 : MultiModuleSdkApi {
     private var _graph: SdkGraph? = null
     private var _initialized = false
     private var _tracker: LazyCreationTracker.Instance? = null
-    private var _logger: SdkLogger = AndroidSdkLogger()
+    private var _logger: SdkLogger = buildLogger()
 
     override val builtProvisionCount: Int get() = _tracker?.count ?: 0
 
@@ -347,7 +353,7 @@ object MultiModuleSdkP : MultiModuleSdkApi {
 
     private var _component: SdkComponent? = null
     private var _initialized = false
-    private var _logger: SdkLogger = AndroidSdkLogger()
+    private var _logger: SdkLogger = buildLogger()
 
     override val isInitialized: Boolean get() = _initialized
     override val builtProvisionCount: Int get() = if (_initialized) 5 else 0
@@ -446,7 +452,7 @@ object MultiModuleSdkP2 : MultiModuleSdkApi {
     private var _component: SdkComponent? = null
     private var _initialized = false
     private var _tracker: LazyCreationTracker.Instance? = null
-    private var _logger: SdkLogger = AndroidSdkLogger()
+    private var _logger: SdkLogger = buildLogger()
 
     override val builtProvisionCount: Int get() = _tracker?.count ?: 0
 

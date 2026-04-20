@@ -15,12 +15,11 @@ android {
 }
 
 dependencies {
-    implementation(project(":di-contracts"))  // All provision interfaces + SynScope + Resolver
+    implementation(project(":di-contracts"))  // FeatureProvider, Flavor, Resolver, SynScope
     implementation(project(":features:feature-syn-api"))  // SyncApi, SyncResult
     implementation(project(":features:feature-enc-api"))  // EncryptionApi (cross-feature dep)
     implementation(project(":features:feature-auth-api"))  // AuthApi (cross-feature dep)
     implementation(project(":features:feature-stor-api"))  // StorageApi (cross-feature dep)
-    implementation(project(":features:feature-core-api"))  // SdkConfig
     implementation(project(":features:observability-api"))  // SdkLogger
 
     implementation(libs.dagger)

@@ -25,7 +25,7 @@ private const val META_PREFIX = "com.grinwich.sdk.providers:"
  */
 object ComponentDiscovery {
 
-    fun discover(context: Context): List<FeatureProvider<*>> {
+    fun discover(context: Context): List<FeatureProvider> {
         val component = ComponentName(context, ComponentDiscoveryService::class.java)
         val serviceInfo = context.packageManager.getServiceInfo(
             component,

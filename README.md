@@ -56,7 +56,7 @@ sample-dagger-c/    -> Consumidor de DaggerCSdk
 sample-hybrid/      -> KoinSdk + puente Dagger 2
 sample-multimodule/ -> Consumidor de MultiModuleSdkH (Pattern H, provision interfaces)
 
-benchmark/          -> 453 tests (19 monoliticos + 144 multi-modulo + 37 scale + 97 memory + 156 stress)
+benchmark/          -> 630 tests (31 monoliticos + 192 multi-modulo + 67 scale + 128 memory + 212 stress)
 
 docs/               -> Documentacion tecnica (espanol)
   monolithic/       -> Patrones monoliticos (A, B, C, Koin, Hybrid)
@@ -243,7 +243,7 @@ Resultados en `benchmark/build/outputs/connected_android_test_additional_output/
 | [Requisitos](docs/shared/requirements.md) | 11 requisitos (incluye criterio bidimensional auto-registro grafo + facade inmutable), cumplimiento por patron |
 | [Conceptos DI](docs/shared/consumer-isolation.md) | DI vs Service Locator, niveles de aislamiento |
 | [Dependencias cruzadas](docs/shared/cross-feature-deps.md) | Como resuelve cada approach las cross-deps |
-| [Configuracion benchmarks](docs/shared/benchmark-configuration.md) | Guia para ejecutar los 453 tests |
+| [Configuracion benchmarks](docs/shared/benchmark-configuration.md) | Guia para ejecutar los 630 tests |
 
 ## Stack
 

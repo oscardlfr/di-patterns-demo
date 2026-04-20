@@ -12,7 +12,8 @@
 **Metrica reportada:** mediana de `timeNs` (no media -- ignora outliers por GC o throttle)  
 **Build type:** release (`isMinifyEnabled = false` -- sin R8, mide codigo real)  
 **Errores suprimidos:** EMULATOR, LOW-BATTERY, ACTIVITY-MISSING  
-**Fecha:** 2026-04-12
+**Fecha:** 2026-04-19 (post-refactor: logger singleton via `buildLogger()`, Big-O O(1) dedup en `Resolver.persistentByClass`, `AtomicInteger` para `builtFeatureCount`)  
+**Run dedicado:** `patterns=H` filtro aplicado para aislar del efecto cold-startup inter-pattern
 
 ---
 
@@ -67,7 +68,7 @@ Total: 35 tests (12 benchmarks + 9 memoria + 14 stress y concurrencia). Todos pa
 
 ---
 
-**initCold** | 106,865 ns
+**initCold** | 86,254 ns
 ```
 1. sdk.init(context, config)
 2. ServiceLoader.load(FeatureProvider::class.java) escanea META-INF/services
@@ -80,7 +81,7 @@ ninguna provision (laziness total).
 
 ---
 
-**resolveFirst** | 202 ns
+**resolveFirst** | 1 ns (JIT DCE post-refactor; pre-refactor 202 ns)
 ```
 1. sdk.get(EncryptionApi::class.java)
 2. resolvedServices[clazz] -> cache hit en ConcurrentHashMap
@@ -128,7 +129,7 @@ La cascada mas profunda del grafo: 4 niveles de DFS recursivo. Construye 6 provi
 
 ---
 
-**crossFeatureOp** | 1,284,479 ns
+**crossFeatureOp** | 1,225,771 ns
 ```
 1. sdk.init(context, config)
 2. auth = sdk.get(AuthApi)
@@ -145,7 +146,7 @@ persistencia a disco (sync.sync()).
 
 ---
 
-**e2eStartup** | 1,745,145 ns
+**e2eStartup** | 806,472 ns (−53% vs pre-refactor por logger singleton)
 ```
 1. sdk.init(context, config)                     -- ~106,865 ns
 2. sdk.get() de los 6 servicios                -- cascade DFS
@@ -157,7 +158,7 @@ en las operaciones cross-feature.
 
 ---
 
-**stress_initShutdown** | 99,293 ns
+**stress_initShutdown** | 84,346 ns
 ```
 1. sdk.init(context, config)
 2. sdk.get(EncryptionApi)
@@ -167,7 +168,7 @@ Un ciclo completo de vida del SDK. Mide el overhead de init + build de 1 feature
 
 ---
 
-**stress_concurrent** | 515,355 ns
+**stress_concurrent** | 385,952 ns (−25% vs pre-refactor por menos GC pressure)
 ```
 1. sdk.init(context, config)
 2. Lanzar 4 threads simultaneos:
@@ -182,7 +183,7 @@ del Resolver serializa las construcciones pero permite lookups concurrentes.
 
 ---
 
-**stress_resolveAll** | 212 ns
+**stress_resolveAll** | 139 ns
 ```
 1. (grafo ya construido)
 2. sdk.get(EncryptionApi)
@@ -197,7 +198,7 @@ resolveFirst (202 ns). Puro ConcurrentHashMap lookup.
 
 ---
 
-**stress_selective** | 155,533 ns
+**stress_selective** | 92,371 ns
 ```
 1. sdk.init(context, config)
 2. sdk.get(EncryptionApi)   -- solo 1 de 6 features
@@ -208,7 +209,7 @@ init + build de 1 feature + shutdown completo.
 
 ---
 
-**stress_reInit** | 362,649 ns
+**stress_reInit** | 185,812 ns (−49% vs pre-refactor por logger singleton)
 ```
 1. sdk.init(context, config)
 2. sdk.get() de todos los servicios
@@ -222,7 +223,7 @@ individuales. Verifica que no hay degradacion entre ciclos.
 
 ---
 
-**stress_incremental** | 97,694 ns
+**stress_incremental** | 85,365 ns
 ```
 1. sdk.init(context, config)
 2. sdk.get(EncryptionApi)    -- 3 provisions (Obs+Core+Enc)

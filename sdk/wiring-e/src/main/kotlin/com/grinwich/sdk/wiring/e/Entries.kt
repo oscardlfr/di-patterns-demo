@@ -1,137 +1,114 @@
 package com.grinwich.sdk.wiring.e
 
 import com.grinwich.sdk.api.*
-import com.grinwich.sdk.contracts.*
-import com.grinwich.sdk.feature.ana.DaggerAnaComponent
-import com.grinwich.sdk.feature.auth.DaggerAuthComponent
-import com.grinwich.sdk.feature.core.DaggerCoreComponent
-import com.grinwich.sdk.feature.enc.DaggerEncComponent
-import com.grinwich.sdk.feature.stor.DaggerStorComponent
-import com.grinwich.sdk.feature.syn.DaggerSynComponent
+import com.grinwich.sdk.contracts.ServiceEntry
+import com.grinwich.sdk.feature.ana.AnaFeatureId
+import com.grinwich.sdk.feature.ana.buildAnalyticsService
+import com.grinwich.sdk.feature.auth.AuthFeatureId
+import com.grinwich.sdk.feature.auth.buildAuthService
+import com.grinwich.sdk.feature.core.CoreFeatureId
+import com.grinwich.sdk.feature.enc.EncFeatureId
+import com.grinwich.sdk.feature.enc.buildEncBundle
+import com.grinwich.sdk.feature.observability.ObservabilityFeatureId
+import com.grinwich.sdk.feature.observability.buildLogger
+import com.grinwich.sdk.feature.stor.StorFeatureId
+import com.grinwich.sdk.feature.stor.buildStorageService
+import com.grinwich.sdk.feature.syn.SynFeatureId
+import com.grinwich.sdk.feature.syn.buildSyncService
 
 /**
- * ProvisionEntry definitions for multi-module Pattern E.
+ * Entry definitions for Pattern E (ServiceRegistry with topological sort).
  *
- * Each entry maps a provision interface to its Dagger component builder.
- * This is the ONLY place that imports DaggerXxxComponent classes.
+ * Each [ServiceEntry] identifies its feature via a neutral marker class
+ * (`XxxFeatureId::class.java`) and declares its dependencies as other markers.
+ * The `build` lambda returns `Map<Class<*>, Any>` (service classes → instances),
+ * which the registry indexes automatically.
+ *
+ * Replaces the legacy `ProvisionEntry<P>` that keyed by global `Provisions`.
  */
 
-internal fun coreEntry(config: SdkConfig, logger: SdkLogger) = ProvisionEntry(
-    provisionClass = CoreProvisions::class.java,
+internal fun observabilityEntry() = ServiceEntry(
+    featureId = ObservabilityFeatureId::class.java,
+    build = { mapOf(SdkLogger::class.java to buildLogger()) },
+)
+
+internal fun coreEntry(config: SdkConfig, context: android.content.Context) = ServiceEntry(
+    featureId = CoreFeatureId::class.java,
     build = {
-        DaggerCoreComponent.builder().config(config).build()
-    },
-    services = { prov ->
         mapOf(
-            SdkConfig::class.java to prov.config(),
-            SdkLogger::class.java to logger,
+            SdkConfig::class.java to config,
+            android.content.Context::class.java to context.applicationContext,
         )
     },
 )
 
-internal fun encEntry(logger: SdkLogger) = ProvisionEntry(
-    provisionClass = EncProvisions::class.java,
-    dependencies = setOf(CoreProvisions::class.java),
+internal fun encEntry() = ServiceEntry(
+    featureId = EncFeatureId::class.java,
+    dependencies = setOf(ObservabilityFeatureId::class.java),
     build = { registry ->
-        DaggerEncComponent.builder()
-            .core(registry.provision(CoreProvisions::class.java))
-            .logger(logger)
-            .build()
-    },
-    services = { prov ->
+        val bundle = buildEncBundle(registry.get(SdkLogger::class.java))
         mapOf(
-            EncryptionApi::class.java to prov.encryption(),
-            HashApi::class.java to prov.hash(),
+            EncryptionApi::class.java to bundle.encryption(),
+            HashApi::class.java to bundle.hash(),
         )
     },
 )
 
-internal fun authEntry(logger: SdkLogger) = ProvisionEntry(
-    provisionClass = AuthProvisions::class.java,
-    dependencies = setOf(CoreProvisions::class.java, EncProvisions::class.java),
+internal fun authEntry() = ServiceEntry(
+    featureId = AuthFeatureId::class.java,
+    dependencies = setOf(ObservabilityFeatureId::class.java, EncFeatureId::class.java),
     build = { registry ->
-        DaggerAuthComponent.builder()
-            .core(registry.provision(CoreProvisions::class.java))
-            .logger(logger)
-            .enc(registry.provision(EncProvisions::class.java))
-            .build()
-    },
-    services = { prov ->
-        mapOf(AuthApi::class.java to prov.auth())
+        val auth = buildAuthService(
+            encryption = registry.get(EncryptionApi::class.java),
+            logger = registry.get(SdkLogger::class.java),
+        )
+        mapOf(AuthApi::class.java to auth)
     },
 )
 
-internal fun storEntry(logger: SdkLogger) = ProvisionEntry(
-    provisionClass = StorProvisions::class.java,
-    dependencies = setOf(CoreProvisions::class.java, EncProvisions::class.java, ContextProvisions::class.java),
-    build = { registry ->
-        DaggerStorComponent.builder()
-            .core(registry.provision(CoreProvisions::class.java))
-            .logger(logger)
-            .enc(registry.provision(EncProvisions::class.java))
-            .ctx(registry.provision(ContextProvisions::class.java))
-            .build()
-    },
-    services = { prov ->
-        mapOf(StorageApi::class.java to prov.storage())
-    },
-)
-
-internal fun anaEntry(logger: SdkLogger) = ProvisionEntry(
-    provisionClass = AnaProvisions::class.java,
-    dependencies = setOf(CoreProvisions::class.java),
-    build = { registry ->
-        DaggerAnaComponent.builder()
-            .core(registry.provision(CoreProvisions::class.java))
-            .logger(logger)
-            .build()
-    },
-    services = { prov ->
-        mapOf(AnalyticsApi::class.java to prov.analytics())
-    },
-)
-
-internal fun synEntry(logger: SdkLogger) = ProvisionEntry(
-    provisionClass = SynProvisions::class.java,
+internal fun storEntry() = ServiceEntry(
+    featureId = StorFeatureId::class.java,
     dependencies = setOf(
-        CoreProvisions::class.java,
-        EncProvisions::class.java,
-        AuthProvisions::class.java,
-        StorProvisions::class.java,
+        ObservabilityFeatureId::class.java,
+        CoreFeatureId::class.java,
+        EncFeatureId::class.java,
     ),
     build = { registry ->
-        DaggerSynComponent.builder()
-            .core(registry.provision(CoreProvisions::class.java))
-            .logger(logger)
-            .enc(registry.provision(EncProvisions::class.java))
-            .auth(registry.provision(AuthProvisions::class.java))
-            .storage(registry.provision(StorProvisions::class.java))
-            .build()
-    },
-    services = { prov ->
-        mapOf(SyncApi::class.java to prov.sync())
+        val storage = buildStorageService(
+            context = registry.get(android.content.Context::class.java),
+            config = registry.get(SdkConfig::class.java),
+            encryption = registry.get(EncryptionApi::class.java),
+            hash = registry.get(HashApi::class.java),
+            logger = registry.get(SdkLogger::class.java),
+        )
+        mapOf(StorageApi::class.java to storage)
     },
 )
 
-internal fun ctxEntry(context: android.content.Context) = ProvisionEntry(
-    provisionClass = ContextProvisions::class.java,
-    build = {
-        val appCtx = context.applicationContext
-        object : ContextProvisions {
-            override fun appContext() = appCtx
-        }
-    },
-    services = { prov ->
-        mapOf(android.content.Context::class.java to prov.appContext())
+internal fun anaEntry() = ServiceEntry(
+    featureId = AnaFeatureId::class.java,
+    dependencies = setOf(ObservabilityFeatureId::class.java),
+    build = { registry ->
+        val ana = buildAnalyticsService(registry.get(SdkLogger::class.java))
+        mapOf(AnalyticsApi::class.java to ana)
     },
 )
 
-internal fun allEntries(context: android.content.Context, config: SdkConfig, logger: SdkLogger) = listOf(
-    ctxEntry(context),
-    coreEntry(config, logger),
-    encEntry(logger),
-    authEntry(logger),
-    storEntry(logger),
-    anaEntry(logger),
-    synEntry(logger),
+internal fun synEntry() = ServiceEntry(
+    featureId = SynFeatureId::class.java,
+    dependencies = setOf(
+        ObservabilityFeatureId::class.java,
+        EncFeatureId::class.java,
+        AuthFeatureId::class.java,
+        StorFeatureId::class.java,
+    ),
+    build = { registry ->
+        val sync = buildSyncService(
+            auth = registry.get(AuthApi::class.java),
+            storage = registry.get(StorageApi::class.java),
+            encryption = registry.get(EncryptionApi::class.java),
+            logger = registry.get(SdkLogger::class.java),
+        )
+        mapOf(SyncApi::class.java to sync)
+    },
 )

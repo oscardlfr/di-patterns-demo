@@ -1,12 +1,18 @@
 package com.grinwich.sdk.feature.syn
 
-import com.grinwich.sdk.api.*
-import com.grinwich.sdk.contracts.*
+import com.grinwich.sdk.api.AuthApi
+import com.grinwich.sdk.api.EncryptionApi
+import com.grinwich.sdk.api.SdkLogger
+import com.grinwich.sdk.api.StorageApi
+import com.grinwich.sdk.api.SyncApi
+import com.grinwich.sdk.contracts.FeatureProvider
+import com.grinwich.sdk.contracts.Flavor
+import com.grinwich.sdk.contracts.Resolver
 import me.tatarka.inject.annotations.Component
 import me.tatarka.inject.annotations.Provides
 
 @Component
-abstract class KISynComponent(
+internal abstract class KISynComponent(
     @get:Provides val auth: AuthApi,
     @get:Provides val storage: StorageApi,
     @get:Provides val encryption: EncryptionApi,
@@ -17,24 +23,18 @@ abstract class KISynComponent(
     @Provides fun syncApi(): SyncApi = DefaultSyncService(auth, storage, encryption, logger)
 }
 
-class SynKIProvider : KIFeatureProvider<SynProvisions>(SynProvisions::class.java) {
-    override val services: Map<Class<*>, (SynProvisions) -> Any> = mapOf(
-        SyncApi::class.java to SynProvisions::sync,
-    )
-    override fun build(resolver: Resolver): SynProvisions {
-        val core = resolver.provision(CoreProvisions::class.java)
-        val enc = resolver.provision(EncProvisions::class.java)
-        val auth = resolver.provision(AuthProvisions::class.java)
-        val stor = resolver.provision(StorProvisions::class.java)
+/** Sync provider with flavor [Flavor.KI]. Consumed by pattern J. */
+class SynKIProvider : FeatureProvider() {
+    override val flavor = Flavor.KI
+    override val services = setOf(SyncApi::class.java)
+
+    override fun build(resolver: Resolver): Map<Class<*>, Any> {
         val component = KISynComponent::class.create(
-            auth = auth.auth(),
-            storage = stor.storage(),
-            encryption = enc.encryption(),
-            logger = resolver.logger,
+            auth = resolver.get(AuthApi::class.java),
+            storage = resolver.get(StorageApi::class.java),
+            encryption = resolver.get(EncryptionApi::class.java),
+            logger = resolver.get(SdkLogger::class.java),
         )
-        val sync = component.sync
-        return object : SynProvisions {
-            override fun sync() = sync
-        }
+        return mapOf(SyncApi::class.java to component.sync)
     }
 }

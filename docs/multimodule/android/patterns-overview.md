@@ -4,8 +4,17 @@ Los 8 patrones Android-only comparten una restriccion: dependen de APIs que solo
 existen en JVM/Android (Dagger genera Java, `ServiceLoader` usa `META-INF/services/`,
 `PackageManager` es Android-only). No compilan para iOS, macOS ni WASM.
 
-Todos implementan la misma interfaz `MultiModuleSdkApi` y usan las mismas
-provision interfaces definidas en `di-contracts/`.
+Todos implementan la misma interfaz `MultiModuleSdkApi` y comparten el contrato
+neutro `FeatureProvider` (flavor-tagged) definido en `di-contracts/`. Tras el
+refactor, `di-contracts` no importa ningun tipo de `sdk/api` ni de feature-apis
+— cada feature-impl define sus Bundles locales privados cuando expone
+multi-servicio desde un mismo Component (ver `docs/shared/cross-feature-deps.md`).
+
+**Abstraccion runtime-flexible (Req 12)**: H, I, K cumplen. Son los unicos de
+este grupo que declaran las feature-impls como `runtimeOnly(...)`, permitiendo
+BYOF (la app consumidora puede elegir versiones de feature-impl). Los demas
+(D, E2, G, Q, Q2) usan `implementation(feature-impl)` — no son distribuibles
+independientemente.
 
 Para la documentacion completa con codigo de D, E2, G, H, I y K, ver
 `docs/multimodule/patterns-overview.md`. Este documento contiene un resumen
@@ -131,7 +140,7 @@ object MultiModuleSdkQ : MultiModuleSdkApi {
 
     private var _component: SdkComponent? = null
     private var _initialized = false
-    private var _logger: SdkLogger = AndroidSdkLogger()
+    private var _logger: SdkLogger = buildLogger()
 
     override val isInitialized: Boolean get() = _initialized
     override val builtProvisionCount: Int get() = if (_initialized) 5 else 0
@@ -255,7 +264,7 @@ object MultiModuleSdkQ2 : MultiModuleSdkApi {
     private var _component: SdkComponent? = null
     private var _initialized = false
     private var _tracker: LazyCreationTracker.Instance? = null
-    private var _logger: SdkLogger = AndroidSdkLogger()
+    private var _logger: SdkLogger = buildLogger()
 
     override val isInitialized: Boolean get() = _initialized
     override val builtProvisionCount: Int get() = _tracker?.count ?: 0

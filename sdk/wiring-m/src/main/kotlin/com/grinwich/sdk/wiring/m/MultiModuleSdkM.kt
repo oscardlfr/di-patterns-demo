@@ -4,12 +4,12 @@ import android.content.Context
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.contracts.koin.CreationTracker
 import com.grinwich.sdk.contracts.koin.KoinFeatureProvider
-import com.grinwich.sdk.feature.observability.AndroidSdkLogger
 import org.koin.core.KoinApplication
 import org.koin.dsl.koinApplication
 import org.koin.dsl.module
 import java.util.ServiceLoader
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.locks.ReentrantReadWriteLock
 
 /**
  * Pattern M: Koin + ServiceLoader (Lazy loadModules).
@@ -32,60 +32,84 @@ object MultiModuleSdkM : MultiModuleSdkApi {
     private val _serviceToProvider = mutableMapOf<Class<*>, KoinFeatureProvider>()
     private val _loadedProviders: MutableSet<String> = ConcurrentHashMap.newKeySet()
     private val loadLock = Any()
-    private var _tracker: CreationTracker? = null
 
-    // Persistent — survive shutdown/reinit cycles (intentional: ApplicationContext-level singleton)
-    private var _logger: SdkLogger = AndroidSdkLogger()
+    /**
+     * Serialises lifecycle transitions (init/shutdown) with `writeLock` and lets
+     * concurrent `get()` calls proceed in parallel with `readLock`. Guarantees
+     * no resolver reads the Koin container after it has been closed — the
+     * `loadLock` above keeps multiple readers from duplicating `loadModules()`,
+     * while `rwLock` keeps `shutdown()` from closing the container mid-resolve.
+     */
+    private val rwLock = ReentrantReadWriteLock()
+
+    private var _tracker: CreationTracker? = null
 
     override val isInitialized: Boolean get() = _initialized
 
-    /** Number of non-persistent feature modules loaded via loadModules(). */
-    override val builtProvisionCount: Int get() = _loadedProviders.size
+    /**
+     * Count of feature modules loaded via loadModules(). Excludes persistent
+     * providers (infrastructure such as Observability) which are loaded on
+     * demand but are not business features.
+     */
+    override val builtFeatureCount: Int
+        get() = _providers.count { !it.persistent && it.featureName in _loadedProviders }
 
     override fun init(context: Context, config: SdkConfig) {
-        check(!_initialized) { "MultiModuleSdkM already initialized. Call shutdown() first." }
+        rwLock.writeLock().lock()
+        try {
+            check(!_initialized) { "MultiModuleSdkM already initialized. Call shutdown() first." }
 
-        val appCtx = context.applicationContext
-        val tracker = CreationTracker()
-        _tracker = tracker
+            val appCtx = context.applicationContext
+            val tracker = CreationTracker()
+            _tracker = tracker
 
-        // Foundation module — captures local vals for type safety
-        val foundation = module {
-            single<Context> { appCtx }
-            single<SdkConfig> { config }
-            single<StorageBackend> { config.storageBackend }
-            single<SdkLogger> { _logger }
-            single<CreationTracker> { tracker }
-        }
-
-        // Discover (but don't load) business feature providers
-        _providers = ServiceLoader.load(KoinFeatureProvider::class.java).toList()
-
-        _serviceToProvider.clear()
-        for (provider in _providers) {
-            for (svc in provider.services) {
-                _serviceToProvider[svc] = provider
+            // Foundation module — only caller-injected infrastructure and the tracker.
+            // `SdkLogger` is contributed by ObservabilityKoinProvider (discovered
+            // via ServiceLoader), loaded on demand the first time someone requests
+            // `get<SdkLogger>()`.
+            val foundation = module {
+                single<Context> { appCtx }
+                single<SdkConfig> { config }
+                single<StorageBackend> { config.storageBackend }
+                single<CreationTracker> { tracker }
             }
-        }
 
-        // Only foundation loaded at init
-        _koinApp = koinApplication {
-            modules(foundation)
-        }
+            // Discover (but don't load) business feature providers
+            _providers = ServiceLoader.load(KoinFeatureProvider::class.java).toList()
 
-        _loadedProviders.clear()
-        _initialized = true
+            _serviceToProvider.clear()
+            for (provider in _providers) {
+                for (svc in provider.services) {
+                    _serviceToProvider[svc] = provider
+                }
+            }
+
+            // Only foundation loaded at init
+            _koinApp = koinApplication {
+                modules(foundation)
+            }
+
+            _loadedProviders.clear()
+            _initialized = true
+        } finally {
+            rwLock.writeLock().unlock()
+        }
     }
 
     override fun <T : Any> get(clazz: Class<T>): T {
-        check(_initialized) { "MultiModuleSdkM not initialized." }
+        rwLock.readLock().lock()
+        try {
+            check(_initialized) { "MultiModuleSdkM not initialized." }
 
-        // Ensure the provider for this service is loaded (cascade)
-        ensureLoaded(clazz)
+            // Ensure the provider for this service is loaded (cascade).
+            ensureLoaded(clazz)
 
-        val koin = _koinApp?.koin ?: error("koinApp is null")
-        val instance = koin.get<Any>(clazz.kotlin)
-        return checkNotNull(clazz.cast(instance)) { "Cast failed for ${clazz.simpleName}" }
+            val koin = _koinApp?.koin ?: error("MultiModuleSdkM not initialized.")
+            val instance = koin.get<Any>(clazz.kotlin)
+            return checkNotNull(clazz.cast(instance)) { "Cast failed for ${clazz.simpleName}" }
+        } finally {
+            rwLock.readLock().unlock()
+        }
     }
 
     /**
@@ -115,16 +139,21 @@ object MultiModuleSdkM : MultiModuleSdkApi {
     inline fun <reified T : Any> get(): T = get(T::class.java)
 
     override fun shutdown() {
-        if (!_initialized) return
-        synchronized(loadLock) {
-            _koinApp?.close()
-            _koinApp = null
-            _loadedProviders.clear()
-            _serviceToProvider.clear()
-            _providers = emptyList()
-            _tracker?.clear()
-            _tracker = null
-            _initialized = false
+        rwLock.writeLock().lock()
+        try {
+            if (!_initialized) return
+            synchronized(loadLock) {
+                _koinApp?.close()
+                _koinApp = null
+                _loadedProviders.clear()
+                _serviceToProvider.clear()
+                _providers = emptyList()
+                _tracker?.clear()
+                _tracker = null
+                _initialized = false
+            }
+        } finally {
+            rwLock.writeLock().unlock()
         }
     }
 }

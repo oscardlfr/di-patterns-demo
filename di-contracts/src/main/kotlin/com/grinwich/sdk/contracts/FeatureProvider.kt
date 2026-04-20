@@ -1,195 +1,204 @@
 package com.grinwich.sdk.contracts
 
-import com.grinwich.sdk.api.SdkConfig
-import com.grinwich.sdk.api.SdkLogger
+import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Pattern H: self-registering feature provider.
+ * Provider implementation flavor.
  *
- * Each feature-impl declares a FeatureProvider that knows:
- * - What provision interface it builds (provisionClass)
- * - What services it exposes (services map)
- * - How to build itself (build function, deps resolved via Resolver)
+ * - [DAGGER]: feature-impl builds with Dagger (@Component + KSP).
+ * - [PURE]: feature-impl builds by invoking constructors manually.
+ * - [KI]: feature-impl builds with kotlin-inject (@Component + KSP).
+ * - [SYNTHETIC]: provider injected by the wiring (e.g. Context, SdkConfig).
+ *   Not discovered via ServiceLoader — the wiring constructs and registers it.
  *
- * Dependencies are IMPLICIT — whatever you call resolver.get() for
- * inside build() gets built first (DFS). No explicit dependency set.
- *
- * Discovered at runtime via ServiceLoader — requires no-arg constructor.
+ * H filters by [DAGGER], I by [PURE], J by [KI]. Wirings ignore [SYNTHETIC] in
+ * ServiceLoader filters (they are never there). Synthetics are always
+ * registered manually.
  */
-abstract class FeatureProvider<P : Any>(val provisionClass: Class<P>) {
+enum class Flavor { DAGGER, PURE, KI, SYNTHETIC }
 
-    abstract val services: Map<Class<*>, (P) -> Any>
+/**
+ * Feature contribution to the SDK, resolved by [Resolver] (imperative axis).
+ *
+ * The provider publishes a map of constructed services directly (not an
+ * intermediate typed "provision"), and wirings filter by [flavor] when
+ * discovering them via ServiceLoader.
+ *
+ * Discovery via `ServiceLoader.load(FeatureProvider::class.java)` — requires a
+ * no-arg constructor on every concrete implementation. Synthetics do not
+ * require a no-arg ctor — the wiring constructs them directly.
+ */
+abstract class FeatureProvider : FeatureContribution {
+
+    /** Implementation flavor. */
+    abstract val flavor: Flavor
 
     /**
-     * Si true, esta provision sobrevive a shutdown()/clear().
-     * Provisions persistentes estan atadas al ciclo de vida de la app, no del SDK.
-     *
-     * Ejemplo: el logger tiene file handles, buffers, correlation IDs.
-     * Destruirlo en cada shutdown pierde estado y es innecesario.
-     *
-     * Override en el provider concreto para activar:
-     * ```
-     * class ObservabilityProvider : FeatureProvider<ObservabilityProvisions>(...) {
-     *     override val persistent = true
-     * }
-     * ```
+     * Service interfaces this provider exposes.
+     * Must match the keys of the map returned by [build].
      */
-    open val persistent: Boolean = false
+    abstract override val services: Set<Class<*>>
 
-    abstract fun build(resolver: Resolver): P
+    /**
+     * If `true`, this contribution survives `shutdown()`/`clear()`.
+     * Persistent contributions are tied to the app lifecycle, not the SDK's.
+     * Example: the logger holds file handles, buffers, correlation IDs.
+     */
+    override val persistent: Boolean = false
 
-    internal fun buildUntyped(resolver: Resolver): Any = build(resolver)
-
-    internal fun extractService(provision: Any, serviceClass: Class<*>): Any {
-        val typed = checkNotNull(provisionClass.cast(provision)) {
-            "Cannot cast ${provision::class.simpleName} to ${provisionClass.simpleName}"
-        }
-        return services[serviceClass]?.invoke(typed)
-            ?: error("${provisionClass.simpleName} does not provide ${serviceClass.simpleName}")
-    }
+    /**
+     * Builds the services of this feature. May request dependencies from the
+     * [resolver] via `resolver.get(ServiceClass::class.java)`.
+     *
+     * The returned map must contain exactly the keys declared in [services].
+     */
+    abstract fun build(resolver: Resolver): Map<Class<*>, Any>
 }
 
 /**
- * Runtime resolver — builds provisions on demand via DFS.
+ * "Synthetic" provider injected by the wiring during init() — wraps
+ * dependencies supplied by the SDK caller (`Context`, `SdkConfig`) and
+ * publishes them as regular services.
  *
- * Logger is resolved lazily from the service map (ObservabilityProvider).
- * No hardcoded default — if no ObservabilityProvider is registered, accessing
- * logger will fail with a clear error.
+ * Not discovered via ServiceLoader. Typical usage in the wiring:
+ *
+ * ```kotlin
+ * resolver.register(SyntheticFeatureProvider(mapOf(
+ *     SdkConfig::class.java to config,
+ *     Context::class.java to context.applicationContext,
+ * )))
+ * ```
+ *
+ * Replaces the former `Resolver.bootstrap()` method, unifying the mechanism:
+ * **every service comes from a `FeatureProvider`**, with no special paths in
+ * the Resolver.
  */
+class SyntheticFeatureProvider(
+    private val provided: Map<Class<*>, Any>,
+    override val persistent: Boolean = false,
+) : FeatureProvider() {
+    override val flavor: Flavor = Flavor.SYNTHETIC
+    override val services: Set<Class<*>> = provided.keys
+    override fun build(resolver: Resolver): Map<Class<*>, Any> = provided
+}
+
 /**
- * Runtime resolver — builds provisions on demand via DFS.
+ * Runtime resolver — builds contributions on demand via implicit DFS.
  *
- * Thread-safe: ensureBuilt() is synchronized so concurrent get() calls
- * from multiple threads cannot cause double construction or partial state.
- * After first build, subsequent get() hits the cache without contention.
+ * **100% neutral**: does not know any type from `:sdk:api`. Every service is
+ * published as a `FeatureProvider` (including infra — Context, SdkConfig —
+ * via [SyntheticFeatureProvider]). Single mechanism, single path.
+ *
+ * Thread-safe: `ensureBuilt()` uses a reentrant lock; concurrent access from
+ * multiple threads never causes double construction or partial state. After
+ * the first build, `get()` takes a fast path without contention.
  */
 class Resolver {
 
     private val lock = Any()
-    private val providers = HashMap<Class<*>, FeatureProvider<*>>()
-    private val serviceIndex = HashMap<Class<*>, Class<*>>()
-    private val provisions = java.util.concurrent.ConcurrentHashMap<Class<*>, Any>()
-    private val resolvedServices = java.util.concurrent.ConcurrentHashMap<Class<*>, Any>()
+    private val serviceIndex = HashMap<Class<*>, FeatureProvider>()
+    private val built = java.util.Collections.newSetFromMap(ConcurrentHashMap<FeatureProvider, Boolean>())
+    private val resolvedServices = ConcurrentHashMap<Class<*>, Any>()
 
-    lateinit var config: SdkConfig; private set
+    /**
+     * Persistent providers keyed by class — O(1) dedup in [register].
+     * `ServiceLoader.load()` returns a fresh instance on every init, but the
+     * provider class is stable, so using the class as the key keeps the map
+     * bounded to the number of distinct persistent contributions (~1-3).
+     */
+    private val persistentByClass = ConcurrentHashMap<kotlin.reflect.KClass<out FeatureProvider>, FeatureProvider>()
 
-    /** Logger resolved lazily from ServiceLoader-discovered ObservabilityProvider. */
-    val logger: SdkLogger get() = get(SdkLogger::class.java)
+    /**
+     * O(1) read of [builtFeatureCount]. Maintained by [ensureBuilt]/[clear]
+     * instead of `built.count { ... }`, which was O(B×P).
+     */
+    private val nonPersistentBuiltCount = java.util.concurrent.atomic.AtomicInteger(0)
 
-    fun init(config: SdkConfig) {
-        this.config = config
-    }
-
-    fun init(context: android.content.Context, config: SdkConfig) {
-        this.config = config
-        val appCtx = context.applicationContext
-
-        // ContextProvisions: persistente porque el applicationContext vive tanto como el proceso
-        register(object : FeatureProvider<ContextProvisions>(ContextProvisions::class.java) {
-            override val persistent = true
-            override val services: Map<Class<*>, (ContextProvisions) -> Any> =
-                mapOf(android.content.Context::class.java to { p: ContextProvisions -> p.appContext() })
-            override fun build(resolver: Resolver) = object : ContextProvisions {
-                override fun appContext() = appCtx
-            }
-        })
-    }
-
-    fun register(provider: FeatureProvider<*>) {
-        providers[provider.provisionClass] = provider
-        for (serviceClass in provider.services.keys) {
-            serviceIndex[serviceClass] = provider.provisionClass
-        }
+    fun register(provider: FeatureProvider) {
+        // Persistent providers are tied to the process, not to the SDK lifecycle.
+        // ServiceLoader.load() creates a fresh instance on every init, so a naive
+        // `add` would make the persistent set grow without bound across
+        // init/shutdown cycles. First-wins dedup keyed by class: if a persistent
+        // provider of the same class is already registered, keep it and discard
+        // the newcomer — the resolved service (e.g. the logger singleton) is
+        // unchanged anyway.
         if (provider.persistent) {
-            persistentClasses.add(provider.provisionClass)
+            val existing = persistentByClass.putIfAbsent(provider::class, provider)
+            if (existing != null) {
+                for (svc in existing.services) serviceIndex[svc] = existing
+                return
+            }
+        }
+        for (svc in provider.services) {
+            serviceIndex[svc] = provider
         }
     }
 
     fun <T : Any> get(clazz: Class<T>): T {
-        // Fast path: cache hit without lock (read-only after build)
         resolvedServices[clazz]?.let {
             return checkNotNull(clazz.cast(it)) { "Cast failed for ${clazz.simpleName}" }
         }
-        val provisionClass = serviceIndex[clazz]
+        val provider = serviceIndex[clazz]
             ?: error("No provider for ${clazz.simpleName}")
-        ensureBuilt(provisionClass)
+        ensureBuilt(provider)
         val resolved = resolvedServices[clazz]
-            ?: error("${clazz.simpleName} not available after building ${provisionClass.simpleName}")
+            ?: error("${clazz.simpleName} not available after building provider (check services declaration)")
         return checkNotNull(clazz.cast(resolved)) { "Cast failed for ${clazz.simpleName}" }
     }
 
-    fun <P : Any> provision(clazz: Class<P>): P {
-        ensureBuilt(clazz)
-        val built = provisions[clazz]
-            ?: error("Provision ${clazz.simpleName} not available")
-        return checkNotNull(clazz.cast(built)) { "Cast failed for ${clazz.simpleName}" }
-    }
-
-    /**
-     * Thread-safe DFS: synchronized on [lock] so only one thread builds at a time.
-     * The check-then-build inside the lock prevents double construction.
-     * Recursive calls from build() re-enter the same thread's lock (reentrant).
-     */
-    private fun ensureBuilt(provisionClass: Class<*>) {
-        if (provisions.containsKey(provisionClass)) return // fast path without lock
+    private fun ensureBuilt(provider: FeatureProvider) {
+        if (provider in built) return
         synchronized(lock) {
-            if (provisions.containsKey(provisionClass)) return // double-check inside lock
-            val provider = providers[provisionClass]
-                ?: error("No provider registered for ${provisionClass.simpleName}")
-            val provision = provider.buildUntyped(this)
-            // Write services BEFORE marking provision as built.
-            // Other threads use provisions.containsKey() as the gate (fast path outside lock).
-            // If we wrote provisions first, a thread could see containsKey()=true
-            // but resolvedServices[service] still null.
-            for (serviceClass in provider.services.keys) {
-                resolvedServices[serviceClass] = provider.extractService(provision, serviceClass)
+            if (provider in built) return
+            val map = provider.build(this)
+            for ((svc, inst) in map) {
+                resolvedServices[svc] = inst
             }
-            provisions[provisionClass] = provision // LAST — gate for other threads
+            built.add(provider) // LAST — gate for other threads
+            if (!provider.persistent) nonPersistentBuiltCount.incrementAndGet()
         }
     }
 
     /**
-     * Number of non-persistent provisions currently built.
+     * Number of non-persistent contributions built. **O(1)**.
      *
-     * Excludes persistent provisions (logger, context) because they survive
-     * shutdown and are tied to the app lifecycle, not the SDK lifecycle.
-     * This lets tests verify laziness of BUSINESS features without being
-     * affected by infrastructure provisions that persist across cycles.
+     * Excludes persistent ones (logger) because they survive shutdown and are
+     * tied to the app lifecycle, not the SDK's.
      */
-    val builtProvisionCount: Int get() = provisions.keys.count { it !in persistentClasses }
+    val builtFeatureCount: Int get() = nonPersistentBuiltCount.get()
 
     /**
-     * Limpia el grafo de provisions construidas, preservando providers
-     * y provisions persistentes (logger, context).
+     * Clears the built graph, preserving only persistent providers.
      *
-     * Providers (el catalogo de FeatureProviders descubiertos via ServiceLoader)
-     * se mantienen — no hay necesidad de re-escanear ServiceLoader en cada reinit.
-     *
-     * Provisions persistentes (marcadas en [persistentClasses]) sobreviven
-     * el shutdown porque estan atadas al ciclo de vida de la app, no del SDK.
-     * Ejemplo: el logger tiene file handles abiertos, correlation IDs, buffers.
-     * Destruirlo y reconstruirlo en cada reinit perderia estado.
+     * Synthetics (Context, SdkConfig) are NOT persistent by default — the
+     * wiring re-registers them on the next init() with fresh values.
+     * Observability (logger) IS persistent and survives.
      */
     fun clear() {
         synchronized(lock) {
-            // Preservar providers — ServiceLoader no necesita re-escanear
-            // Preservar serviceIndex — es derivado de providers
+            val persistent = persistentByClass.values
+            // Services to preserve: those from persistent providers already built.
+            val toKeep = persistent
+                .filter { it in built }
+                .flatMap { p -> p.services.mapNotNull { svc ->
+                    resolvedServices[svc]?.let { svc to it }
+                } }
+                .toMap()
 
-            // Limpiar solo provisions de negocio, preservar persistentes
-            val persistentProvisions = provisions.filterKeys { it in persistentClasses }
-            val persistentServices = resolvedServices.filterKeys { key ->
-                persistentClasses.any { cls ->
-                    providers[cls]?.services?.containsKey(key) == true
+            // Reset index — the wiring re-registers fresh synthetics on next init.
+            serviceIndex.clear()
+            for (p in persistent) {
+                if (p in built) {
+                    for (svc in p.services) serviceIndex[svc] = p
                 }
             }
 
-            provisions.clear()
+            // Convert to HashSet for O(1) contains in retainAll (the Map's
+            // `values` view uses O(N) linear scan for contains).
+            built.retainAll(persistent.toHashSet())
             resolvedServices.clear()
-
-            provisions.putAll(persistentProvisions)
-            resolvedServices.putAll(persistentServices)
+            resolvedServices.putAll(toKeep)
+            nonPersistentBuiltCount.set(0)
         }
     }
-
-    private val persistentClasses = mutableSetOf<Class<*>>()
 }

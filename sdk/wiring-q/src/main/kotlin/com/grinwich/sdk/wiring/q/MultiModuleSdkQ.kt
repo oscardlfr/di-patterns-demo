@@ -5,7 +5,7 @@ import com.grinwich.sdk.api.*
 import com.grinwich.sdk.feature.ana.HiltAnaModule
 import com.grinwich.sdk.feature.auth.HiltAuthModule
 import com.grinwich.sdk.feature.enc.HiltEncModule
-import com.grinwich.sdk.feature.observability.AndroidSdkLogger
+import com.grinwich.sdk.feature.observability.buildLogger
 import com.grinwich.sdk.feature.stor.HiltStorModule
 import com.grinwich.sdk.feature.syn.HiltSynModule
 import dagger.BindsInstance
@@ -60,16 +60,16 @@ object MultiModuleSdkQ : MultiModuleSdkApi {
     private var _initialized = false
 
     // Persistent — survive shutdown/reinit cycles (intentional: ApplicationContext-level singleton)
-    private var _logger: SdkLogger = AndroidSdkLogger()
+    private var _logger: SdkLogger = buildLogger()
 
     override val isInitialized: Boolean get() = _initialized
 
     /**
      * Dagger creates all @Singleton bindings lazily on first access, but the
-     * component itself is fully wired at creation. builtProvisionCount = 5
+     * component itself is fully wired at creation. builtFeatureCount = 5
      * after init (all feature modules included at compile time).
      */
-    override val builtProvisionCount: Int get() = if (_initialized) 5 else 0
+    override val builtFeatureCount: Int get() = if (_initialized) 5 else 0
 
     override fun init(context: Context, config: SdkConfig) {
         check(!_initialized) { "MultiModuleSdkQ already initialized. Call shutdown() first." }

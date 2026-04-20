@@ -2,8 +2,10 @@ package com.grinwich.sdk.wiring.i
 
 import com.grinwich.sdk.api.MultiModuleSdkApi
 import com.grinwich.sdk.api.SdkConfig
-import com.grinwich.sdk.contracts.PureFeatureProvider
+import com.grinwich.sdk.contracts.FeatureProvider
+import com.grinwich.sdk.contracts.Flavor
 import com.grinwich.sdk.contracts.Resolver
+import com.grinwich.sdk.contracts.SyntheticFeatureProvider
 import java.util.ServiceLoader
 
 /**
@@ -11,10 +13,10 @@ import java.util.ServiceLoader
  *
  * Same architecture as Pattern H (ServiceLoader + FeatureProvider + Resolver)
  * but features are built WITHOUT Dagger or any DI framework.
- * Each PureFeatureProvider directly constructs services via constructors.
+ * Each provider filtered by flavor=PURE builds services via constructors.
  *
- * Discovered via ServiceLoader.load(PureFeatureProvider::class.java) —
- * separate from Dagger-based providers used by Pattern H.
+ * Discovered via ServiceLoader.load(FeatureProvider::class.java) filtering
+ * by flavor=PURE — separate from the Dagger providers (flavor=DAGGER) consumed by H.
  *
  * Zero KSP. Zero codegen. Zero DI framework dependency.
  */
@@ -25,16 +27,19 @@ object MultiModuleSdkI : MultiModuleSdkApi {
 
     override val isInitialized: Boolean get() = _initialized
 
-    /** Number of provisions currently built. Useful for verifying lazy behavior in tests. */
-    override val builtProvisionCount: Int get() = resolver.builtProvisionCount
+    override val builtFeatureCount: Int get() = resolver.builtFeatureCount
 
     override fun init(context: android.content.Context, config: SdkConfig) {
         check(!_initialized) { "MultiModuleSdkI already initialized. Call shutdown() first." }
-        resolver.init(context, config)
+        resolver.register(SyntheticFeatureProvider(mapOf(
+            SdkConfig::class.java to config,
+            android.content.Context::class.java to context.applicationContext,
+        )))
 
-        ServiceLoader.load(PureFeatureProvider::class.java).forEach { provider ->
-            resolver.register(provider)
-        }
+        // I filters by PURE: only consumes pure providers (no DI framework).
+        ServiceLoader.load(FeatureProvider::class.java)
+            .filter { it.flavor == Flavor.PURE }
+            .forEach { resolver.register(it) }
 
         _initialized = true
     }

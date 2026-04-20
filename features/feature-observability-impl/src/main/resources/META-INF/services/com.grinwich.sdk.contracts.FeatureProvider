@@ -1,1 +1,3 @@
 com.grinwich.sdk.feature.observability.ObservabilityProvider
+com.grinwich.sdk.feature.observability.ObservabilityPureProvider
+com.grinwich.sdk.feature.observability.ObservabilityKIProvider

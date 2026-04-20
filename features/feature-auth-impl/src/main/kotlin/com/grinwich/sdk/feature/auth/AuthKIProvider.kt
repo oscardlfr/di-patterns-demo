@@ -3,12 +3,14 @@ package com.grinwich.sdk.feature.auth
 import com.grinwich.sdk.api.AuthApi
 import com.grinwich.sdk.api.EncryptionApi
 import com.grinwich.sdk.api.SdkLogger
-import com.grinwich.sdk.contracts.*
+import com.grinwich.sdk.contracts.FeatureProvider
+import com.grinwich.sdk.contracts.Flavor
+import com.grinwich.sdk.contracts.Resolver
 import me.tatarka.inject.annotations.Component
 import me.tatarka.inject.annotations.Provides
 
 @Component
-abstract class KIAuthComponent(
+internal abstract class KIAuthComponent(
     @get:Provides val encryption: EncryptionApi,
     @get:Provides val logger: SdkLogger,
 ) {
@@ -17,19 +19,16 @@ abstract class KIAuthComponent(
     @Provides fun authApi(): AuthApi = DefaultAuthService(encryption, logger)
 }
 
-class AuthKIProvider : KIFeatureProvider<AuthProvisions>(AuthProvisions::class.java) {
-    override val services: Map<Class<*>, (AuthProvisions) -> Any> = mapOf(
-        AuthApi::class.java to AuthProvisions::auth,
-    )
-    override fun build(resolver: Resolver): AuthProvisions {
-        val enc = resolver.provision(EncProvisions::class.java)
+/** Auth provider with flavor [Flavor.KI]. Consumed by pattern J. */
+class AuthKIProvider : FeatureProvider() {
+    override val flavor = Flavor.KI
+    override val services = setOf(AuthApi::class.java)
+
+    override fun build(resolver: Resolver): Map<Class<*>, Any> {
         val component = KIAuthComponent::class.create(
-            encryption = enc.encryption(),
-            logger = resolver.logger,
+            encryption = resolver.get(EncryptionApi::class.java),
+            logger = resolver.get(SdkLogger::class.java),
         )
-        val auth = component.auth  // capture once — singleton within this provision
-        return object : AuthProvisions {
-            override fun auth() = auth
-        }
+        return mapOf(AuthApi::class.java to component.auth)
     }
 }

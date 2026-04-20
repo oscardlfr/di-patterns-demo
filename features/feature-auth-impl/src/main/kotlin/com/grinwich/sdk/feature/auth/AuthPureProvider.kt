@@ -1,18 +1,22 @@
 package com.grinwich.sdk.feature.auth
 
 import com.grinwich.sdk.api.AuthApi
-import com.grinwich.sdk.contracts.*
+import com.grinwich.sdk.api.EncryptionApi
+import com.grinwich.sdk.api.SdkLogger
+import com.grinwich.sdk.contracts.FeatureProvider
+import com.grinwich.sdk.contracts.Flavor
+import com.grinwich.sdk.contracts.Resolver
 
-class AuthPureProvider : PureFeatureProvider<AuthProvisions>(AuthProvisions::class.java) {
-    override val services: Map<Class<*>, (AuthProvisions) -> Any> = mapOf(
-        AuthApi::class.java to AuthProvisions::auth,
-    )
-    override fun build(resolver: Resolver): AuthProvisions {
-        val enc = resolver.provision(EncProvisions::class.java)
-        val logger = resolver.logger
-        val auth = DefaultAuthService(enc.encryption(), logger)
-        return object : AuthProvisions {
-            override fun auth() = auth
-        }
+/** Auth provider with flavor [Flavor.PURE]. Consumed by pattern I. */
+class AuthPureProvider : FeatureProvider() {
+    override val flavor = Flavor.PURE
+    override val services = setOf(AuthApi::class.java)
+
+    override fun build(resolver: Resolver): Map<Class<*>, Any> {
+        val auth = DefaultAuthService(
+            encryption = resolver.get(EncryptionApi::class.java),
+            logger = resolver.get(SdkLogger::class.java),
+        )
+        return mapOf(AuthApi::class.java to auth)
     }
 }

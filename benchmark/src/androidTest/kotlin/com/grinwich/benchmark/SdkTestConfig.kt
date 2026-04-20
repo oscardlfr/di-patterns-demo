@@ -54,24 +54,44 @@ data class SdkExpectedCounts(
 )
 
 /**
- * Expected NON-PERSISTENT provision counts per pattern.
+ * Expected feature counts per pattern, after the Observability-persistent refactor.
  *
- * builtProvisionCount excludes persistent provisions (logger, context)
- * because they survive shutdown and are tied to the app lifecycle.
+ * `builtFeatureCount` semantics per pattern family:
  *
- * H/K: Obs + Context persistent via Resolver (-2 from total)
- * I/J: Obs + Context persistent via Resolver (-2 from total)
- * D/G: logger is a field (not a provision), no persistent provisions
- * E2: Obs + Context persistent via AutoProvisionRegistry (-2 from total)
+ * - **D/G** (hardcoded fields): counts `_enc + _auth + _storage + _analytics + _sync`.
+ *   Observability lives as a separate `_logger` field and is NEVER counted.
+ *   Max = 5 (all five business features).
+ *
+ * - **E2** (AutoServiceRegistry): counts non-persistent features built.
+ *   `observabilityAutoEntry()` is marked `persistent = true` → excluded.
+ *   Max = 6 (Core + Enc + Auth + Stor + Ana + Syn).
+ *
+ * - **H/I/J/K** (Resolver + FeatureProvider): counts non-persistent built providers.
+ *   ObservabilityProvider has `persistent = true` → excluded.
+ *   SyntheticFeatureProvider (Context + SdkConfig) is NON-persistent → counted
+ *   (only built when StorageProvider requests Context/SdkConfig).
+ *   Max = 6 (Enc + Auth + Stor + Syn + Ana + Synthetic).
+ *
+ * - **L/M/N** (Koin + CreationTracker): tracks `mark()` calls. Observability's
+ *   KoinProvider doesn't call `mark()` (infrastructure, not business feature).
+ *   Max = 5 (enc/auth/storage/analytics/sync marks).
+ *
+ * - **O/P/Q** (Metro/Anvil/Hilt eager): full compile-time graph, returns 5
+ *   while initialized, 0 after shutdown. All bindings materialized eagerly.
+ *
+ * - **O2/P2/Q2** (Metro/Anvil/Hilt lazy + LazyCreationTracker): counts lazy
+ *   singletons materialized so far. Observability is provided as `@get:Provides`
+ *   from a field (not a lazy singleton inside the graph) → not counted.
+ *   Max = 5.
  */
 val EXPECTED_COUNTS: Map<String, SdkExpectedCounts> = mapOf(
-    "D"  to SdkExpectedCounts(afterInit = 1, afterEnc = 2, afterAna = 2, afterSync = 5, fullGraph = 6),
-    "E2" to SdkExpectedCounts(afterInit = 0, afterEnc = 2, afterAna = 2, afterSync = 6, fullGraph = 7),
-    "G"  to SdkExpectedCounts(afterInit = 1, afterEnc = 2, afterAna = 2, afterSync = 5, fullGraph = 6),
-    "H"  to SdkExpectedCounts(afterInit = 0, afterEnc = 2, afterAna = 2, afterSync = 5, fullGraph = 6),
+    "D"  to SdkExpectedCounts(afterInit = 0, afterEnc = 1, afterAna = 1, afterSync = 4, fullGraph = 5),
+    "E2" to SdkExpectedCounts(afterInit = 0, afterEnc = 1, afterAna = 1, afterSync = 5, fullGraph = 6),
+    "G"  to SdkExpectedCounts(afterInit = 0, afterEnc = 1, afterAna = 1, afterSync = 4, fullGraph = 5),
+    "H"  to SdkExpectedCounts(afterInit = 0, afterEnc = 1, afterAna = 1, afterSync = 5, fullGraph = 6),
     "I"  to SdkExpectedCounts(afterInit = 0, afterEnc = 1, afterAna = 1, afterSync = 5, fullGraph = 6),
     "J"  to SdkExpectedCounts(afterInit = 0, afterEnc = 1, afterAna = 1, afterSync = 5, fullGraph = 6),
-    "K"  to SdkExpectedCounts(afterInit = 0, afterEnc = 2, afterAna = 2, afterSync = 5, fullGraph = 6),
+    "K"  to SdkExpectedCounts(afterInit = 0, afterEnc = 1, afterAna = 1, afterSync = 5, fullGraph = 6),
     "L"  to SdkExpectedCounts(afterInit = 0, afterEnc = 1, afterAna = 1, afterSync = 4, fullGraph = 5),
     "M"  to SdkExpectedCounts(afterInit = 0, afterEnc = 1, afterAna = 1, afterSync = 4, fullGraph = 5),
     "N"  to SdkExpectedCounts(afterInit = 0, afterEnc = 1, afterAna = 1, afterSync = 4, fullGraph = 5),

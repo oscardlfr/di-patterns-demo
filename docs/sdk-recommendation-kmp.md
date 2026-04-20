@@ -80,8 +80,8 @@ Cada feature declara un `@ServiceProvider` que registra un `Module` de Koin.
 | Thread-safe shutdown | OK | Koin `close()` limpia el grafo |
 | Logger persistente | PARCIAL | Requiere wiring manual para persistir entre reinits |
 | Madurez | ALTA | Koin: 7+ anos, documentacion extensa, comunidad grande |
-| Resolve cached | ~12,150 ns | 60x mas lento que H (202 ns) |
-| Init cold | ~135,200 ns | Comparable a H (106,865 ns) |
+| Resolve cached | ~1,038 ns | 7.5x mas lento que H (139 ns) |
+| Init cold | ~96,719 ns | Comparable a H (86,254 ns) |
 | **Wiring del facade inmutable** | **OK** | `koin.get(clazz.kotlin)` -- runtime registry nativo de Koin. Cero `when` |
 
 **Pros:**
@@ -92,7 +92,7 @@ Cada feature declara un `@ServiceProvider` que registra un `Module` de Koin.
 
 **Contras:**
 - Sin seguridad en compilacion: un `get<T>()` sin binding registrado crashea en runtime
-- Resolve 60x mas lento que patterns compile-time (Koin atraviesa su grafo en cada resolucion)
+- Resolve 7x mas lento que patterns compile-time (Koin atraviesa su grafo en cada resolucion)
 - `koin.verify()` en tests mitiga parcialmente pero no reemplaza compile-time safety
 - Con +50 modulos, la probabilidad de un binding roto en produccion crece linealmente
 
@@ -110,8 +110,8 @@ Cada feature declara un `@ServiceProvider` que registra un `Module` de Koin.
 | Thread-safe shutdown | OK | Grafo inmutable, destroy limpia scope |
 | Logger persistente | OK | `@SingleIn(AppScope)` sobrevive a feature scopes |
 | Madurez | BAJA | v0.6.6, proyecto de Slack, comunidad pequena |
-| Resolve cached | ~45 ns | El mas rapido (campo directo, sin map lookup) |
-| Init cold | ~891 ns | 120x mas rapido que H (106,865 ns) |
+| Resolve cached | ~273 ns | `withActive` lambda overhead (vs 139 ns de H eager) |
+| Init cold | ~1,412 ns | 61x mas rapido que H (86,254 ns) |
 | **Wiring del facade inmutable** | **NO** | `when (clazz)` manual en `MultiModuleSdkO2.get()`. Crece 1 rama por API. Mitigable con KSP propio (~200 LOC) |
 
 **Pros:**
@@ -140,8 +140,8 @@ Cada feature declara un `@ServiceProvider` que registra un `Module` de Koin.
 | Thread-safe shutdown | OK | Scope destroy limpia el grafo, inmutable |
 | Logger persistente | OK | `@SingleIn(AppScope)` sobrevive a feature scopes |
 | Madurez | MEDIA | kotlin-inject: 4+ anos. anvil ext: 1+ ano. Amazon mantiene |
-| Resolve cached | ~62 ns | 3.3x mas rapido que H (202 ns) |
-| Init cold | ~1,200 ns | 89x mas rapido que H (106,865 ns) |
+| Resolve cached | ~380 ns | 2.7x mas lento que H (139 ns) por `withActive` lambda |
+| Init cold | ~1,722 ns | 50x mas rapido que H (86,254 ns) |
 | **Wiring del facade inmutable** | **NO** | `when (clazz)` manual en `MultiModuleSdkP2.get()`. Mismo problema que O2. Mitigable con KSP propio |
 
 **Pros:**
@@ -172,8 +172,8 @@ para descubrimiento KMP. FeatureProviders descubiertos via `@ServiceProvider`.
 | Thread-safe shutdown | OK | Demostrado: concurrentShutdown 200 rounds OK |
 | Logger persistente | PARCIAL | ObservabilityProvider via ServiceLoader, requiere wiring |
 | Madurez | MEDIA | Resolver propio (probado). sweet-spi maduro |
-| Resolve cached | ~202 ns | ConcurrentHashMap lookup |
-| Init cold | ~106,865 ns | ServiceLoader scan (sweet-spi similar) |
+| Resolve cached | ~139 ns | ConcurrentHashMap lookup + JIT DCE (1 ns) |
+| Init cold | ~86,254 ns | ServiceLoader scan (sweet-spi similar) |
 | **Wiring del facade inmutable** | **OK** | `resolver.get(clazz)` -- HashMap lookup. Cero `when`, cero edicion al anadir APIs |
 
 **Pros:**
@@ -257,8 +257,8 @@ de `MultiModuleSdkP2.get()`. **Cero cambios en wiring, +1 rama en facade.**
 **Contras:**
 - Sin compile-time safety -- bindings rotos = crash en runtime (mitigable con
   `koin.verify()` en tests)
-- Resolve 60x mas lento que P2 (12,150 vs 62 ns) -- relevante en hot loops
-- Init mas lento (135K ns)
+- Resolve 2.7x mas lento que P2 (1,038 vs 380 ns) -- relevante en hot loops
+- Init similar a P2 (97K ns) tras el refactor
 
 #### Opcion C: Pattern H + sweet-spi (hibrido) -- si quieres facade inmutable + Resolver propio
 
@@ -274,7 +274,7 @@ de `MultiModuleSdkP2.get()`. **Cero cambios en wiring, +1 rama en facade.**
 
 **Contras:**
 - Compile-time parcial (provider faltante = runtime error)
-- Init lento (~107K ns) -- comparable a N
+- Init lento (~86K ns) -- comparable a N
 - Mantener Resolver propio
 
 ### Futuro: Pattern O2 (Metro Lazy)
@@ -292,7 +292,7 @@ de `MultiModuleSdkP2.get()`. **Cero cambios en wiring, +1 rama en facade.**
 
 ## 5. Evidencia de Benchmarks
 
-Comparacion directa de los 4 candidatos en los 11 criterios (S22 Ultra, 2026-04-12):
+Comparacion directa de los 4 candidatos en los 11 criterios (S22 Ultra, 2026-04-19):
 
 | # | Criterio | N (sweet-spi+Koin) | O2 (Metro Lazy) | P2 (KI-anvil Lazy) | H+sweet-spi |
 |---|----------|--------------------|-----------------|---------------------|-------------|
@@ -301,10 +301,10 @@ Comparacion directa de los 4 candidatos en los 11 criterios (S22 Ultra, 2026-04-
 | 3 | Lazy | OK | OK | OK | OK |
 | 4 | Compile-time safety | NO | OK | OK | NO |
 | 5 | Thread-safe shutdown | OK | OK | OK | OK |
-| 6 | Logger persistente | PARCIAL | OK | OK | PARCIAL |
+| 6 | Logger persistente | OK (buildLogger singleton) | OK | OK | OK (buildLogger singleton) |
 | 7 | Madurez ecosistema | ALTA | BAJA | MEDIA | MEDIA |
-| 8 | Resolve cached (ns) | ~12,150 | ~45 | ~62 | ~202 |
-| 9 | Init cold (ns) | ~135,200 | ~891 | ~1,200 | ~106,865 |
+| 8 | Resolve cached (ns) | ~1,038 | ~273 | ~380 | ~139 |
+| 9 | Init cold (ns) | ~96,719 | ~1,412 | ~1,722 | ~86,254 |
 | 10 | Memory footprint | MEDIO | BAJO | BAJO | MEDIO |
 | 11 | **Wiring del facade inmutable** | **OK** | **NO** | **NO** | **OK** |
 | | **MUST HAVEs** | **3/3** | **3/3** | **3/3** | **3/3** |
@@ -325,18 +325,18 @@ Comparacion directa de los 4 candidatos en los 11 criterios (S22 Ultra, 2026-04-
 
 | Operacion | N<br>*(sweet-spi+Koin)* (ns) | O2<br>*(Metro Lazy)* (ns) | P2<br>*(KI-anvil Lazy)* (ns) | H<br>*(Resolver+Dagger)* (ns) |
 |-----------|--------|---------|---------|--------|
-| initCold | ~135,200 | ~891 | ~1,200 | 106,865 |
-| resolve cached | ~12,150 | ~45 | ~62 | 202 |
-| lazyInit cascade | ~5,400 | ~320 | ~480 | 3,892 |
-| e2eStartup | ~2,100,000 | ~1,200,000 | ~1,350,000 | 1,745,145 |
-| stress_initShutdown | ~140,000 | ~2,100 | ~3,500 | 99,293 |
-| stress_reInit | ~520,000 | ~4,800 | ~7,200 | 362,649 |
+| initCold | ~96,719 | ~1,412 | ~1,722 | 86,254 |
+| resolve cached | ~1,038 | ~273 | ~380 | 139 |
+| lazyInit cascade | ~27,080 | ~591 | ~919 | 4,659 |
+| e2eStartup | ~709,614 | ~341,436 | ~551,942 | 806,472 |
+| stress_initShutdown | ~51,447 | ~852 | ~471 | 84,346 |
+| stress_reInit | ~178,294 | ~2,408 | ~2,951 | 185,812 |
 
-**Conclusiones de rendimiento:**
-- O2 y P2 dominan en todas las metricas de velocidad
-- N es consistentemente el mas lento por el overhead de Koin
-- H se situa entre P2 y N: mas rapido que Koin, mas lento que compile-time
-- Para +50 modulos, la diferencia de resolve (62 ns vs 12,150 ns) se amplifica en hot paths
+**Conclusiones de rendimiento (post-refactor):**
+- O2 y P2 dominan en init/lazy, con O2 ganando e2eStartup gracias al logger singleton + lazy
+- N bajo dramaticamente (resolve cached: 12K → 1K ns, -92%) gracias al logger singleton + ReadWriteLock
+- H se situa similar a N en init, pero mucho mas rapido en resolve cached (139 vs 1,038 ns)
+- Para +50 modulos, la diferencia de resolve (380 ns vs 1,038 ns) todavia se amplifica en hot paths pero es menos dramatica que pre-refactor
 
 ---
 

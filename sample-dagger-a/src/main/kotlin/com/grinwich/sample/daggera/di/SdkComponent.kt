@@ -2,7 +2,7 @@ package com.grinwich.sample.daggera.di
 
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.common.*
-import com.grinwich.sdk.feature.observability.AndroidSdkLogger
+import com.grinwich.sdk.feature.observability.buildLogger
 import dagger.Component
 import dagger.Module
 import dagger.Provides
@@ -41,7 +41,7 @@ interface SdkComponent {
 }
 
 @Module class CoreModule {
-    @Provides @Singleton fun logger(): SdkLogger = AndroidSdkLogger()
+    @Provides @Singleton fun logger(): SdkLogger = buildLogger()
     @Provides @Singleton fun coreApis(config: SdkConfig, logger: SdkLogger): CoreApis = CoreApisImpl(config, logger)
 }
 

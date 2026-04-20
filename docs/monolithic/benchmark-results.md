@@ -7,6 +7,13 @@ dedicados porque no ofrece lazy init ni features separadas -- todo esta en un un
 
 Para la descripcion de cada patron, ver [patterns-overview.md](patterns-overview.md).
 
+> **Nota sobre la fecha de medicion (2026-04-19):** los 4 SDKs monoliticos (DaggerB,
+> DaggerC, KoinSdk, Hybrid) tambien fueron actualizados para usar `buildLogger()`
+> singleton en vez de `AndroidSdkLogger()` directo. Los numeros de esta tabla reflejan
+> esa homogeneizacion. Variance inherente de DiBenchmark al correr en sub-suites
+> multiples durante la campana de benchmarking -- valores representativos (mediana
+> entre runs); re-medicion dedicada queda pendiente para futuras iteraciones.
+
 ---
 
 ## 1. Dispositivo y condiciones
@@ -31,12 +38,12 @@ no contra los Components internos. Esto mide el coste real que experimenta el co
 
 | Test | Dagger B | Dagger C | Koin | Hybrid | Mejor |
 |------|----------|----------|------|--------|-------|
-| **initCold** | 1,919 ns | 2,564 ns | 50,332 ns | 39,835 ns | Dagger B |
-| **resolveFirst** | 7.6 ns | 24.8 ns | 700 ns | 2.0 ns | Hybrid |
-| **resolveCached (bridge)** | -- | -- | -- | 2.4 ns | Hybrid |
-| **lazyInit noDeps** | 277 ns | 341 ns | 6,477 ns | -- | Dagger B |
-| **lazyInit cascade** | 1,467 ns | 2,207 ns | 20,724 ns | -- | Dagger B |
-| **crossFeatureOp** | 93,317 ns | 93,854 ns | 126,274 ns | 91,872 ns | Hybrid |
+| **initCold** | ~2,500 ns | ~3,200 ns | ~70,000 ns | ~50,000 ns | Dagger B |
+| **resolveFirst** | 5 ns | 3 ns | 700 ns | 7 ns | Dagger C |
+| **resolveCached (bridge)** | -- | -- | -- | 7 ns | Hybrid |
+| **lazyInit noDeps** | 360 ns | 500 ns | ~10,000 ns | -- | Dagger B |
+| **lazyInit cascade** | 1,700 ns | 2,100 ns | ~30,000 ns | -- | Dagger B |
+| **crossFeatureOp** | ~1.2M ns | ~1.7M ns | ~1.3M ns | ~1.3M ns | Hybrid |
 
 ### Definicion de cada test
 
@@ -63,10 +70,10 @@ no contra los Components internos. Esto mide el coste real que experimenta el co
 
 | Ranking | Patron | Tiempo | Factor vs mejor |
 |---------|--------|--------|-----------------|
-| 1 | Dagger B | 1,919 ns | 1.0x |
-| 2 | Dagger C | 2,564 ns | 1.3x |
-| 3 | Hybrid | 39,835 ns | 20.8x |
-| 4 | Koin | 50,332 ns | 26.2x |
+| 1 | Dagger B | ~2,500 ns | 1.0x |
+| 2 | Dagger C | ~3,200 ns | 1.3x |
+| 3 | Hybrid | ~50,000 ns | 20x |
+| 4 | Koin | ~70,000 ns | 28x |
 
 Dagger B y C crean Components Dagger (codegen puro, sin reflexion). Los objetos generados
 por KSP son factories directas -- la inicializacion es construccion de objetos Java.

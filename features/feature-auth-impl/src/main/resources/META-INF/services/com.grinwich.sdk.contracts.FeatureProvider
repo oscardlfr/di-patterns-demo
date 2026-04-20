@@ -1,1 +1,3 @@
 com.grinwich.sdk.feature.auth.AuthProvider
+com.grinwich.sdk.feature.auth.AuthPureProvider
+com.grinwich.sdk.feature.auth.AuthKIProvider

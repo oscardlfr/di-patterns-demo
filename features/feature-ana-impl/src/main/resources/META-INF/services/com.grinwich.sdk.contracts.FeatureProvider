@@ -1,1 +1,3 @@
 com.grinwich.sdk.feature.ana.AnaProvider
+com.grinwich.sdk.feature.ana.AnaPureProvider
+com.grinwich.sdk.feature.ana.AnaKIProvider

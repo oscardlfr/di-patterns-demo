@@ -15,10 +15,10 @@ android {
 }
 
 dependencies {
-    implementation(project(":di-contracts"))  // CoreProvisions, EncProvisions, StorProvisions, Resolver
+    implementation(project(":di-contracts"))  // FeatureProvider, Flavor, Resolver
     implementation(project(":features:feature-stor-api"))  // StorageApi
     implementation(project(":features:feature-enc-api"))  // EncryptionApi, HashApi (cross-feature dep)
-    implementation(project(":features:feature-core-api"))  // SdkConfig
+    implementation(project(":sdk:api"))  // SdkConfig (vive en sdk/api)
     implementation(project(":features:observability-api"))  // SdkLogger
 
     implementation(libs.datastore.preferences)

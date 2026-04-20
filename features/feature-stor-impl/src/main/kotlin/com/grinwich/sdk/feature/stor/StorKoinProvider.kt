@@ -7,7 +7,7 @@ import org.koin.dsl.module
 
 class StorKoinProvider : KoinFeatureProvider("storage") {
     override val services = setOf(StorageApi::class.java)
-    override val requiredServices = setOf(EncryptionApi::class.java, HashApi::class.java)
+    override val requiredServices = setOf(EncryptionApi::class.java, HashApi::class.java, SdkLogger::class.java)
     override fun module() = module {
         single<StorageApi> {
             get<CreationTracker>().mark("storage")

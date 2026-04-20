@@ -92,7 +92,7 @@ interface SdkComponent {
 }
 
 @Module class CoreModule {
-    @Provides @Singleton fun logger(): SdkLogger = AndroidSdkLogger()
+    @Provides @Singleton fun logger(): SdkLogger = buildLogger()  // singleton process-scoped
     @Provides @Singleton fun coreApis(config: SdkConfig, logger: SdkLogger): CoreApis =
         CoreApisImpl(config, logger)
 }

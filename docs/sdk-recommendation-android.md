@@ -80,16 +80,17 @@ Estos patrones cumplen los 3 MUST HAVE con la maxima calidad: compile-time safet
 | Thread-safe shutdown | **OK** -- LazyCreationTracker.deactivate() + nullify graph | **OK** -- LazyCreationTracker.deactivate() + nullify component |
 | Logger persistente | **OK** -- `@SingleIn(AppScope)` sobrevive a feature scopes | **OK** -- `@SingleIn(AppScope)` sobrevive a feature scopes |
 | Madurez | **BAJA** -- Metro v0.6.6. Mantenido por ZacSweers (Slack). Compiler plugin acoplado a version de Kotlin | **MEDIA** -- kotlin-inject 4+ anos. anvil ext v0.1.7. Amazon (Ring, Alexa) mantiene |
-| Init Cold | **1,127 ns** | **1,416 ns** |
-| Resolve All (cached) | **86 ns** | **156 ns** |
-| Re-Init | **2,305 ns** | **2,929 ns** |
+| Init Cold | **1,412 ns** | **1,722 ns** |
+| Resolve All (cached) | **273 ns** | **380 ns** |
+| Re-Init | **2,408 ns** | **2,951 ns** |
 | **Wiring del facade inmutable** | **NO** -- `when (clazz)` manual en `MultiModuleSdkO2.get()`. Crece 1 rama por API. Mitigable con KSP propio | **NO** -- mismo problema en `MultiModuleSdkP2.get()`. Mitigable con KSP propio |
 | MUST HAVEs | **3/3** | **3/3** |
 | Total criterios OK | **8/9** (falla facade) | **8/9** (falla facade) |
 
-**O2** es objetivamente el mas rapido en perf pura: init 95x mas rapido que H
-(1,127 vs 106,865 ns), resolve cached 2.3x mas rapido (86 vs 202 ns), re-init 157x mas
-rapido (2,305 vs 362,649 ns).
+**O2** es un buen compromiso lazy + KMP: init 61x mas rapido que H (1,412 vs 86,254 ns),
+resolve cached 2x MAS LENTO que H tras el refactor (273 vs 139 ns) por el `withActive`
+lambda, re-init 77x mas rapido (2,408 vs 185,812 ns). **Nota post-refactor**: O eager
+es ahora mas rapido que O2 lazy en re-init (1,120 vs 2,408 ns) por el logger singleton.
 
 **P2** es ~25% mas lento que O2 pero usa KSP estandar en vez de compiler plugin,
 lo que reduce el riesgo de rotura en bumps de Kotlin.
@@ -114,9 +115,9 @@ innecesariamente.
 | Auto-registro (grafo) | **OK** -- `@ContributesTo` | **OK** -- `@ContributesTo` |
 | Compile-time safety | **OK** -- compiler plugin | **OK** -- KSP |
 | Lazy | **NO** -- eager: todos los singletons en init | **NO** -- eager |
-| Init Cold | **603 ns** (el mas rapido de todos) | **1,064 ns** |
-| Resolve All | **80 ns** | **165 ns** |
-| Re-Init | **36,000 ns** (15.6x mas lento que O2) | **28,000 ns** (9.6x mas lento que P2) |
+| Init Cold | **723 ns** | **785 ns** |
+| Resolve All | **108 ns** | **146 ns** |
+| Re-Init | **1,120 ns** (mas rapido que O2 tras logger singleton) | **1,528 ns** (mas rapido que P2) |
 | **Wiring del facade inmutable** | **NO** -- mismo `when` que O2 | **NO** -- mismo `when` que P2 |
 | MUST HAVEs | **2/3** (falla Lazy) | **2/3** (falla Lazy) |
 
@@ -142,9 +143,9 @@ provisions on-demand con DFS recursivo. Cada feature usa Dagger internamente.
 | Thread-safe shutdown | **OK** | `concurrentShutdown` pasa 200 rounds. synchronized + ConcurrentHashMap |
 | Logger persistente | **OK** | ObservabilityProvider con flag `persistent` sobrevive a shutdown/reinit |
 | Madurez | **ALTA** | Dagger: 10+ anos. ServiceLoader: JDK estandar. 35 tests, 10K ciclos, zero leaks |
-| Init Cold | **106,865 ns** | ServiceLoader scan domina el costo |
-| Resolve All (cached) | **212 ns** | ConcurrentHashMap lookup O(1) |
-| Re-Init | **362,649 ns** | ServiceLoader + rebuild completo |
+| Init Cold | **86,254 ns** | ServiceLoader scan domina el costo |
+| Resolve All (cached) | **139 ns** | ConcurrentHashMap lookup O(1) |
+| Re-Init | **185,812 ns** | ServiceLoader + rebuild (logger singleton -49% vs pre-refactor) |
 | **Wiring del facade inmutable** | **OK** | `MultiModuleSdkH.get(clazz)` delega a `resolver.get(clazz)` -- HashMap lookup. **Cero `when`, cero edicion al anadir APIs**. Unico patron Tier 1-3 con esta propiedad nativamente (sin codegen propio) |
 | MUST HAVEs | **2.5/3** (compile-time parcial) |
 | Total criterios OK | **8/9** (falla compile-time parcial) |
@@ -158,8 +159,8 @@ provisions on-demand con DFS recursivo. Cada feature usa Dagger internamente.
 
 **Contras:**
 - Provider faltante = runtime error
-- Init 95x mas lento que O2 (106,865 vs 1,127 ns)
-- Re-init 157x mas lento que O2 (362,649 vs 2,305 ns)
+- Init 61x mas lento que O2 (86,254 vs 1,412 ns)
+- Re-init 77x mas lento que O2 (185,812 vs 2,408 ns)
 - Resolver propio = 105 lineas a mantener (compensado por facade inmutable)
 
 #### 3.3.2 Pattern I -- Pure Resolver (zero framework DI)
@@ -169,7 +170,7 @@ provisions on-demand con DFS recursivo. Cada feature usa Dagger internamente.
 | Auto-registro | **OK** -- ServiceLoader |
 | Compile-time safety | **NO** -- zero DI framework = zero validacion |
 | Lazy | **OK** -- DFS identico a H |
-| Init Cold | **94,255 ns** |
+| Init Cold | **116,413 ns** |
 | MUST HAVEs | **2/3** (falla compile-time safety) |
 
 Zero compile-time safety con 10 devs y 50+ modulos = alto riesgo. Descartado.
@@ -181,7 +182,7 @@ Zero compile-time safety con 10 devs y 50+ modulos = alto riesgo. Descartado.
 | Auto-registro | **OK** -- AndroidManifest meta-data + manifest merger |
 | Compile-time safety | **PARCIAL** -- igual que H |
 | Lazy | **OK** -- DFS identico a H |
-| Init Cold | **213,737 ns** -- 2x mas lento que H |
+| Init Cold | **205,544 ns** -- 2.4x mas lento que H |
 | MUST HAVEs | **2.5/3** |
 
 Solo tiene sentido si R8/ProGuard elimina META-INF/services y no se pueden anadir keep rules.
@@ -200,9 +201,9 @@ para cada feature nuevo.
 | Compile-time safety | **OK** | Grafo completo validado por Dagger |
 | Lazy | **OK** | `dagger.Lazy<T>` difiere construccion hasta primer acceso |
 | Madurez | **ALTA** | Dagger 10+ anos. `dagger.Lazy` es API oficial |
-| Init Cold | **1,080 ns** |
-| Resolve All | **85 ns** |
-| Re-Init | **2,157 ns** -- el mas rapido de todos |
+| Init Cold | **1,502 ns** |
+| Resolve All | **303 ns** |
+| Re-Init | **2,496 ns** (post-refactor Q eager es mas rapido: 1,042 ns) |
 | **Wiring del facade inmutable** | **NO** | `when (clazz)` manual en `MultiModuleSdkQ2.get()`. Mismo problema que O2/P2 |
 | MUST HAVEs | **2/3** (falla auto-registro) |
 | Total criterios OK | **6/9** (falla auto-registro grafo Y facade inmutable) |
@@ -223,7 +224,7 @@ ediciones), pero el `modules=[...]` sigue siendo manual.
 | Auto-registro (grafo) | **PARCIAL** -- 1 linea en `allEntries()` por feature |
 | Compile-time safety | **OK** -- Dagger per-Component |
 | Lazy | **OK** -- DFS on-demand |
-| Init Cold | **10,983 ns** |
+| Init Cold | **8,024 ns** |
 | **Wiring del facade inmutable** | **OK** -- `MultiModuleSdkE2.get()` delega a `registry.get(clazz)` (HashMap). **Cero `when`** |
 | MUST HAVEs | **2.5/3** (auto-registro parcial) |
 | Total criterios OK | **8/9** |
@@ -240,13 +241,13 @@ sin `when` que mantener.
 | Auto-registro (grafo) | **OK** | **OK** | **NO** -- cascada manual de loadModules |
 | Compile-time safety | **NO** -- Koin runtime | **NO** | **NO** |
 | Lazy | **OK** -- Koin `single{}` | **OK** | **OK** |
-| Init Cold | **69,636 ns** | **154,403 ns** | **164,353 ns** |
-| Resolve All (cached) | **6,328 ns** | **6,244 ns** | **7,920 ns** |
-| Re-Init | **732,000 ns** | **1.1M ns** | **1.2M ns** |
+| Init Cold | **96,719 ns** | **161,559 ns** | **164,713 ns** |
+| Resolve All (cached) | **6,307 ns** | **4,784 ns** | **6,899 ns** |
+| Re-Init | **178,294 ns** | **387,573 ns** | **412,645 ns** |
 | **Wiring del facade inmutable** | **OK** -- `koin.get(clazz)` nativo | **OK** -- igual | **OK** -- igual |
 | MUST HAVEs | **2/3** | **2/3** | **2/3** |
 
-N es el mejor Koin-based pero su resolve cached (6,328 ns) es 74x mas lento que O2 (86 ns).
+N es el mejor Koin-based pero su resolve cached (6,307 ns) es 23x mas lento que O2 (273 ns).
 Sin compile-time safety, 10 devs con 50+ modulos = bindings rotos en produccion.
 L y M anaden ServiceLoader JVM-only sin beneficio significativo. **Ventaja arquitectural
 de los 3**: facade inmutable nativo (sin `when`, sin codegen propio) -- comparten esa

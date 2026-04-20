@@ -164,9 +164,9 @@ class StressTortureTest {
         // Shutdown one — others survive
         val (firstName, firstSdk) = ALL_LAZY_SDKS[0]
         firstSdk.shutdown()
-        assertEquals("$firstName shutdown", 0, firstSdk.builtProvisionCount)
+        assertEquals("$firstName shutdown", 0, firstSdk.builtFeatureCount)
         for ((name, sdk) in ALL_LAZY_SDKS.drop(1)) {
-            assertTrue("$name survives ${firstName}'s shutdown", sdk.builtProvisionCount > 0)
+            assertTrue("$name survives ${firstName}'s shutdown", sdk.builtFeatureCount > 0)
         }
     }
 
@@ -196,11 +196,11 @@ class StressTortureTest {
         val expected = EXPECTED_COUNTS[name]!!
         repeat(5000) { i ->
             sdk.init(testContext, config)
-            assertEquals("$name cycle $i: after init", expected.afterInit, sdk.builtProvisionCount)
+            assertEquals("$name cycle $i: after init", expected.afterInit, sdk.builtFeatureCount)
             sdk.get(EncryptionApi::class.java)
-            assertEquals("$name cycle $i: after get<Enc>", expected.afterEnc, sdk.builtProvisionCount)
+            assertEquals("$name cycle $i: after get<Enc>", expected.afterEnc, sdk.builtFeatureCount)
             sdk.shutdown()
-            assertEquals("$name cycle $i: after shutdown", 0, sdk.builtProvisionCount)
+            assertEquals("$name cycle $i: after shutdown", 0, sdk.builtFeatureCount)
         }
     }
 
@@ -248,7 +248,7 @@ class StressTortureTest {
         val expected = EXPECTED_COUNTS[name]!!
         sdk.init(testContext, config)
         val enc = sdk.get(EncryptionApi::class.java)
-        assertEquals(expected.afterEnc, sdk.builtProvisionCount)
+        assertEquals(expected.afterEnc, sdk.builtFeatureCount)
 
         // GC STORM: crear 5 MB de basura para forzar al GC a ejecutarse.
         // ByteArray(1_000_000) = 1 MB de basura que se descarta inmediatamente.
@@ -258,12 +258,12 @@ class StressTortureTest {
         System.gc(); Thread.sleep(100)  // pausa final para que el GC complete
 
         // Las provisions DEBEN sobrevivir — strong refs en ConcurrentHashMap
-        assertEquals("$name: provisions survive GC", expected.afterEnc, sdk.builtProvisionCount)
+        assertEquals("$name: provisions survive GC", expected.afterEnc, sdk.builtFeatureCount)
         assertSame("$name: same instance after GC", enc, sdk.get(EncryptionApi::class.java))
 
         // El DFS debe seguir funcionando despues del GC storm
         sdk.get(SyncApi::class.java)
-        assertEquals("$name: cascade after GC", expected.afterSync, sdk.builtProvisionCount)
+        assertEquals("$name: cascade after GC", expected.afterSync, sdk.builtFeatureCount)
     }
 
     // ════════════════════════════════════════════════════════
@@ -300,7 +300,7 @@ class StressTortureTest {
             sdk.init(testContext, config)
             sdk.get(SyncApi::class.java)
             sdk.get(AnalyticsApi::class.java)
-            assertEquals(expected.fullGraph, sdk.builtProvisionCount)
+            assertEquals(expected.fullGraph, sdk.builtFeatureCount)
             sdk.shutdown()
         }
 
@@ -391,7 +391,7 @@ class StressTortureTest {
 
         // Double shutdown is safe
         sdk.init(testContext, config); sdk.shutdown(); sdk.shutdown()
-        assertEquals(0, sdk.builtProvisionCount)
+        assertEquals(0, sdk.builtFeatureCount)
 
         // Init after shutdown works
         sdk.init(testContext, config)
@@ -517,7 +517,7 @@ class StressTortureTest {
 
             assertTrue("$name round $round: errors: ${errors.map { it.message }}", errors.isEmpty())
             assertEquals("$name round $round: all 6 services resolved", 6, results.size)
-            assertEquals("$name round $round: full graph built", expected.fullGraph, sdk.builtProvisionCount)
+            assertEquals("$name round $round: full graph built", expected.fullGraph, sdk.builtFeatureCount)
 
             // Verify singletons — calling again must return same instances
             val enc1 = results[EncryptionApi::class.java]
@@ -575,7 +575,7 @@ class StressTortureTest {
 
             // Enc needs Core+Obs, Ana needs Core+Obs, Auth needs Core+Obs+Enc.
             // Sync and Storage must NOT be built — laziness preserved under concurrency.
-            val count = sdk.builtProvisionCount
+            val count = sdk.builtFeatureCount
             assertTrue(
                 "$name round $round: too many provisions ($count), Sync/Stor leaked into partial graph",
                 count <= expected.afterSync // afterSync is the max with Enc+Auth+Ana but without full graph
@@ -663,7 +663,7 @@ class StressTortureTest {
                 val enc = sdk.get(EncryptionApi::class.java)
                 assertNotNull("$name: enc not null in alternation", enc)
                 sdk.shutdown()
-                assertEquals("$name: clean after shutdown", 0, sdk.builtProvisionCount)
+                assertEquals("$name: clean after shutdown", 0, sdk.builtFeatureCount)
             }
         }
     }

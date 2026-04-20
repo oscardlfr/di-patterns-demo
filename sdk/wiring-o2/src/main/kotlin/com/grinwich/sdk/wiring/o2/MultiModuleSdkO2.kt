@@ -3,7 +3,7 @@ package com.grinwich.sdk.wiring.o2
 import android.content.Context
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.contracts.LazyCreationTracker
-import com.grinwich.sdk.feature.observability.AndroidSdkLogger
+import com.grinwich.sdk.feature.observability.buildLogger
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.DependencyGraph
 import dev.zacsweers.metro.Provides
@@ -44,16 +44,16 @@ object MultiModuleSdkO2 : MultiModuleSdkApi {
     private var _tracker: LazyCreationTracker.Instance? = null
 
     // Persistent — survive shutdown/reinit cycles (intentional: ApplicationContext-level singleton)
-    private var _logger: SdkLogger = AndroidSdkLogger()
+    private var _logger: SdkLogger = buildLogger()
 
     override val isInitialized: Boolean get() = _initialized
 
     /**
      * Lazy Metro: graph is created at init but singletons are NOT instantiated
-     * until first access via Lazy<T>.value. builtProvisionCount reads from
+     * until first access via Lazy<T>.value. builtFeatureCount reads from
      * [LazyCreationTracker] which is incremented by @Provides methods.
      */
-    override val builtProvisionCount: Int get() = _tracker?.count ?: 0
+    override val builtFeatureCount: Int get() = _tracker?.count ?: 0
 
     override fun init(context: Context, config: SdkConfig) {
         check(!_initialized) { "MultiModuleSdkO2 already initialized. Call shutdown() first." }
@@ -73,16 +73,19 @@ object MultiModuleSdkO2 : MultiModuleSdkApi {
     override fun <T : Any> get(clazz: Class<T>): T {
         check(_initialized) { "MultiModuleSdkO2 not initialized." }
         val graph = _graph ?: error("graph is null")
-        val instance: Any = when (clazz) {
-            EncryptionApi::class.java -> graph.encryption.value
-            HashApi::class.java -> graph.hashApi.value
-            AuthApi::class.java -> graph.auth.value
-            StorageApi::class.java -> graph.storage.value
-            AnalyticsApi::class.java -> graph.analytics.value
-            SyncApi::class.java -> graph.sync.value
-            SdkLogger::class.java -> _logger
-            Context::class.java -> graph.context
-            else -> error("No binding for ${clazz.simpleName} in SdkGraph")
+        val tracker = _tracker ?: error("tracker is null")
+        val instance: Any = tracker.withActive {
+            when (clazz) {
+                EncryptionApi::class.java -> graph.encryption.value
+                HashApi::class.java -> graph.hashApi.value
+                AuthApi::class.java -> graph.auth.value
+                StorageApi::class.java -> graph.storage.value
+                AnalyticsApi::class.java -> graph.analytics.value
+                SyncApi::class.java -> graph.sync.value
+                SdkLogger::class.java -> _logger
+                Context::class.java -> graph.context
+                else -> error("No binding for ${clazz.simpleName} in SdkGraph")
+            }
         }
         return checkNotNull(clazz.cast(instance)) { "Cast failed for ${clazz.simpleName}" }
     }

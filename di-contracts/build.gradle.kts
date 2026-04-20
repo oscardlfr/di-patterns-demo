@@ -13,16 +13,11 @@ android {
 }
 
 dependencies {
-    // Provision interfaces reference these types internally.
-    // implementation() — di-contracts does NOT transitively expose feature-api types.
-    // Each feature-impl declares its own explicit dependencies on the apis it uses.
-    implementation(project(":features:feature-core-api"))      // SdkConfig
-    implementation(project(":features:observability-api"))      // SdkLogger
-    implementation(project(":features:feature-enc-api"))        // EncryptionApi, HashApi
-    implementation(project(":features:feature-auth-api"))       // AuthApi
-    implementation(project(":features:feature-stor-api"))       // StorageApi
-    implementation(project(":features:feature-ana-api"))        // AnalyticsApi
-    implementation(project(":features:feature-syn-api"))        // SyncApi
-    // javax.inject for @Scope annotations
+    // di-contracts es 100% NEUTRO. NO importa ningún tipo de API del SDK.
+    // El Resolver maneja servicios como `Class<*> → instancia` sin conocer
+    // tipos concretos. Los providers concretos (feature-*-impl) SÍ importan
+    // los tipos, pero `di-contracts` no.
+    //
+    // javax.inject sólo para @Scope (annotations genéricas).
     implementation(libs.javax.inject)
 }

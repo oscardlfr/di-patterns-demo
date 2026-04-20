@@ -13,8 +13,9 @@ android {
 }
 
 dependencies {
-    // Umbrella: re-exports core-api + observability + all feature APIs
-    api(project(":features:feature-core-api"))
+    // sdk/api es la superficie que el consumidor importa: contratos de servicio
+    // + SdkConfig/StorageBackend (ya viven aquí directamente).
+    // NO depende de di-contracts — la DI es detalle interno del wiring.
     api(project(":features:observability-api"))
     api(project(":features:feature-enc-api"))
     api(project(":features:feature-auth-api"))

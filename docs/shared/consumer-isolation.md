@@ -127,7 +127,7 @@ en un Kotlin `object` fuera del contenedor DI.
 ```kotlin
 // Vive fuera del contenedor DI
 internal object FoundationSingletons {
-    val logger: SdkLogger = AndroidSdkLogger()
+    val logger: SdkLogger = buildLogger()  // singleton lazy process-scoped
 }
 
 // Koin — devuelve el objeto existente

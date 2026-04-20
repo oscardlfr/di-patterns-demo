@@ -1,1 +1,3 @@
 com.grinwich.sdk.feature.syn.SynProvider
+com.grinwich.sdk.feature.syn.SynPureProvider
+com.grinwich.sdk.feature.syn.SynKIProvider

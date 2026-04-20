@@ -1,6 +1,5 @@
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.ksp)
 }
 
 android {
@@ -14,10 +13,6 @@ android {
 }
 
 dependencies {
-    implementation(project(":di-contracts"))  // CoreProvisions, Resolver
-    implementation(project(":features:feature-core-api"))  // SdkConfig
-
-    implementation(libs.dagger)
-    ksp(libs.dagger.compiler)
-    implementation(libs.javax.inject)
+    implementation(project(":di-contracts"))  // FeatureProvider, Flavor, Resolver
+    implementation(project(":sdk:api"))  // SdkConfig (vive en sdk/api)
 }

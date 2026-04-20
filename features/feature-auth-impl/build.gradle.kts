@@ -15,10 +15,9 @@ android {
 }
 
 dependencies {
-    implementation(project(":di-contracts"))  // CoreProvisions, EncProvisions, AuthProvisions, Resolver
+    implementation(project(":di-contracts"))  // FeatureProvider, Flavor, Resolver
     implementation(project(":features:feature-auth-api"))  // AuthApi, AuthToken
     implementation(project(":features:feature-enc-api"))  // EncryptionApi (cross-feature dep)
-    implementation(project(":features:feature-core-api"))  // SdkConfig
     implementation(project(":features:observability-api"))  // SdkLogger
 
     implementation(libs.dagger)

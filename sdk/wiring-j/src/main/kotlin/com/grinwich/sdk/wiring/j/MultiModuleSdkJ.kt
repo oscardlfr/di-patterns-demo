@@ -2,8 +2,10 @@ package com.grinwich.sdk.wiring.j
 
 import com.grinwich.sdk.api.MultiModuleSdkApi
 import com.grinwich.sdk.api.SdkConfig
-import com.grinwich.sdk.contracts.KIFeatureProvider
+import com.grinwich.sdk.contracts.FeatureProvider
+import com.grinwich.sdk.contracts.Flavor
 import com.grinwich.sdk.contracts.Resolver
+import com.grinwich.sdk.contracts.SyntheticFeatureProvider
 import java.util.ServiceLoader
 
 /**
@@ -12,8 +14,8 @@ import java.util.ServiceLoader
  * Same architecture as Pattern H (ServiceLoader + FeatureProvider + Resolver)
  * but features use kotlin-inject Components instead of Dagger Components.
  *
- * Discovered via ServiceLoader.load(KIFeatureProvider::class.java) —
- * separate from Dagger-based providers used by Pattern H.
+ * Discovered via ServiceLoader.load(FeatureProvider::class.java) filtering
+ * by flavor=KI — separate from the Dagger providers (flavor=DAGGER) consumed by H.
  *
  * KSP generates Kotlin (not Java). Less boilerplate than Dagger.
  * Component = Module (no separate @Module class needed).
@@ -25,16 +27,19 @@ object MultiModuleSdkJ : MultiModuleSdkApi {
 
     override val isInitialized: Boolean get() = _initialized
 
-    /** Number of provisions currently built. Useful for verifying lazy behavior in tests. */
-    override val builtProvisionCount: Int get() = resolver.builtProvisionCount
+    override val builtFeatureCount: Int get() = resolver.builtFeatureCount
 
     override fun init(context: android.content.Context, config: SdkConfig) {
         check(!_initialized) { "MultiModuleSdkJ already initialized. Call shutdown() first." }
-        resolver.init(context, config)
+        resolver.register(SyntheticFeatureProvider(mapOf(
+            SdkConfig::class.java to config,
+            android.content.Context::class.java to context.applicationContext,
+        )))
 
-        ServiceLoader.load(KIFeatureProvider::class.java).forEach { provider ->
-            resolver.register(provider)
-        }
+        // J filters by KI: only consumes providers that use kotlin-inject.
+        ServiceLoader.load(FeatureProvider::class.java)
+            .filter { it.flavor == Flavor.KI }
+            .forEach { resolver.register(it) }
 
         _initialized = true
     }

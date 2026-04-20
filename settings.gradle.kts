@@ -23,7 +23,6 @@ rootProject.name = "di-patterns-demo"
 
 // ── Features ──
 include(":features:observability-api")
-include(":features:feature-core-api")
 include(":features:feature-enc-api")
 include(":features:feature-auth-api")
 include(":features:feature-stor-api")

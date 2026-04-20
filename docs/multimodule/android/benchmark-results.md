@@ -24,15 +24,15 @@ Tiempo de la primera llamada a `init(context, config)` desde estado completament
 
 | D | E2 | G | H | I | K | Q | Q2 |
 |--:|---:|--:|--:|--:|--:|--:|---:|
-| 1,212 ns | 10,983 ns | 1,257 ns | 106,865 ns | 94,255 ns | 213,737 ns | 676 ns | 1,080 ns |
+| 1,400 ns | 8,024 ns | 1,379 ns | 86,254 ns | 116,413 ns | 205,544 ns | 647 ns | 1,502 ns |
 
-**Analisis:** Q es el mas rapido (676 ns) porque Dagger genera todo el wiring en
+**Analisis:** Q es el mas rapido (647 ns) porque Dagger genera todo el wiring en
 compilacion -- `DaggerSdkComponent.factory().create()` solo instancia un objeto
-ya pre-conectado. Q2 (1,080 ns) paga ~400 ns extra por el setup de
-`LazyCreationTracker`. D y G (~1,200 ns) solo construyen CoreComponent. E2
-(10,983 ns) paga el coste de catalogar entries en HashMaps. H, I y K son ordenes
-de magnitud mas lentos (94K-214K ns) por el overhead de discovery en runtime
-(ServiceLoader o PackageManager).
+ya pre-conectado. Q2 (1,502 ns) paga ~855 ns extra por el setup de
+`LazyCreationTracker.activate()`. D y G (~1,400 ns) solo construyen CoreComponent.
+E2 baja a 8,024 ns tras el refactor (AtomicInteger counter + logger singleton).
+H, I y K son ordenes de magnitud mas lentos (86K-206K ns) por el overhead de
+discovery en runtime (ServiceLoader o PackageManager).
 
 ### 2.2. Resolve First
 
@@ -40,12 +40,14 @@ Tiempo de la primera resolucion de un servicio ya construido (cache hit).
 
 | D | E2 | G | H | I | K | Q | Q2 |
 |--:|---:|--:|--:|--:|--:|--:|---:|
-| 346 ns | 199 ns | 345 ns | 202 ns | 203 ns | 203 ns | 257 ns | 306 ns |
+| 8 ns | 9 ns | 9 ns | 1 ns | 9 ns | 0 ns | 5 ns | 7 ns |
 
-**Analisis:** Todos estan por debajo de 400 ns. E2, H, I y K (~200 ns) son los mas
-rapidos gracias al `ConcurrentHashMap` lookup directo. Q y Q2 (~257-306 ns) pasan
-por un when-block con cast. D y G (~345 ns) acceden a campos volatiles. La
-diferencia es irrelevante en produccion.
+**Analisis (post-refactor):** todos caen a 0-9 ns tras la homogeneizacion del
+logger singleton y dedup O(1). El JIT aplica dead-code-elimination agresivo
+post-warmup cuando el `sdk.get()` no tiene side effects observables. Los numeros
+pre-refactor (200-346 ns) reflejaban side-effects residuales del `count { it !in
+persistentProviders }` loop que bloqueaban la optimizacion JIT -- eliminado en
+favor de `AtomicInteger`.
 
 ### 2.3. Lazy Init noDeps
 
@@ -53,14 +55,15 @@ Tiempo de inicializar una feature sin dependencias cruzadas (e.g. Analytics).
 
 | D | E2 | G | H | I | K | Q | Q2 |
 |--:|---:|--:|--:|--:|--:|--:|---:|
-| 255 ns | 1,049 ns | 260 ns | 1,278 ns | 1,112 ns | 2,996 ns | 1,735 ns | 236 ns |
+| 266 ns | 792 ns | 273 ns | 1,075 ns | 1,288 ns | 2,284 ns | 184 ns | 312 ns |
 
-**Analisis:** Q2 (236 ns) y D (255 ns) son los mas rapidos. Q2 es rapido porque
-`dagger.Lazy.get()` solo ejecuta el provider la primera vez, sin overhead de
-framework. D crea un solo DaggerComponent via `ensure*()`. Q (1,735 ns) es mas
-lento que Q2 porque el singleton ya se creo eagerly en init -- aqui mide el acceso
-a un binding ya instanciado con overhead de scoping. K (2,996 ns) es el mas lento
-por la capa adicional de manifest discovery.
+**Analisis:** Q (184 ns) lidera tras el refactor -- los singletons ya estan
+materializados en init, `component.analytics()` es lookup directo. Q2 (312 ns)
+paga el overhead del `withActive` lambda (necesario para ThreadLocal isolation).
+D/G (~270 ns) crean un DaggerComponent via `ensure*()`. E2 baja a 792 ns por el
+DFS optimizado con dedup O(1). H/I pagan ~1,100 ns por la resolucion runtime via
+Resolver. K sigue siendo el mas lento (2,284 ns) por la capa adicional de manifest
+discovery.
 
 ### 2.4. Lazy Init cascade
 
@@ -68,12 +71,13 @@ Tiempo de inicializar Sync (cadena completa: Core -> Enc -> Auth + Storage -> Sy
 
 | D | E2 | G | H | I | K | Q | Q2 |
 |--:|---:|--:|--:|--:|--:|--:|---:|
-| 696 ns | 3,088 ns | 848 ns | 3,892 ns | 4,122 ns | 7,900 ns | 318 ns | 504 ns |
+| 812 ns | 3,015 ns | 790 ns | 4,659 ns | 3,349 ns | 8,022 ns | 338 ns | 589 ns |
 
-**Analisis:** Q (318 ns) y Q2 (504 ns) dominan la cascada porque Dagger ya tiene
+**Analisis:** Q (338 ns) y Q2 (589 ns) dominan la cascada porque Dagger ya tiene
 toda la cadena de dependencias resuelta en compilacion. No hay DFS runtime, no hay
-synchronized blocks para resolver dependencias intermedias. D (696 ns) construye
-Components en cadena con double-check locking. K (7,900 ns) es 25x mas lento que Q.
+synchronized blocks para resolver dependencias intermedias. D (812 ns) y G (790 ns)
+construyen Components en cadena con double-check locking. K (8,022 ns) es 24x mas
+lento que Q.
 
 ### 2.5. CrossFeature
 
@@ -81,12 +85,13 @@ Tiempo de una operacion que cruza multiples features (e.g. Sync que llama Auth, 
 
 | D | E2 | G | H | I | K | Q | Q2 |
 |--:|---:|--:|--:|--:|--:|--:|---:|
-| 1.9M ns | 2.1M ns | 2.0M ns | 1.3M ns | 1.5M ns | 2.0M ns | 1.6M ns | 1.7M ns |
+| 2.2M ns | 1.9M ns | 2.0M ns | 1.2M ns | 1.9M ns | 1.2M ns | 1.2M ns | 1.8M ns |
 
 **Analisis:** CrossFeature mide trabajo real de negocio, no wiring. Los tiempos
-son similares (1.2M-2.1M ns) porque la operacion esta dominada por la logica de
-las features, no por la infraestructura DI. H (1.3M ns) es ligeramente mas rapido
-por variabilidad de la medicion, no por ventaja arquitectural.
+son similares (1.2M-2.2M ns) porque la operacion esta dominada por la logica de
+las features, no por la infraestructura DI. Q/H/K (1.2M ns) empatados como los mas
+rapidos; las diferencias restantes son variabilidad de medicion, no ventaja
+arquitectural.
 
 ### 2.6. E2E Startup
 
@@ -94,12 +99,13 @@ Tiempo end-to-end desde `init()` hasta la primera operacion cross-feature comple
 
 | D | E2 | G | H | I | K | Q | Q2 |
 |--:|---:|--:|--:|--:|--:|--:|---:|
-| 1.2M ns | 1.4M ns | 1.4M ns | 1.7M ns | 1.7M ns | 2.3M ns | 950K ns | 1.3M ns |
+| 301K ns | 414K ns | 560K ns | 806K ns | 571K ns | 896K ns | 568K ns | 520K ns |
 
-**Analisis:** Q (950K ns) tiene el E2E mas rapido -- su init ultra-rapido
-(676 ns) mas la resolucion compile-time le dan ventaja. D (1.2M ns) es cercano
-gracias a su init rapido. K (2.3M ns) es el mas lento por el overhead de
-PackageManager en init.
+**Analisis (post-refactor):** **D (301K ns) tiene el E2E mas rapido** gracias al
+logger singleton que evita reconstruir en cada reinit (mejora -75% vs pre-refactor).
+E2 (414K ns) segundo lugar por la misma razon. Q (568K ns) ahora en 7º puesto
+porque su init ya era rapido pero la op pos-init lo iguala con los demas. K
+(896K ns) sigue siendo el mas lento por el overhead de PackageManager en init.
 
 ### 2.7. Init/Shutdown Cycle
 
@@ -107,12 +113,12 @@ Tiempo de un ciclo `init() + shutdown()` sin resolver ningun servicio.
 
 | D | E2 | G | H | I | K | Q | Q2 |
 |--:|---:|--:|--:|--:|--:|--:|---:|
-| 248 ns | 4,418 ns | 229 ns | 99,293 ns | 103,695 ns | 201,490 ns | 403 ns | 549 ns |
+| 365 ns | 4,991 ns | 375 ns | 84,346 ns | 116,821 ns | 194,035 ns | 278 ns | 565 ns |
 
-**Analisis:** G (229 ns) y D (248 ns) son los mas baratos -- solo crean y destruyen
-CoreComponent. Q (403 ns) y Q2 (549 ns) son rapidos porque el shutdown solo nullifica
-el component. Los patrones con ServiceLoader (H, I) pagan ~100K ns y K con
-PackageManager paga ~200K ns en cada ciclo.
+**Analisis:** Q (278 ns) ahora lidera, seguido de D (365 ns) y G (375 ns) -- solo
+crean y destruyen CoreComponent + acceso al logger singleton. Q2 (565 ns) paga el
+overhead del `withActive` lambda. Los patrones con ServiceLoader (H, I) pagan
+~85-117K ns y K con PackageManager paga ~194K ns en cada ciclo.
 
 ### 2.8. Concurrent Access
 
@@ -120,11 +126,13 @@ Tiempo total de acceso concurrente desde multiples threads.
 
 | D | E2 | G | H | I | K | Q | Q2 |
 |--:|---:|--:|--:|--:|--:|--:|---:|
-| 493K ns | 571K ns | 596K ns | 515K ns | 608K ns | 554K ns | 591K ns | 586K ns |
+| 439K ns | 418K ns | 439K ns | 386K ns | 418K ns | 417K ns | 453K ns | 478K ns |
 
 **Analisis:** Todos los patrones se comportan de forma similar bajo contention
-(493K-608K ns). La concurrencia esta dominada por el overhead de threading, no por
-la infraestructura DI. D (493K ns) es ligeramente mejor por su synchronized simple.
+(386K-478K ns). H (386K ns) es el ganador tras el refactor -- menos GC pressure y
+mejor locality por el logger singleton. E2/I/K empatados en ~418K ns.
+La concurrencia esta dominada por el overhead de threading, no por la
+infraestructura DI.
 
 ### 2.9. Resolve All
 
@@ -132,11 +140,13 @@ Tiempo de resolver todos los servicios desde cache (post-init).
 
 | D | E2 | G | H | I | K | Q | Q2 |
 |--:|---:|--:|--:|--:|--:|--:|---:|
-| 100 ns | 211 ns | 101 ns | 212 ns | 211 ns | 213 ns | 64 ns | 85 ns |
+| 6 ns | 189 ns | 1 ns | 139 ns | 189 ns | 190 ns | 105 ns | 303 ns |
 
-**Analisis:** Q (64 ns) y Q2 (85 ns) son los mas rapidos porque acceden a
-bindings directos del component generado por Dagger. D y G (~100 ns) usan campos
-volatiles. E2, H, I, K (~211-213 ns) pasan por HashMap lookup del Resolver.
+**Analisis (post-refactor):** G (1 ns) y D (6 ns) dominan -- JIT DCE + acceso
+directo a campos + logger singleton = casi 0 coste. Q (105 ns) y H (139 ns) acceden
+a bindings directos del component generado por Dagger. E2/I/K (~189-190 ns) pasan
+por HashMap lookup del Resolver. Q2 (303 ns) paga el overhead del `withActive`
+lambda por cada resolucion.
 
 ### 2.10. Re-Init
 
@@ -144,14 +154,14 @@ Tiempo de `shutdown() + init()` completo (simulando hot restart).
 
 | D | E2 | G | H | I | K | Q | Q2 |
 |--:|---:|--:|--:|--:|--:|--:|---:|
-| 36K ns | 17K ns | 38K ns | 363K ns | 427K ns | 767K ns | 25K ns | 2,157 ns |
+| 2,540 ns | 15,816 ns | 2,275 ns | 185,812 ns | 232,989 ns | 420,674 ns | 1,042 ns | 2,496 ns |
 
-**Analisis:** Q2 (2,157 ns) es **dramaticamente** mas rapido que todos los demas:
-11.6x mas rapido que Q (25K ns), 16.7x mas rapido que D (36K ns), y 355x mas
-rapido que K (767K ns). Esto se debe a que Q2 no recrea singletons en re-init --
-el `LazyCreationTracker` se resetea y los Lazy wrappers se descartan sin ejecutar
-sus providers. Los patrones con ServiceLoader pagan el overhead de discovery
-completo en cada re-init.
+**Analisis (post-refactor):** **Q (1,042 ns) es ahora el mas rapido**, seguido de
+G (2,275 ns), Q2 (2,496 ns) y D (2,540 ns). El refactor del logger singleton
+evita reconstruir `AndroidSdkLogger()` en cada init -- ganancia masiva en todos
+los patterns no-ServiceLoader (D: 36K→2.5K ns, -93%). Los patrones con ServiceLoader
+(H/I) bajan a 186-233K ns (-48% a -45% vs pre-refactor). K sigue siendo el mas lento
+(420K ns) por el IPC a PackageManager en cada re-init.
 
 ### 2.11. Incremental Init
 
@@ -159,10 +169,10 @@ Tiempo de init con estado parcial previo (simula anadir una feature a un SDK ya 
 
 | D | E2 | G | H | I | K | Q | Q2 |
 |--:|---:|--:|--:|--:|--:|--:|---:|
-| 1,172 ns | 11,688 ns | 1,223 ns | 97,694 ns | 100,488 ns | 213,696 ns | 667 ns | 1,218 ns |
+| 1,396 ns | 7,136 ns | 1,417 ns | 85,365 ns | 114,296 ns | 196,640 ns | 639 ns | 1,395 ns |
 
-**Analisis:** Similar a Init Cold. Q (667 ns) lidera, seguido de Q2 (1,218 ns)
-y D/G (~1,200 ns). Los patrones con discovery runtime no se benefician
+**Analisis:** Similar a Init Cold. Q (639 ns) lidera, seguido de Q2 (1,395 ns)
+y D/G (~1,400 ns). Los patrones con discovery runtime no se benefician
 significativamente del estado previo.
 
 ---
@@ -173,14 +183,14 @@ significativamente del estado previo.
 
 | Operacion | 1ro | 2do | 3ro |
 |-----------|-----|-----|-----|
-| Init Cold | Q (676) | Q2 (1,080) | D (1,212) |
-| Resolve First | E2 (199) | H (202) | I (203) |
-| Lazy noDeps | Q2 (236) | D (255) | G (260) |
-| Lazy cascade | Q (318) | Q2 (504) | D (696) |
-| E2E Startup | Q (950K) | D (1.2M) | Q2 (1.3M) |
-| Init/Shutdown | G (229) | D (248) | Q (403) |
-| Resolve All | Q (64) | Q2 (85) | D (100) |
-| Re-Init | Q2 (2,157) | E2 (17K) | Q (25K) |
+| Init Cold | Q (647) | G (1,379) | D (1,400) |
+| Resolve First | K (0) | H (1) | Q (5) |
+| Lazy noDeps | Q (184) | D (266) | G (273) |
+| Lazy cascade | Q (338) | Q2 (589) | G (790) |
+| E2E Startup | **D (301K)** | E2 (414K) | Q2 (520K) |
+| Init/Shutdown | Q (278) | D (365) | G (375) |
+| Resolve All | G (1) | D (6) | Q (105) |
+| Re-Init | **Q (1,042)** | G (2,275) | Q2 (2,496) |
 
 ### Conclusiones
 

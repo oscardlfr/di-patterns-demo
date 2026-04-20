@@ -1,1 +1,3 @@
 com.grinwich.sdk.feature.stor.StorProvider
+com.grinwich.sdk.feature.stor.StorPureProvider
+com.grinwich.sdk.feature.stor.StorKIProvider

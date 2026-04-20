@@ -18,7 +18,7 @@ dependencies {
 
     // Koin infrastructure
     implementation(project(":di-contracts-koin"))  // KoinFeatureProvider, CreationTracker
-    implementation(project(":features:feature-observability-impl"))  // AndroidSdkLogger
+    runtimeOnly(project(":features:feature-observability-impl"))  // AndroidSdkLogger
     implementation(libs.koin.core)
 
     // RUNTIME ONLY -- ALL feature impls discovered via ServiceLoader
