@@ -53,8 +53,15 @@ compile-time.
   requiere PR aprobado, lo que es exactamente el control que un banco
   quiere.
 
-**Veredicto:** la mas robusta. Es el modelo "todo cambio pasa por
-review humano".
+**Veredicto seguridad:** la mas robusta. Es el modelo "todo cambio pasa
+por review humano".
+
+**Coste a pagar:** la misma propiedad que da seguridad — cada feature
+nuevo requiere editar codigo central — es lo que hace que **no escalen
+a 50+ features con equipos distribuidos**. Cada feature es un cuello
+de botella en un fichero compartido (Feature enum, `allEntries()`,
+`@Component(modules)`, when-block). Detalle cuantitativo en la
+seccion 4.
 
 ### Tipo 2 — Annotation-driven compile-time discovery
 
@@ -206,30 +213,30 @@ necesariamente accesible al feature en su `build()` o equivalente.
 Score de **runtime risk** asumiendo DexGuard activo + supply chain
 compile-time como el vector principal a mitigar:
 
-| Pattern | Discovery | DI model | Supply chain | Hijacking | Logger expo | Otros | Score |
-|---|---|---|---|---|---|---|---:|
-| **A** (Dagger mono) | closed | compile-time | compile-time only | n/a | n/a | educativo | Bajo |
-| **B** (Per-feature Components) | closed | compile-time | compile-time only | n/a | n/a | enum cerrado | Bajo |
-| **C** (DaggerC ServiceLoader) | ServiceLoader | compile-time | **alto** | **alto** (string-based) | sin Logger persistent | requiere allowlist | **Alto** |
-| **D** (when-block + ensure) | closed | compile-time | compile-time only | n/a | n/a | central edit | Bajo |
-| **E** (Registry + topo-sort) | closed | compile-time | compile-time only | n/a | n/a | central edit | Bajo |
-| **E2** (AutoRegistry DFS) | closed | compile-time | compile-time only | n/a | n/a | central edit | Bajo |
-| **G** (Factory functions) | closed | compile-time | compile-time only | n/a | n/a | central edit | Bajo |
-| **H** (Resolver + Dagger) | ServiceLoader | compile-time per feature | **alto** sin allowlist | **alto** sin override guard | **alto** | la mas estudiada | **Alto sin mitigaciones / Bajo con allowlist + override** |
-| **I** (Pure Resolver) | ServiceLoader | runtime (Service Locator) | **alto** | **alto** | **alto** | + privilege escalation entre features | **Alto** |
-| **J** (kotlin-inject + SL) | ServiceLoader | compile-time per feature | **alto** | **alto** | **alto** | igual a H | **Alto sin mitigaciones / Bajo con allowlist + override** |
-| **K** (AndroidManifest) | Manifest meta-data | compile-time per feature | **alto** | **alto** | **alto** | descriptor robusto a shrinker, + lento | **Alto sin mitigaciones** |
-| **L** (Koin + SL eager) | ServiceLoader | runtime (Service Locator) | **alto** | **alto** | **alto** | + privilege escalation | **Alto** |
-| **M** (Koin + SL lazy) | ServiceLoader | runtime (Service Locator) | **alto** | **alto** | **alto** | igual a L | **Alto** |
-| **N** (sweet-spi + Koin) | sweet-spi (KSP) | runtime (Service Locator) | compile-time only | n/a | medio | + privilege escalation | Medio |
-| **O** (Metro eager) | `@ContributesTo` | compile-time | compile-time only | n/a | n/a | KSP plugin scan | Bajo |
-| **O2** (Metro Lazy) | `@ContributesTo` | compile-time | compile-time only | n/a | n/a | igual O | Bajo |
-| **P** (KI-anvil eager) | KSP `@ContributesTo` | compile-time | compile-time only | n/a | n/a | KSP estandar | Bajo |
-| **P2** (KI-anvil Lazy) | KSP `@ContributesTo` | compile-time | compile-time only | n/a | n/a | igual P | Bajo |
-| **Q** (Hilt-style eager) | closed (`@Component(modules)`) | compile-time | compile-time only | n/a | n/a | central edit | Bajo |
-| **Q2** (Hilt-style Lazy) | closed (`@Component(modules)`) | compile-time | compile-time only | n/a | n/a | central edit | Bajo |
-| **Koin** (mono) | closed modules | runtime (Service Locator) | compile-time only | n/a | n/a | + privilege escalation intra-app | Medio |
-| **Hybrid** | closed modules | runtime + Dagger bridge | compile-time only | n/a | n/a | bridge filtra acceso | Medio |
+| Pattern | Discovery | DI model | Score seguridad | Anadir feature toca... | Escala 50+ |
+|---|---|---|---:|---|:---:|
+| **A** (Dagger mono) | closed | compile-time | Bajo | `@Component` central + grafo entero | ❌ |
+| **B** (Per-feature Components) | closed | compile-time | Bajo | `Feature` enum + `when` + `ensureXxx` + bridge | ❌ |
+| **C** (DaggerC ServiceLoader) | ServiceLoader | compile-time | **Alto** | nada (zero-touch) | ✅ runtime |
+| **D** (when-block + ensure) | closed | compile-time | Bajo | `when` central + `ensureXxx()` | ❌ |
+| **E** (Registry + topo-sort) | closed | compile-time | Bajo | `allEntries()` + `dependencies` declaradas | ⚠️ con esfuerzo |
+| **E2** (AutoRegistry DFS) | closed | compile-time | Bajo | `allEntries()` + `dependencies` declaradas | ⚠️ con esfuerzo |
+| **G** (Factory functions) | closed | compile-time | Bajo | factory call + `ensureXxx()` central | ❌ |
+| **H** (Resolver + Dagger) | ServiceLoader | compile-time per feature | **Alto sin mitig. / Bajo con allowlist+override** | nada (zero-touch) | ✅ |
+| **I** (Pure Resolver) | ServiceLoader | runtime (SL) | **Alto** | nada (zero-touch) | ✅ pero sin compile-time safety |
+| **J** (kotlin-inject + SL) | ServiceLoader | compile-time per feature | **Alto sin mitig. / Bajo con allowlist+override** | nada (zero-touch) | ✅ |
+| **K** (AndroidManifest) | Manifest meta-data | compile-time per feature | **Alto sin mitigaciones** | nada (zero-touch via merger) | ✅ pero +slow |
+| **L** (Koin + SL eager) | ServiceLoader | runtime (SL) | **Alto** | nada (zero-touch) | ✅ con perf cost |
+| **M** (Koin + SL lazy) | ServiceLoader | runtime (SL) | **Alto** | nada (zero-touch) | ✅ con perf cost |
+| **N** (sweet-spi + Koin) | sweet-spi (KSP) | runtime (SL) | Medio | nada (KSP scan) | ✅ |
+| **O** (Metro eager) | `@ContributesTo` | compile-time | Bajo | nada (KSP/plugin scan) | ✅ |
+| **O2** (Metro Lazy) | `@ContributesTo` | compile-time | Bajo | nada (KSP/plugin scan) | ✅ |
+| **P** (KI-anvil eager) | KSP `@ContributesTo` | compile-time | Bajo | nada (KSP scan) | ✅ |
+| **P2** (KI-anvil Lazy) | KSP `@ContributesTo` | compile-time | Bajo | nada (KSP scan) | ✅ |
+| **Q** (Hilt-style eager) | closed (`@Component(modules)`) | compile-time | Bajo | `@Component(modules)` + `when` central | ❌ |
+| **Q2** (Hilt-style Lazy) | closed (`@Component(modules)`) | compile-time | Bajo | `@Component(modules)` + `when` central | ❌ |
+| **Koin** (mono) | closed modules | runtime (SL) | Medio | `SdkModule` enum + module DSL | ❌ |
+| **Hybrid** | closed modules + Dagger bridge | runtime + bridge | Medio | Koin modules + `SdkBridgeComponent` | ❌ |
 
 ### Lectura
 
@@ -249,7 +256,111 @@ que features se incluyen.
 
 ---
 
-## 4. Mitigaciones por categoria
+## 4. Coste de la seguridad — escalabilidad y mantenimiento
+
+La seguridad de los closed-list (A, B, D, E, E2, G, Q, Q2) **no es
+gratis**. La misma propiedad que los hace robustos —ningun feature
+entra sin tocar codigo central— es la que los hace **no escalar a
+muchos features con equipos distribuidos**.
+
+### Que toca anadir un feature en cada closed-list
+
+| Pattern | Editas... |
+|---|---|
+| **A** | `@Component` central, anades `@Provides`, anades getter; cada feature compromete el grafo monolitico |
+| **B** | `Feature` enum + `when (feature)` que mapea a `@Component` + `ensureXxx()` + integracion en bridge `CoreApis` |
+| **D** | `MultiModuleSdk.get()` en su `when (clazz)` + nuevo `ensureXxx()` privado + double-check locking + import de `DaggerXxxComponent` |
+| **E** | Anadir entry a `allEntries()` + declarar `dependencies: Set<Class<*>>` + `Feature` enum (consumer-facing) |
+| **E2** | Anadir entry a `allEntries()` + declarar `dependencies: Set<Class<*>>` + `serviceClasses: Set<Class<*>>` |
+| **G** | Anadir factory function publica al feature + llamar desde `ensureXxx()` del wiring + `when (clazz)` de `get()` |
+| **Q** | `@Component(modules = [HiltEncModule::class, ...])` central + `when (clazz)` + getters `fun encryption(): EncryptionApi` |
+| **Q2** | Igual que Q + envolver cada singleton en `dagger.Lazy<T>` |
+
+Todos requieren PR a un fichero compartido. **Eso es la propiedad de
+seguridad** (governance review obligado), pero es un cuello de botella
+con 50+ features y 10+ equipos en paralelo.
+
+Los runtime-discovery (C, H, I, J, K, L, M) y los compile-time
+discovery (N, O, O2, P, P2) no editan nada — el feature entra **solo**.
+Esa es su ventaja operativa y, en H/I/J/K/L/M, su debilidad de
+seguridad sin allowlist.
+
+### Que dice ScaleBenchmark
+
+`benchmark/.../ScaleBenchmark.kt` mide escala con harnesses sinteticos
+de **10/50/100/200/500 features** en grafos lineal/tree/diamond.
+Cubre solo:
+
+- **ResolverHarness** — simula H/I/J/K (deps implicitas via DFS).
+- **RegistryHarness** — simula E2 (deps explicitas via topo-sort).
+
+Los resultados (S22 Ultra, tree pattern, mediana en ns):
+
+| Tamano | Resolver (H/I/J/K) | Registry (E2) |
+|---:|---:|---:|
+| 10  | 2,056 | 1,245 |
+| 50  | 7,884 | 5,652 |
+| 100 | 10,258 | 10,890 |
+| 200 | 27,095 | 27,350 |
+| 500 | 19,943 | 20,167 |
+
+Conclusion: Resolver y Registry escalan **linealmente** hasta 500
+features, ambos en el orden de ~20µs en el caso peor. Comparable.
+
+### Por que A/B/D/E/G/Q/Q2 no estan en ScaleBenchmark
+
+**No se pueden benchmarkear a 500 features sin generar codigo.** Para
+probar Q a 500 features tendrias que escribir 500 entradas
+`@Module @InstallIn(SingletonComponent::class)`, anadirlas al
+`@Component(modules = [...])`, anadir 500 ramas `when (clazz) -> ...`,
+500 getters en la interfaz... **el benchmark estaria midiendo "cuanto
+tarda el compilador Kotlin en compilar un `when` de 500 ramas"**, no
+algo arquitectonicamente significativo.
+
+**Esa imposibilidad de benchmarkear a escala es exactamente el sintoma**.
+Si no puedes generar 500 features sinteticas para medirlo, no puedes
+sostener 500 features reales con equipos distribuidos.
+
+### Tabla de escalabilidad cualitativa
+
+| Pattern | Coste por feature anadido | Escala razonable | Equipos paralelos |
+|---|---|---|---|
+| A | edicion masiva del Component central | <5 features | 1 equipo |
+| B | edicion en 4 sitios coordinados | 10-15 features | 1-2 equipos |
+| D, G | edicion en 2-3 sitios coordinados | 15-20 features | 2-3 equipos |
+| E, E2 | 1 entrada en `allEntries()` + deps declaradas | 30-50 features | 3-5 equipos |
+| Q, Q2 | edicion en 2-3 sitios coordinados | 15-25 features | 2-3 equipos |
+| **H, I, J, K** | **cero** edicion central | **50+ features** | **10+ equipos** |
+| **L, M** | cero edicion central | 30-40 features (perf degrada) | 5-10 equipos |
+| **N, O, O2, P, P2** | cero edicion central via KSP | 50+ features | 10+ equipos |
+
+Los numeros de "features razonable" son qualitative — vienen de la
+experiencia comun en SDKs Android grandes, no de un benchmark formal.
+
+### Implicacion para banca
+
+Si tu modelo es **decenas o cientos de apps** con **subsetting** de
+features:
+
+- **Closed-list (A/B/D/E/E2/G/Q/Q2) no son viables** a esa escala. La
+  edicion central crece linealmente con el numero de features
+  ofrecidos, no con el numero de apps. Y los equipos terminan haciendo
+  cola en el mismo fichero.
+- **Compile-time discovery (P2/O2)** te da la escalabilidad de H sin el
+  threat de runtime discovery — pero asumes el riesgo de framework
+  joven (Metro) o relativamente nuevo (kotlin-inject-anvil).
+- **H/I/J/K con mitigaciones (allowlist + override guard)** te da
+  escalabilidad runtime con threat surface controlable. Es el **trade-off
+  realista** que ya validamos en el feature branch.
+
+La opcion **"closed-list por seguridad"** es viable solo si el SDK
+tiene un numero acotado de features (~15-30) y un equipo central que
+puede absorber todas las PRs de incorporacion. **No** es viable como
+plataforma de cientos de features.
+
+---
+
+## 5. Mitigaciones por categoria
 
 ### Para todos los patrones runtime-discovery (C, H, I, J, L, M, K)
 
@@ -298,7 +409,7 @@ que features se incluyen.
 
 ---
 
-## 5. Recomendacion para banca
+## 6. Recomendacion para banca
 
 **Si la decision esta abierta:**
 - **Closed-list patterns (D, E, E2, G, Q, Q2)** son los mas alineados
@@ -330,7 +441,7 @@ que features se incluyen.
 
 ---
 
-## 6. Tabla de referencia rapida
+## 7. Tabla de referencia rapida
 
 | Quiero priorizar... | Pattern recomendado |
 |---|---|
