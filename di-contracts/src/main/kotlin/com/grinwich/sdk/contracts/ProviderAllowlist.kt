@@ -1,30 +1,38 @@
 package com.grinwich.sdk.contracts
 
 /**
- * Allowlist of [FeatureProvider] FQNs that the [Resolver] is allowed to
- * register.
+ * Allowlist of provider FQNs that a discovery-based wiring is allowed
+ * to register.
  *
- * **Threat addressed:** compile-time supply-chain injection. Any JAR on
- * the runtime classpath that contains a
- * `META-INF/services/com.grinwich.sdk.contracts.FeatureProvider`
- * descriptor pointing to a class extending [FeatureProvider] is loaded
- * by `ServiceLoader.load()` and instantiated reflectively during
+ * **Threat addressed:** compile-time supply-chain injection. Any JAR
+ * on the runtime classpath that contains an SPI descriptor
+ * (`META-INF/services/...`) pointing to a class implementing the SPI
+ * is loaded by `ServiceLoader` and instantiated reflectively during
  * `init()`. Without an allowlist, a malicious dependency can plant a
- * provider that runs arbitrary code in `build()`, registers itself as
+ * provider that runs arbitrary code, registers itself as
  * `EncryptionApi`/`AuthApi`/etc. or captures `Context`/`SdkConfig`.
  *
  * The allowlist is enumerated by FQN, not by interface or package, so
- * substitution attacks (declare your own class but extend
- * [FeatureProvider]) cannot bypass it.
+ * substitution attacks (declare your own class but implement the SPI)
+ * cannot bypass it.
  *
- * **Where to use:** production wirings (e.g. `MultiModuleSdkH`)
- * construct a [strict] allowlist of every approved provider class and
- * pass it to the [Resolver] constructor. Tests use [OPEN] so they can
- * register fakes freely.
+ * **Reused across SPI types.** [isApproved] takes `Any` so the same
+ * machinery covers every discovery-based pattern in the SDK:
  *
- * **Maintenance:** adding a new feature module to the SDK requires two
- * coordinated PRs:
- *  - the new `feature-X-impl` module with its `XFeatureProvider`,
+ *  - [FeatureProvider] — patterns H, I, J, K (Resolver).
+ *  - `KoinFeatureProvider` (in :di-contracts-koin) — patterns L, M, N
+ *    (Koin + ServiceLoader/sweet-spi).
+ *  - `FeatureInitializer` — pattern C (DaggerCSdk + ServiceLoader).
+ *
+ * **Where to use:** production wirings construct a [strict] allowlist
+ * of every approved provider class and either pass it to a
+ * [Resolver]/registry that does the gating, or call [isApproved]
+ * before registering each discovered provider. Tests use [OPEN] so
+ * they can register fakes freely.
+ *
+ * **Maintenance:** adding a new feature module to the SDK requires
+ * two coordinated PRs:
+ *  - the new `feature-X-impl` module with its provider class,
  *  - an update to the production allowlist registering the new FQN.
  *
  * In a regulated context (e.g. banking) the second PR is the formal
@@ -43,8 +51,12 @@ class ProviderAllowlist private constructor(
      * - In [strict] mode, the provider's `Class.name` must be in the
      *   approved set.
      * - In [OPEN] mode, every provider is approved.
+     *
+     * `provider` is typed as `Any` so the same allowlist works for
+     * every SPI: [FeatureProvider], `KoinFeatureProvider`,
+     * `FeatureInitializer`, etc.
      */
-    fun isApproved(provider: FeatureProvider): Boolean = when (mode) {
+    fun isApproved(provider: Any): Boolean = when (mode) {
         Mode.OPEN -> true
         Mode.STRICT -> provider::class.java.name in approved
     }
