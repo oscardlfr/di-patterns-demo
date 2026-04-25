@@ -426,6 +426,7 @@ Resultados en `benchmark/build/outputs/connected_android_test_additional_output/
 | [Conceptos DI](docs/shared/consumer-isolation.md) | DI vs Service Locator, niveles de aislamiento |
 | [Dependencias cruzadas](docs/shared/cross-feature-deps.md) | Como resuelve cada approach las cross-deps |
 | [Jerarquia de excepciones](docs/shared/exception-hierarchy.md) | DependencyResolutionException + subtipos, deteccion de ciclos eager vs lazy, politica de reintentos |
+| [Threat surface por patron](docs/shared/security-threats.md) | Vulnerabilidades por mecanismo de discovery + modelo de DI, score por patron, mitigaciones |
 | [Configuracion benchmarks](docs/shared/benchmark-configuration.md) | Guia para ejecutar los 630 tests |
 
 ## Stack
