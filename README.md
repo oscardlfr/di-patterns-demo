@@ -225,6 +225,148 @@ val bridge = DaggerSdkBridgeComponent.builder().build()
 val enc: EncryptionApi = bridge.encryption()
 ```
 
+## Funcionamiento interno (resumen por patron)
+
+> Resumen ejecutivo del mecanismo de cada patron. Para detalle completo
+> ir a los `docs/*/patterns-overview.md` enlazados al final.
+
+### Monoliticos (5 patrones)
+
+Un solo grafo DI, un solo `@Component`/`koinApplication`. Apps pequenas
+(<10 features). No escalan a equipos distribuidos.
+
+- **A** (`sample-dagger-a`) — `@Component` Dagger 2 unico. Educativo:
+  demuestra Dagger puro sin SDK boundary. No usado en produccion.
+- **B** (`DaggerBSdk`) — Per-Feature Components con `Feature` enum +
+  bridge `CoreApis` que comparte logger/config entre Components
+  aislados. Construye eager las features pasadas a `init(features = ...)`.
+  Sin discovery: anadir feature implica editar el `when` del facade.
+- **C** (`DaggerCSdk`) — `META-INF/services/SdkInitializer` por feature.
+  Cada feature publica un `SdkInitializer` que recibe `CoreApis +
+  ServiceResolver`. Discovery por nombre (`setOf("encryption", "sync")`).
+  Sigue siendo monolitico — el discovery es lo unico modular.
+- **Koin** (`KoinSdk`) — `koinApplication` interno aislado del Koin de
+  la app. Modules cargados eager via `init(modules = setOf(...))`.
+  Service Locator: la app ve la API, Koin queda dentro.
+- **Hybrid** — SDK Koin interno + `@Component` Dagger en la app
+  (`SdkBridgeComponent`) que actua de adapter. La app nunca importa Koin.
+
+### Multi-modulo eager (1 patron)
+
+Construye todo en `init()` con orden topologico calculado.
+
+- **E** (`MultiModuleSdkE`) — `ServiceEntry` con `dependencies: Set<Class<*>>`
+  declaradas explicitamente. `ServiceRegistry.registerAll()` ejecuta
+  topo-sort de Kahn al init y construye en orden. **Detecta ciclos al
+  registrar** (init-time). Un build fallido aborta el init entero.
+  Requiere features upfront: `init(features = setOf(Feature.SYNC))`.
+
+### Multi-modulo lazy con factory functions (2 patrones)
+
+El wiring escribe a mano `ensureXxx()` con double-check locking. Sin
+discovery automatica.
+
+- **D** (`MultiModuleSdk`, `:sdk:sdk-wiring`) — facade con
+  `when (clazz)` que delega a `ensureEnc()`, `ensureAuth()`, etc.
+  Cada `ensureXxx()` construye un `DaggerXxxComponent` lazy. Anadir
+  feature implica editar el `when` y anadir un `ensureXxx()` nuevo.
+- **G** (`MultiModuleSdkG`) — cada feature-impl publica una factory
+  function publica (`buildEncBundle(logger)`, `buildAuthService(...)`).
+  El wiring las llama desde sus `ensureXxx()`. `DaggerXxxComponent` queda
+  `internal` al feature — el wiring nunca importa builders Dagger.
+
+### Multi-modulo lazy con FeatureProvider + Resolver DFS (4 patrones)
+
+Discovery via `ServiceLoader`/AndroidManifest, resolucion via
+`Resolver` con DFS lazy reentrante. Wiring inmutable: anadir features no
+toca el wiring. Las dependencias entre features son **implicitas**
+(descubiertas cuando `build()` llama a `resolver.get(...)`). Ciclos
+detectados con `CircularDependencyException` en el primer `get()`
+(no `StackOverflowError`).
+
+- **H** (`MultiModuleSdkH`) — `flavor = DAGGER`. Cada feature trae su
+  propio `@Component` Dagger **internal** dentro de `build()`.
+  ServiceLoader filtra por flavor, Resolver resuelve.
+- **I** (`MultiModuleSdkI`) — `flavor = PURE`. `build()` construye con
+  constructores Kotlin manuales. Cero framework DI a nivel de feature
+  (zero codegen, zero KSP, builds mas rapidos). Sin compile-time safety
+  intra-feature.
+- **J** (`MultiModuleSdkJ`) — `flavor = KI`. Cada feature usa
+  `kotlin-inject` Components. KSP genera Kotlin (no Java).
+  Less boilerplate que Dagger.
+- **K** (`MultiModuleSdkK`) — discovery via `<meta-data>` en
+  AndroidManifest.xml mergeado. `PackageManager.getServiceInfo` +
+  reflexion. Estilo Firebase SDK. Mas robusto ante R8 sin keep rules
+  para `META-INF/services`, mas lento en init (PackageManager IPC).
+
+### Multi-modulo lazy explicito (1 patron)
+
+Como H/I/J/K pero las dependencias entre features se declaran en el
+entry, no se descubren implicitamente.
+
+- **E2** (`MultiModuleSdkE2`) — `AutoServiceEntry` con
+  `dependencies: Set<Class<*>>` declaradas + DFS **iterativo** con
+  stack explicito (no recursivo, soporta cadenas de 500+). Cada entry
+  declara `serviceClasses` upfront para indexar al instalar.
+
+### Multi-modulo lazy con Koin (3 patrones)
+
+Koin como contenedor DI runtime. Discovery por `KoinFeatureProvider`
+via ServiceLoader o sweet-spi.
+
+- **L** (`MultiModuleSdkL`) — `KoinFeatureProvider` via ServiceLoader.
+  El wiring carga **todos los modules eager** en init via
+  `koinApplication.modules(...)`. JVM-only por ServiceLoader.
+- **M** (`MultiModuleSdkM`) — igual que L pero `koin.loadModules()`
+  **lazy** a medida que se piden los servicios. Mas overhead runtime,
+  menor coste init. Peor performer global de los 16 multimodule
+  segun benchmarks.
+- **N** (`MultiModuleSdkN`) — `sweet-spi` (KSP-based replacement de
+  ServiceLoader) + Koin. **Full KMP** (24 targets). Mismo modelo
+  Service Locator que L/M.
+
+### Multi-modulo compile-time DI (6 patrones)
+
+Discovery + grafo resueltos en compilacion via KSP/compiler plugin.
+Compile-time safety completa. Sin reflexion runtime. La mitad eager, la
+mitad con `Lazy<T>` para singletons on-demand.
+
+- **O** (`MultiModuleSdkO`) — Metro compiler plugin con
+  `@ContributesTo` para discovery automatica entre modulos. Eager.
+  Full KMP. Framework joven (mantenido por ZacSweers).
+- **O2** (`MultiModuleSdkO2`) — igual O pero envuelve cada singleton
+  en `Lazy<T>` para construirlos on-demand. Re-init mas barato.
+- **P** (`MultiModuleSdkP`) — `kotlin-inject-anvil` con `@ContributesTo`.
+  KSP estandar. Eager. Full KMP. Mantenido por Amazon (mas estable
+  que Metro).
+- **P2** (`MultiModuleSdkP2`) — igual P pero con tracking de
+  `@SingleIn` para lazy singletons.
+- **Q** (`MultiModuleSdkQ`) — estilo Hilt: `@Module @InstallIn(
+  SingletonComponent::class)` listados manualmente en
+  `@Component(modules = [...])` del wiring. Eager. Android-only.
+  Anadir feature implica editar el `@Component` central.
+- **Q2** (`MultiModuleSdkQ2`) — igual Q pero envuelve singletons en
+  `dagger.Lazy<T>`. Re-init ultra-rapido (no recrea singletons).
+
+### Mapa rapido por criterio
+
+| Necesito... | Patron recomendado |
+|---|---|
+| Compile-time safety + auto-discovery zero-touch + KMP | **P2** (kotlin-inject-anvil lazy) o **O2** (Metro lazy) |
+| Compile-time safety completa, Android-only, framework muy maduro | **Q2** (Hilt-style Dagger lazy) |
+| Auto-discovery zero-touch + ecosistema Dagger maduro + tolerar runtime validation | **H** (Dagger + ServiceLoader + Resolver) |
+| Cero framework DI (zero codegen, builds rapidos), runtime safety | **I** (Pure Resolver) |
+| Robustez ante R8 sin keep rules de `META-INF/services` | **K** (AndroidManifest discovery) |
+| KMP con Koin maduro, sin compile-time safety | **N** (sweet-spi + Koin) |
+| Educativo / academic | **A** (Dagger monolithic puro) |
+
+Para detalle completo con codigo, benchmarks y trade-offs:
+
+- [Patrones monoliticos](docs/monolithic/patterns-overview.md) — A, B, C, Koin, Hybrid
+- [Patrones multi-modulo Android-only](docs/multimodule/android/patterns-overview.md) — D, E2, G, H, I, K, Q, Q2
+- [Patrones multi-modulo KMP](docs/multimodule/kmp/patterns-overview.md) — N, O, O2, P, P2
+- [Patrones multi-modulo Partial KMP](docs/multimodule/partial-kmp/patterns-overview.md) — J, L, M
+
 ## Manejo de errores del Resolver
 
 Los patrones que comparten la maquinaria de `di-contracts` (E, E2, H/I/J/K)
