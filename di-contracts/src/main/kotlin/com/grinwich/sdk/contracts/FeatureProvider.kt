@@ -6,6 +6,8 @@ import com.grinwich.sdk.contracts.error.ProviderAlreadyFailedException
 import com.grinwich.sdk.contracts.error.ProviderBuildException
 import com.grinwich.sdk.contracts.error.ServiceCastException
 import com.grinwich.sdk.contracts.error.ServiceNotAvailableException
+import com.grinwich.sdk.contracts.error.ServiceOverrideException
+import com.grinwich.sdk.contracts.error.UnapprovedProviderException
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -99,7 +101,16 @@ class SyntheticFeatureProvider(
  * multiple threads never causes double construction or partial state. After
  * the first build, `get()` takes a fast path without contention.
  */
-class Resolver {
+class Resolver(
+    /**
+     * Allowlist applied to every [register] call. Production wirings
+     * pass [ProviderAllowlist.strict] enumerating every approved
+     * provider FQN (defends against compile-time supply-chain
+     * injection). Tests and demo wirings use [ProviderAllowlist.OPEN]
+     * (the default) to register fakes without enumeration.
+     */
+    private val allowlist: ProviderAllowlist = ProviderAllowlist.OPEN,
+) {
 
     private val lock = Any()
     private val serviceIndex = HashMap<Class<*>, FeatureProvider>()
@@ -141,13 +152,15 @@ class Resolver {
     private val nonPersistentBuiltCount = java.util.concurrent.atomic.AtomicInteger(0)
 
     fun register(provider: FeatureProvider) {
-        // Persistent providers are tied to the process, not to the SDK lifecycle.
-        // ServiceLoader.load() creates a fresh instance on every init, so a naive
-        // `add` would make the persistent set grow without bound across
-        // init/shutdown cycles. First-wins dedup keyed by class: if a persistent
-        // provider of the same class is already registered, keep it and discard
-        // the newcomer — the resolved service (e.g. the logger singleton) is
-        // unchanged anyway.
+        // (1) Allowlist gate — rejects anything not on the approved list.
+        // OPEN allowlist accepts everything, used by tests and demos.
+        if (!allowlist.isApproved(provider)) {
+            throw UnapprovedProviderException(provider::class.java.name)
+        }
+
+        // (2) Persistent dedup — same class re-registered (e.g. ServiceLoader
+        // returning a fresh instance on every init) reuses the original
+        // instance and re-points serviceIndex to it.
         if (provider.persistent) {
             val existing = persistentByClass.putIfAbsent(provider::class, provider)
             if (existing != null) {
@@ -155,7 +168,21 @@ class Resolver {
                 return
             }
         }
+
+        // (3) Service override gate — two distinct providers cannot publish
+        // the same service class. First-wins; subsequent attempts throw a
+        // typed exception so accidental collisions and hijack attempts are
+        // both surfaced loudly. To swap a provider explicitly, call clear()
+        // first.
         for (svc in provider.services) {
+            val existing = serviceIndex[svc]
+            if (existing != null && existing != provider) {
+                throw ServiceOverrideException(
+                    serviceName = svc.simpleName,
+                    existingProviderName = existing::class.java.simpleName,
+                    attemptedProviderName = provider::class.java.simpleName,
+                )
+            }
             serviceIndex[svc] = provider
         }
     }

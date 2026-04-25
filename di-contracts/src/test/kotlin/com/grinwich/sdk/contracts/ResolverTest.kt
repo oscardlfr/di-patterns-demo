@@ -9,6 +9,7 @@ import com.grinwich.sdk.contracts.error.ServiceCastException
 import com.grinwich.sdk.contracts.error.ServiceNotAvailableException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
@@ -682,7 +683,7 @@ class ResolverTest {
     }
 
     @Test
-    fun `last registered provider wins when two providers declare the same service`() {
+    fun `second provider claiming an already registered service throws ServiceOverrideException`() {
         val resolver = Resolver()
         val first = FakeProvider(
             services = setOf(ServiceA::class.java),
@@ -693,13 +694,118 @@ class ResolverTest {
             builder = { mapOf(ServiceA::class.java to ImplA()) },
         )
         resolver.register(first)
-        resolver.register(second)
 
+        val ex = assertThrows(
+            com.grinwich.sdk.contracts.error.ServiceOverrideException::class.java,
+        ) { resolver.register(second) }
+        assertTrue(
+            "Message must name the service",
+            ex.message!!.contains("ServiceA"),
+        )
+        // The first provider is unchanged; second never gets indexed nor built.
         resolver.get(ServiceA::class.java)
-        // Only the surviving provider (second) is built. The overwritten
-        // one was evicted from the index at registration time.
-        assertEquals(0, first.buildCount)
-        assertEquals(1, second.buildCount)
+        assertEquals(1, first.buildCount)
+        assertEquals(0, second.buildCount)
+    }
+
+    @Test
+    fun `re-registering the same provider instance is idempotent`() {
+        val resolver = Resolver()
+        val provider = FakeProvider(
+            services = setOf(ServiceA::class.java),
+            builder = { mapOf(ServiceA::class.java to ImplA()) },
+        )
+        resolver.register(provider)
+        // Same instance — guarded by `existing != provider`. No throw.
+        resolver.register(provider)
+        resolver.get(ServiceA::class.java)
+        assertEquals(1, provider.buildCount)
+    }
+
+    // ------------------------------------------------------------------ //
+    // ProviderAllowlist integration
+    // ------------------------------------------------------------------ //
+
+    @Test
+    fun `strict allowlist rejects providers whose FQN is not on the list`() {
+        val resolver = Resolver(
+            allowlist = ProviderAllowlist.strict(approved = emptySet()),
+        )
+        val provider = FakeProvider(
+            services = setOf(ServiceA::class.java),
+            builder = { mapOf(ServiceA::class.java to ImplA()) },
+        )
+        val ex = assertThrows(
+            com.grinwich.sdk.contracts.error.UnapprovedProviderException::class.java,
+        ) { resolver.register(provider) }
+        assertTrue(
+            "Exception must mention the rejected class FQN",
+            ex.message!!.contains(provider::class.java.name),
+        )
+    }
+
+    @Test
+    fun `strict allowlist accepts providers whose FQN is on the list`() {
+        val provider = FakeProvider(
+            services = setOf(ServiceA::class.java),
+            builder = { mapOf(ServiceA::class.java to ImplA()) },
+        )
+        val resolver = Resolver(
+            allowlist = ProviderAllowlist.strict(setOf(provider::class.java.name)),
+        )
+        resolver.register(provider)
+        assertTrue(resolver.get(ServiceA::class.java) is ImplA)
+    }
+
+    @Test
+    fun `OPEN allowlist accepts every provider regardless of FQN`() {
+        val resolver = Resolver(allowlist = ProviderAllowlist.OPEN)
+        val provider = FakeProvider(
+            services = setOf(ServiceA::class.java),
+            builder = { mapOf(ServiceA::class.java to ImplA()) },
+        )
+        resolver.register(provider)
+        assertNotNull(resolver.get(ServiceA::class.java))
+    }
+
+    @Test
+    fun `default constructor uses OPEN allowlist for source compatibility`() {
+        // Resolver() must keep behaving as before so existing call sites
+        // (tests, demo wirings) are not forced to migrate.
+        val resolver = Resolver()
+        val provider = FakeProvider(
+            services = setOf(ServiceA::class.java),
+            builder = { mapOf(ServiceA::class.java to ImplA()) },
+        )
+        resolver.register(provider)
+        assertNotNull(resolver.get(ServiceA::class.java))
+    }
+
+    @Test
+    fun `allowlist gate runs before override gate`() {
+        // Register an approved provider first; then attempt to register an
+        // unapproved provider that *also* tries to override the same
+        // service. The unapproved exception must fire — it short-circuits
+        // before the override check, so callers see the most specific
+        // root cause.
+        val approved = FakeProvider(
+            services = setOf(ServiceA::class.java),
+            builder = { mapOf(ServiceA::class.java to ImplA()) },
+        )
+        val resolver = Resolver(
+            allowlist = ProviderAllowlist.strict(setOf(approved::class.java.name)),
+        )
+        resolver.register(approved)
+
+        val attacker = object : FeatureProvider() {
+            override val flavor = Flavor.PURE
+            override val services = setOf(ServiceA::class.java)
+            override fun build(resolver: Resolver) =
+                mapOf<Class<*>, Any>(ServiceA::class.java to ImplA())
+        }
+        assertThrows(
+            com.grinwich.sdk.contracts.error.UnapprovedProviderException::class.java,
+        ) { resolver.register(attacker) }
     }
 
     // ------------------------------------------------------------------ //
