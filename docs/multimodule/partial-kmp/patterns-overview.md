@@ -116,9 +116,9 @@ kotlin-inject soporta todos los targets de Kotlin. El problema es exclusivamente
 
 ### Desventajas
 
-- **Init lento.** 97,197 ns por ServiceLoader + Resolver overhead.
+- **Init lento.** 112,216 ns por ServiceLoader + Resolver overhead.
 - **ServiceLoader JVM-only.** No compila para iOS/macOS/WASM.
-- **Errores parcialmente runtime.** Dependencias entre providers solo se validan en runtime.
+- **Errores parcialmente runtime.** Dependencias entre providers solo se validan en runtime; los ciclos se reportan como `CircularDependencyException` en el primer `get()` (ver [exception-hierarchy.md](../../shared/exception-hierarchy.md)).
 - **Boilerplate de adaptacion.** Cada provider necesita un `object : XxxProvisions` wrapper.
 
 ---
@@ -333,17 +333,17 @@ M es consistentemente el **peor performer** de los 3 patrones partial KMP:
 
 | Operacion | J<br>*(kotlin-inject)* | L<br>*(Koin eager)* | M<br>*(Koin loadModules)* |
 |-----------|---:|---:|---:|
-| Init Cold (ns) | 97,197 | 154,403 | 164,353 |
-| Resolve First (ns) | 202 | 5,664 | 6,160 |
-| Lazy noDeps (ns) | 1,493 | 5,473 | 13,784 |
-| Lazy cascade (ns) | 4,866 | 24,611 | 48,334 |
-| Re-Init (ns) | 371,000 | 1.1M | 1.2M |
+| Init Cold (ns) | 112,216 | 158,904 | 171,523 |
+| Resolve First (ns) | 41 | 1,594 | 1,619 |
+| Lazy noDeps (ns) | 2,117 | 6,514 | 13,694 |
+| Lazy cascade (ns) | 4,301 | 21,762 | 36,845 |
+| Re-Init (ns) | 300,016 | 471,974 | 458,985 |
 
-**Lazy noDeps** es donde M deberia brillar (true lazy), pero 13,784 ns es
-**9.2x mas lento que J** (1,493 ns). El overhead de `koin.loadModules()` en
+**Lazy noDeps** es donde M deberia brillar (true lazy), pero 13,694 ns es
+**6.5x mas lento que J** (2,117 ns). El overhead de `koin.loadModules()` en
 runtime es mayor que el beneficio de no haber cargado el module en init.
 
-**Lazy cascade** amplifica el problema: 48,334 ns implica resolver la cascada
+**Lazy cascade** amplifica el problema: 36,845 ns implica resolver la cascada
 `ensureLoaded()` recursiva + `loadModules()` por cada provider en la cadena.
 
 ### Porque es Partial KMP
@@ -360,7 +360,7 @@ Misma razon que J y L: `java.util.ServiceLoader`. Koin es 100% KMP-compatible.
 
 ### Desventajas
 
-- **Peor performer overall.** Lazy cascade 48,334 ns -- 2x mas lento que L.
+- **Peor performer overall.** Lazy cascade 36,845 ns -- ~1.7x mas lento que L.
 - **`loadModules()` overhead.** Cargar un module en runtime es caro en Koin.
 - **Re-init el mas lento.** 1.2M ns -- destruir y recrear toda la infraestructura.
 - **ServiceLoader JVM-only.** No compila fuera de JVM.
@@ -387,16 +387,16 @@ Misma razon que J y L: `java.util.ServiceLoader`. Koin es 100% KMP-compatible.
 
 | Operacion | J<br>*(kotlin-inject)* | L<br>*(Koin eager)* | M<br>*(Koin loadModules)* |
 |-----------|---:|---:|---:|
-| Init Cold (ns) | 97,197 | 154,403 | 164,353 |
-| Resolve First (ns) | 202 | 5,664 | 6,160 |
-| Lazy noDeps (ns) | 1,493 | 5,473 | 13,784 |
-| Lazy cascade (ns) | 4,866 | 24,611 | 48,334 |
-| CrossFeature (ns) | 1.2M | 2.1M | 1.8M |
-| E2E Startup (ns) | 1.6M | 2.3M | 1.9M |
-| Init/Shutdown (ns) | 91,244 | 134,268 | 125,626 |
-| Concurrent (ns) | 589K | 761K | 725K |
-| Resolve All (ns) | 216 | 6,244 | 7,920 |
-| Re-Init (ns) | 371K | 1.1M | 1.2M |
+| Init Cold (ns) | 112,216 | 158,904 | 171,523 |
+| Resolve First (ns) | 41 | 1,594 | 1,619 |
+| Lazy noDeps (ns) | 2,117 | 6,514 | 13,694 |
+| Lazy cascade (ns) | 4,301 | 21,762 | 36,845 |
+| CrossFeature (ns) | 4.6M | 4.9M | 4.6M |
+| E2E Startup (ns) | 979K | 1.16M | 1.21M |
+| Init/Shutdown (ns) | 124K | 183K | 165K |
+| Concurrent (ns) | 498K | 691K | 582K |
+| Resolve All (ns) | 190 | 5,739 | 6,392 |
+| Re-Init (ns) | 300K | 472K | 459K |
 | Incremental (ns) | 97,711 | 172,609 | 165,162 |
 
 ---

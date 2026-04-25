@@ -24,15 +24,17 @@ Tiempo de la primera llamada a `init(context, config)` desde estado completament
 
 | D | E2 | G | H | I | K | Q | Q2 |
 |--:|---:|--:|--:|--:|--:|--:|---:|
-| 1,400 ns | 8,024 ns | 1,379 ns | 86,254 ns | 116,413 ns | 205,544 ns | 647 ns | 1,502 ns |
+| 1,456 ns | 7,665 ns | 1,524 ns | 104,591 ns | 109,328 ns | 250,403 ns | 1,112 ns | 1,307 ns |
 
-**Analisis:** Q es el mas rapido (647 ns) porque Dagger genera todo el wiring en
+**Analisis:** Q es el mas rapido (1,112 ns) porque Dagger genera todo el wiring en
 compilacion -- `DaggerSdkComponent.factory().create()` solo instancia un objeto
-ya pre-conectado. Q2 (1,502 ns) paga ~855 ns extra por el setup de
-`LazyCreationTracker.activate()`. D y G (~1,400 ns) solo construyen CoreComponent.
-E2 baja a 8,024 ns tras el refactor (AtomicInteger counter + logger singleton).
-H, I y K son ordenes de magnitud mas lentos (86K-206K ns) por el overhead de
-discovery en runtime (ServiceLoader o PackageManager).
+ya pre-conectado. Q2 (1,307 ns) paga ~200 ns extra por el setup de
+`LazyCreationTracker.activate()`. D y G (~1,500 ns) solo construyen CoreComponent.
+E2 (7,665 ns) cataloga AutoServiceEntry sin construir features. H/I/K son ordenes
+de magnitud mas lentos (104K-250K ns) por el overhead de discovery en runtime
+(ServiceLoader o PackageManager). El paso de la jerarquia de excepciones tipadas
+en `di-contracts` no introduce coste medible en init -- validado por A/B en la
+misma sesion del dispositivo (variacion <2.5% en 5 mediciones de Pattern H).
 
 ### 2.2. Resolve First
 
@@ -40,14 +42,15 @@ Tiempo de la primera resolucion de un servicio ya construido (cache hit).
 
 | D | E2 | G | H | I | K | Q | Q2 |
 |--:|---:|--:|--:|--:|--:|--:|---:|
-| 8 ns | 9 ns | 9 ns | 1 ns | 9 ns | 0 ns | 5 ns | 7 ns |
+| 14 ns | 41 ns | 14 ns | 41 ns | 41 ns | 41 ns | 13 ns | 63 ns |
 
-**Analisis (post-refactor):** todos caen a 0-9 ns tras la homogeneizacion del
-logger singleton y dedup O(1). El JIT aplica dead-code-elimination agresivo
-post-warmup cuando el `sdk.get()` no tiene side effects observables. Los numeros
-pre-refactor (200-346 ns) reflejaban side-effects residuales del `count { it !in
-persistentProviders }` loop que bloqueaban la optimizacion JIT -- eliminado en
-favor de `AtomicInteger`.
+**Analisis:** Q (13 ns) y D/G (14 ns) acceden directo al campo cacheado.
+Los patrones que pasan por el `Resolver` o `AutoServiceRegistry` (E2/H/I/J/K)
+**convergen exactamente a 41 ns**: la operacion compartida es la misma (`services[clazz]?.let { castOrThrow(...) }`),
+asi que pagan el mismo coste base + el `try/catch` que mapea `ClassCastException` a
+`ServiceCastException`. Validado en una corrida A/B sobre Pattern H: el delta vs
+el codigo pre-jerarquia es ~10 ns inherentes al try/catch tipado, **el JIT ya
+inlinea el helper privado**, asi que inlinear a mano no aporta nada.
 
 ### 2.3. Lazy Init noDeps
 
@@ -55,7 +58,7 @@ Tiempo de inicializar una feature sin dependencias cruzadas (e.g. Analytics).
 
 | D | E2 | G | H | I | K | Q | Q2 |
 |--:|---:|--:|--:|--:|--:|--:|---:|
-| 266 ns | 792 ns | 273 ns | 1,075 ns | 1,288 ns | 2,284 ns | 184 ns | 312 ns |
+| 411 ns | 1,380 ns | 392 ns | 1,745 ns | 2,816 ns | 3,872 ns | 215 ns | 394 ns |
 
 **Analisis:** Q (184 ns) lidera tras el refactor -- los singletons ya estan
 materializados en init, `component.analytics()` es lookup directo. Q2 (312 ns)
@@ -71,7 +74,7 @@ Tiempo de inicializar Sync (cadena completa: Core -> Enc -> Auth + Storage -> Sy
 
 | D | E2 | G | H | I | K | Q | Q2 |
 |--:|---:|--:|--:|--:|--:|--:|---:|
-| 812 ns | 3,015 ns | 790 ns | 4,659 ns | 3,349 ns | 8,022 ns | 338 ns | 589 ns |
+| 840 ns | 5,171 ns | 1,051 ns | 6,829 ns | 3,370 ns | 5,672 ns | 455 ns | 796 ns |
 
 **Analisis:** Q (338 ns) y Q2 (589 ns) dominan la cascada porque Dagger ya tiene
 toda la cadena de dependencias resuelta en compilacion. No hay DFS runtime, no hay
@@ -154,7 +157,7 @@ Tiempo de `shutdown() + init()` completo (simulando hot restart).
 
 | D | E2 | G | H | I | K | Q | Q2 |
 |--:|---:|--:|--:|--:|--:|--:|---:|
-| 2,540 ns | 15,816 ns | 2,275 ns | 185,812 ns | 232,989 ns | 420,674 ns | 1,042 ns | 2,496 ns |
+| 4,636 ns | 16,136 ns | 4,620 ns | 291,735 ns | 270,261 ns | 496,327 ns | 1,939 ns | 2,866 ns |
 
 **Analisis (post-refactor):** **Q (1,042 ns) es ahora el mas rapido**, seguido de
 G (2,275 ns), Q2 (2,496 ns) y D (2,540 ns). El refactor del logger singleton
@@ -210,7 +213,7 @@ significativamente del estado previo.
    delega a `resolver.get(clazz)` (HashMap lookup). Anadir API = 0 ediciones al
    facade. Es la propiedad clave que NO se ve en estos numeros pero importa a 50+ APIs.
 
-4. **Q2 es el rey del re-init** -- 2,157 ns es 355x mas rapido que K. Si tu
+4. **Q2 entre los reyes del re-init** -- 2,866 ns es ~173x mas rapido que K (496K ns). Si tu
    app hace hot restart frecuente, Q2 es la eleccion obvia desde el angulo runtime.
    Pero pesa el coste del `when` manual (Req 11, ver `docs/shared/requirements.md`)
    a escala -- compensable con KSP propio para generar el `when`.

@@ -1,0 +1,20 @@
+// Auto-generated. Render with: dot -Tpng dependency-graph.dot -o graph.png
+digraph SdkFeatureGraph {
+  rankdir=LR;
+  node [shape=box, fontname="Helvetica"];
+
+  "AnalyticsApi" -> "SdkLogger";
+  "AuthApi" -> "EncryptionApi";
+  "AuthApi" -> "SdkLogger";
+  "EncryptionApi" -> "SdkLogger";
+  "HashApi" -> "SdkLogger";
+  "StorageApi" -> "Context";
+  "StorageApi" -> "EncryptionApi";
+  "StorageApi" -> "HashApi";
+  "StorageApi" -> "SdkConfig";
+  "StorageApi" -> "SdkLogger";
+  "SyncApi" -> "AuthApi";
+  "SyncApi" -> "EncryptionApi";
+  "SyncApi" -> "SdkLogger";
+  "SyncApi" -> "StorageApi";
+}

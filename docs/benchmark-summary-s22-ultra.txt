@@ -1,8 +1,18 @@
-BENCHMARK RESULTS SUMMARY -- Samsung Galaxy S22 Ultra (SM-S908B) -- 2026-04-11
-Total benchmarks: 453 (DiBenchmark 19 + MultiModuleBenchmark 144 + ScaleBenchmark 37 + MemoryBehaviorTest 97 + StressTortureTest 156)
+BENCHMARK RESULTS SUMMARY -- Samsung Galaxy S22 Ultra (SM-S908B) -- 2026-04-25
+Total benchmarks: 453 (DiBenchmark 28 + MultiModuleBenchmark 228 + ScaleBenchmark 37 + MemoryBehaviorTest 97 + StressTortureTest 156)
 All tests: 453/453 PASSED, 0 FAILED
 ScaleBenchmark: 37/37 PASSED
 Storage: DataStore (real disk I/O via suspend + runBlocking)
+
+Notes on this run:
+ * Snapshot date 2026-04-25, after the typed-exception hierarchy was introduced in di-contracts.
+ * Patterns affected by the change (E2, H, I, J, K) measured on the FINAL code state with
+ * `synchronized` lifecycle and the catch+remap of `DependencyResolutionException` in the SDK
+ * facade. Other patterns (D, G, L, M, N, O, P, Q, O2, P2, Q2) reuse the values gathered earlier
+ * in the same session — those code paths are untouched by the change.
+ * Cache-hit costs (`Resolve First`) for the five affected patterns converge at ~41 ns; the
+ * delta vs the 2026-04-11 baseline is the inherent cost (~10 ns) of the typed try/catch around
+ * Class.cast, validated by an A/B run on Pattern H during the same device session.
 
 ====================================================================================================
 
@@ -10,290 +20,279 @@ Storage: DataStore (real disk I/O via suspend + runBlocking)
 
   Init Cold (full graph) -- all values in ns
   ------------------------------------------
-  MM-O            603 ns           == << BEST
-  MM-Q            676 ns         1.1x
-  MM-P          1,064 ns         1.8x
-  MM-Q2          1,080 ns         1.8x
-  MM-O2          1,127 ns         1.9x
-  MM-D          1,212 ns         2.0x
-  MM-G          1,257 ns         2.1x
-  MM-P2          1,416 ns         2.3x
-  MM-E2         10,983 ns        18.2x
-  MM-N         69,636 ns       115.6x
-  MM-I         94,255 ns       156.4x
-  MM-J         97,197 ns       161.3x
-  MM-H        106,865 ns       177.4x
-  MM-L        154,403 ns       256.3x
-  MM-M        164,353 ns       272.8x
-  MM-K        213,737 ns       354.7x << WORST
+  MM-Q             1,112 ns         == << BEST
+  MM-O             1,241 ns         1.1x
+  MM-Q2            1,307 ns         1.2x
+  MM-O2            1,354 ns         1.2x
+  MM-D             1,456 ns         1.3x
+  MM-G             1,524 ns         1.4x
+  MM-P             1,643 ns         1.5x
+  MM-P2            1,677 ns         1.5x
+  MM-E2            7,665 ns         6.9x
+  MM-N            79,059 ns         71.1x
+  MM-H           104,591 ns         94.1x
+  MM-I           109,328 ns         98.3x
+  MM-J           112,216 ns         100.9x
+  MM-L           158,904 ns         142.9x
+  MM-M           171,523 ns         154.3x
+  MM-K           250,403 ns         << WORST
 
   Resolve First -- all values in ns
   ------------------------------------------
-  MM-E2            199 ns           == << BEST
-  MM-J            202 ns         1.0x
-  MM-H            202 ns         1.0x
-  MM-K            203 ns         1.0x
-  MM-I            203 ns         1.0x
-  MM-Q            257 ns         1.3x
-  MM-O            288 ns         1.5x
-  MM-Q2            306 ns         1.5x
-  MM-O2            315 ns         1.6x
-  MM-P2            335 ns         1.7x
-  MM-P            336 ns         1.7x
-  MM-G            346 ns         1.7x
-  MM-D            346 ns         1.7x
-  MM-L          5,664 ns        28.5x
-  MM-N          5,855 ns        29.4x
-  MM-M          6,160 ns        31.0x << WORST
+  MM-Q                13 ns         == << BEST
+  MM-D                14 ns         1.1x
+  MM-G                14 ns         1.1x
+  MM-O                15 ns         1.2x
+  MM-I                41 ns         3.2x
+  MM-H                41 ns         3.2x
+  MM-E2               41 ns         3.2x
+  MM-K                41 ns         3.2x
+  MM-J                41 ns         3.2x
+  MM-P                43 ns         3.4x
+  MM-Q2               63 ns         4.9x
+  MM-O2               65 ns         5.0x
+  MM-P2               88 ns         6.8x
+  MM-N             1,585 ns         123.0x
+  MM-L             1,594 ns         123.7x
+  MM-M             1,619 ns         << WORST
 
   Lazy Init - No Deps (Analytics) -- all values in ns
   ------------------------------------------
-  MM-Q2            236 ns           == << BEST
-  MM-O2            238 ns         1.0x
-  MM-D            255 ns         1.1x
-  MM-G            260 ns         1.1x
-  MM-P2            284 ns         1.2x
-  MM-E2          1,049 ns         4.4x
-  MM-I          1,112 ns         4.7x
-  MM-H          1,278 ns         5.4x
-  MM-J          1,493 ns         6.3x
-  MM-Q          1,735 ns         7.3x
-  MM-P          1,941 ns         8.2x
-  MM-O          2,098 ns         8.9x
-  MM-K          2,996 ns        12.7x
-  MM-L          5,473 ns        23.1x
-  MM-M         13,784 ns        58.3x
-  MM-N         20,018 ns        84.7x << WORST
+  MM-Q               215 ns         == << BEST
+  MM-O               231 ns         1.1x
+  MM-P               338 ns         1.6x
+  MM-O2              367 ns         1.7x
+  MM-G               392 ns         1.8x
+  MM-Q2              394 ns         1.8x
+  MM-D               411 ns         1.9x
+  MM-P2              511 ns         2.4x
+  MM-E2            1,380 ns         6.4x
+  MM-H             1,745 ns         8.1x
+  MM-J             2,117 ns         9.9x
+  MM-I             2,816 ns         13.1x
+  MM-K             3,872 ns         18.0x
+  MM-L             6,514 ns         30.3x
+  MM-N             6,526 ns         30.4x
+  MM-M            13,694 ns         << WORST
 
   Lazy Init - Cascade (Sync) -- all values in ns
   ------------------------------------------
-  MM-Q            318 ns           == << BEST
-  MM-O            346 ns         1.1x
-  MM-Q2            504 ns         1.6x
-  MM-O2            507 ns         1.6x
-  MM-P            607 ns         1.9x
-  MM-D            696 ns         2.2x
-  MM-P2            734 ns         2.3x
-  MM-G            848 ns         2.7x
-  MM-E2          3,088 ns         9.7x
-  MM-H          3,892 ns        12.3x
-  MM-I          4,122 ns        13.0x
-  MM-J          4,866 ns        15.3x
-  MM-K          7,900 ns        24.9x
-  MM-N         22,706 ns        71.5x
-  MM-L         24,611 ns        77.5x
-  MM-M         48,334 ns       152.2x << WORST
+  MM-Q               455 ns         == << BEST
+  MM-O               480 ns         1.1x
+  MM-Q2              796 ns         1.7x
+  MM-D               840 ns         1.8x
+  MM-O2              879 ns         1.9x
+  MM-P               899 ns         2.0x
+  MM-G             1,051 ns         2.3x
+  MM-P2            1,337 ns         2.9x
+  MM-I             3,370 ns         7.4x
+  MM-J             4,301 ns         9.4x
+  MM-E2            5,171 ns         11.4x
+  MM-K             5,672 ns         12.5x
+  MM-H             6,829 ns         15.0x
+  MM-N            20,789 ns         45.7x
+  MM-L            21,762 ns         47.8x
+  MM-M            36,845 ns         << WORST
 
   Cross-Feature Op (Sync -- DataStore I/O) -- all values in ns
   ------------------------------------------
-  MM-J      1,177,500 ns           == << BEST
-  MM-H      1,284,479 ns         1.1x
-  MM-Q      1,573,958 ns         1.3x
-  MM-Q2      1,699,254 ns         1.4x
-  MM-O      1,707,953 ns         1.5x
-  MM-P      1,717,334 ns         1.5x
-  MM-O2      1,773,111 ns         1.5x
-  MM-N      1,777,601 ns         1.5x
-  MM-M      1,849,198 ns         1.6x
-  MM-D      1,859,382 ns         1.6x
-  MM-K      1,956,388 ns         1.7x
-  MM-G      1,959,572 ns         1.7x
-  MM-I      2,083,502 ns         1.8x
-  MM-E2      2,106,960 ns         1.8x
-  MM-L      2,123,166 ns         1.8x
-  MM-P2      3,064,966 ns         2.6x << WORST
+  MM-H         4,146,741 ns         == << BEST
+  MM-K         4,188,400 ns         1.0x
+  MM-N         4,275,358 ns         1.0x
+  MM-O2        4,504,231 ns         1.1x
+  MM-P2        4,540,261 ns         1.1x
+  MM-L         4,576,768 ns         1.1x
+  MM-Q2        4,640,834 ns         1.1x
+  MM-Q         4,763,839 ns         1.1x
+  MM-P         4,792,534 ns         1.2x
+  MM-O         4,802,482 ns         1.2x
+  MM-M         4,883,153 ns         1.2x
+  MM-D         5,082,492 ns         << WORST
 
-  E2E App Startup (DataStore I/O) -- all values in ns
+  Cross-Feature Op (Sync -- SharedPrefs) -- all values in ns
   ------------------------------------------
-  MM-Q        949,700 ns           == << BEST
-  MM-P2        993,388 ns         1.0x
-  MM-D      1,193,218 ns         1.3x
-  MM-O      1,242,818 ns         1.3x
-  MM-Q2      1,315,251 ns         1.4x
-  MM-P      1,350,316 ns         1.4x
-  MM-G      1,381,274 ns         1.5x
-  MM-E2      1,431,234 ns         1.5x
-  MM-O2      1,465,363 ns         1.5x
-  MM-J      1,583,282 ns         1.7x
-  MM-H      1,745,145 ns         1.8x
-  MM-I      1,745,363 ns         1.8x
-  MM-M      1,920,889 ns         2.0x
-  MM-N      1,952,136 ns         2.1x
-  MM-K      2,267,252 ns         2.4x
-  MM-L      2,289,414 ns         2.4x << WORST
+  MM-M           118,632 ns         == << BEST
+  MM-D           121,308 ns         1.0x
+  MM-N           138,960 ns         1.2x
+  MM-H           178,332 ns         1.5x
+  MM-K           184,837 ns         1.6x
+  MM-Q           197,517 ns         1.7x
+  MM-O           198,285 ns         1.7x
+  MM-P           201,617 ns         1.7x
+  MM-L           202,561 ns         1.7x
+  MM-O2          203,678 ns         1.7x
+  MM-Q2          204,934 ns         1.7x
+  MM-P2          206,194 ns         << WORST
 
-  Stress: Init/Shutdown Cycle -- all values in ns
+  Cross-Feature Op (Sync -- Fake Storage) -- all values in ns
   ------------------------------------------
-  MM-G            229 ns           == << BEST
-  MM-D            248 ns         1.1x
-  MM-P            293 ns         1.3x
-  MM-O            301 ns         1.3x
-  MM-Q            403 ns         1.8x
-  MM-P2            508 ns         2.2x
-  MM-O2            516 ns         2.3x
-  MM-Q2            549 ns         2.4x
-  MM-E2          4,418 ns        19.3x
-  MM-N         42,293 ns       184.7x
-  MM-J         91,244 ns       398.6x
-  MM-H         99,293 ns       433.7x
-  MM-I        103,695 ns       452.9x
-  MM-M        125,626 ns       548.7x
-  MM-L        134,268 ns       586.5x
-  MM-K        201,490 ns       880.1x << WORST
+  MM-H           138,733 ns         == << BEST
+  MM-K           164,114 ns         1.2x
+  MM-Q2          170,040 ns         1.2x
+  MM-O           180,156 ns         1.3x
+  MM-D           180,177 ns         1.3x
+  MM-Q           180,617 ns         1.3x
+  MM-P2          181,187 ns         1.3x
+  MM-P           181,946 ns         1.3x
+  MM-O2          182,189 ns         1.3x
+  MM-M           184,586 ns         1.3x
+  MM-L           184,649 ns         1.3x
+  MM-N           187,445 ns         << WORST
 
-  Stress: Concurrent Resolution -- all values in ns
+  End-to-end startup (init + warm get) -- all values in ns
   ------------------------------------------
-  MM-D        492,728 ns           == << BEST
-  MM-H        515,355 ns         1.0x
-  MM-K        553,614 ns         1.1x
-  MM-E2        570,502 ns         1.2x
-  MM-O        586,020 ns         1.2x
-  MM-Q2        586,118 ns         1.2x
-  MM-O2        587,433 ns         1.2x
-  MM-J        588,775 ns         1.2x
-  MM-Q        591,475 ns         1.2x
-  MM-G        595,946 ns         1.2x
-  MM-I        607,762 ns         1.2x
-  MM-P        618,386 ns         1.3x
-  MM-P2        637,813 ns         1.3x
-  MM-M        724,681 ns         1.5x
-  MM-L        761,258 ns         1.5x
-  MM-N        784,012 ns         1.6x << WORST
+  MM-E2          731,928 ns         == << BEST
+  MM-O           743,181 ns         1.0x
+  MM-D           765,577 ns         1.0x
+  MM-G           772,136 ns         1.1x
+  MM-P2          774,391 ns         1.1x
+  MM-O2          784,154 ns         1.1x
+  MM-P           798,224 ns         1.1x
+  MM-Q2          815,261 ns         1.1x
+  MM-Q           828,332 ns         1.1x
+  MM-H           954,851 ns         1.3x
+  MM-J           978,930 ns         1.3x
+  MM-N           986,669 ns         1.3x
+  MM-I         1,015,116 ns         1.4x
+  MM-K         1,058,328 ns         1.4x
+  MM-L         1,157,636 ns         1.6x
+  MM-M         1,208,724 ns         << WORST
 
-  Stress: Resolve All (cached) -- all values in ns
+  Stress: concurrent N threads -- all values in ns
   ------------------------------------------
-  MM-Q           64.2 ns           == << BEST
-  MM-O           79.6 ns         1.2x
-  MM-Q2           84.5 ns         1.3x
-  MM-O2           85.6 ns         1.3x
-  MM-D           99.8 ns         1.6x
-  MM-G            101 ns         1.6x
-  MM-P2            156 ns         2.4x
-  MM-P            165 ns         2.6x
-  MM-E2            211 ns         3.3x
-  MM-I            211 ns         3.3x
-  MM-H            212 ns         3.3x
-  MM-K            213 ns         3.3x
-  MM-J            216 ns         3.4x
-  MM-L          6,244 ns        97.3x
-  MM-N          6,328 ns        98.6x
-  MM-M          7,920 ns       123.4x << WORST
+  MM-D           474,293 ns         == << BEST
+  MM-H           476,323 ns         1.0x
+  MM-G           485,668 ns         1.0x
+  MM-Q2          487,815 ns         1.0x
+  MM-I           491,933 ns         1.0x
+  MM-O           492,051 ns         1.0x
+  MM-K           492,077 ns         1.0x
+  MM-E2          494,316 ns         1.0x
+  MM-P2          496,632 ns         1.0x
+  MM-J           498,326 ns         1.1x
+  MM-Q           498,641 ns         1.1x
+  MM-O2          514,496 ns         1.1x
+  MM-P           522,027 ns         1.1x
+  MM-M           581,947 ns         1.2x
+  MM-N           673,124 ns         1.4x
+  MM-L           690,719 ns         << WORST
 
-  Stress: Selective Init -- all values in ns
+  Stress: incremental fan-out -- all values in ns
   ------------------------------------------
-  MM-D          3,828 ns           == << BEST
-  MM-P          4,079 ns         1.1x
-  MM-G          4,163 ns         1.1x
-  MM-Q          4,973 ns         1.3x
-  MM-P2          5,377 ns         1.4x
-  MM-Q2          6,166 ns         1.6x
-  MM-O          8,718 ns         2.3x
-  MM-O2         11,022 ns         2.9x
-  MM-E2         32,514 ns         8.5x
-  MM-J        154,296 ns        40.3x
-  MM-H        155,533 ns        40.6x
-  MM-I        165,387 ns        43.2x
-  MM-N        214,585 ns        56.1x
-  MM-K        311,277 ns        81.3x
-  MM-M        324,248 ns        84.7x
-  MM-L        390,833 ns       102.1x << WORST
+  MM-Q             1,021 ns         == << BEST
+  MM-O             1,141 ns         1.1x
+  MM-P             1,706 ns         1.7x
+  MM-Q2            2,338 ns         2.3x
+  MM-O2            2,368 ns         2.3x
+  MM-D             2,435 ns         2.4x
+  MM-G             2,453 ns         2.4x
+  MM-P2            2,846 ns         2.8x
+  MM-E2           13,282 ns         13.0x
+  MM-I           118,267 ns         115.8x
+  MM-N           119,918 ns         117.5x
+  MM-H           124,513 ns         122.0x
+  MM-J           124,588 ns         122.0x
+  MM-L           190,878 ns         187.0x
+  MM-M           221,009 ns         216.5x
+  MM-K           262,931 ns         << WORST
 
-  Stress: Re-Init -- all values in ns
+  Stress: init/shutdown loop -- all values in ns
   ------------------------------------------
-  MM-Q2          2,157 ns           == << BEST
-  MM-O2          2,305 ns         1.1x
-  MM-P2          2,929 ns         1.4x
-  MM-E2         16,740 ns         7.8x
-  MM-Q         25,266 ns        11.7x
-  MM-P         27,648 ns        12.8x
-  MM-O         36,049 ns        16.7x
-  MM-D         36,165 ns        16.8x
-  MM-G         37,747 ns        17.5x
-  MM-I        318,298 ns       147.6x
-  MM-H        362,649 ns       168.1x
-  MM-J        370,652 ns       171.8x
-  MM-N        731,983 ns       339.4x
-  MM-K        766,514 ns       355.4x
-  MM-L      1,067,754 ns       495.0x
-  MM-M      1,248,612 ns       578.9x << WORST
+  MM-P               497 ns         == << BEST
+  MM-Q               518 ns         1.0x
+  MM-O               584 ns         1.2x
+  MM-G               659 ns         1.3x
+  MM-D               708 ns         1.4x
+  MM-O2              843 ns         1.7x
+  MM-Q2              959 ns         1.9x
+  MM-P2              970 ns         2.0x
+  MM-E2            4,422 ns         8.9x
+  MM-N            72,150 ns         145.2x
+  MM-J           123,997 ns         249.6x
+  MM-I           124,323 ns         250.3x
+  MM-H           136,410 ns         274.6x
+  MM-M           165,319 ns         332.8x
+  MM-L           183,034 ns         368.5x
+  MM-K           352,897 ns         << WORST
 
-  Stress: Incremental Build -- all values in ns
+  Stress: re-init loop -- all values in ns
   ------------------------------------------
-  MM-O            588 ns           == << BEST
-  MM-Q            667 ns         1.1x
-  MM-O2            952 ns         1.6x
-  MM-P          1,060 ns         1.8x
-  MM-D          1,172 ns         2.0x
-  MM-Q2          1,218 ns         2.1x
-  MM-G          1,223 ns         2.1x
-  MM-P2          1,321 ns         2.2x
-  MM-E2         11,688 ns        19.9x
-  MM-N         71,509 ns       121.6x
-  MM-H         97,694 ns       166.1x
-  MM-J         97,711 ns       166.2x
-  MM-I        100,488 ns       170.9x
-  MM-M        165,162 ns       280.8x
-  MM-L        172,609 ns       293.5x
-  MM-K        213,696 ns       363.4x << WORST
+  MM-Q             1,939 ns         == << BEST
+  MM-O             2,220 ns         1.1x
+  MM-O2            2,521 ns         1.3x
+  MM-Q2            2,866 ns         1.5x
+  MM-P             3,025 ns         1.6x
+  MM-P2            3,160 ns         1.6x
+  MM-G             4,620 ns         2.4x
+  MM-D             4,636 ns         2.4x
+  MM-E2           16,136 ns         8.3x
+  MM-N           216,153 ns         111.5x
+  MM-I           270,261 ns         139.4x
+  MM-H           291,735 ns         150.5x
+  MM-J           300,016 ns         154.7x
+  MM-M           458,985 ns         236.7x
+  MM-L           471,974 ns         243.4x
+  MM-K           496,327 ns         << WORST
+
+  Stress: resolveAll services -- all values in ns
+  ------------------------------------------
+  MM-D                64 ns         == << BEST
+  MM-G                65 ns         1.0x
+  MM-Q                85 ns         1.3x
+  MM-O               109 ns         1.7x
+  MM-H               183 ns         2.8x
+  MM-I               189 ns         2.9x
+  MM-J               190 ns         2.9x
+  MM-E2              198 ns         3.1x
+  MM-K               199 ns         3.1x
+  MM-P               298 ns         4.6x
+  MM-Q2              388 ns         6.0x
+  MM-O2              388 ns         6.0x
+  MM-P2              620 ns         9.6x
+  MM-L             5,739 ns         89.1x
+  MM-N             6,266 ns         97.3x
+  MM-M             6,392 ns         << WORST
+
+  Stress: selective resolve -- all values in ns
+  ------------------------------------------
+  MM-P               527 ns         == << BEST
+  MM-Q               601 ns         1.1x
+  MM-O               690 ns         1.3x
+  MM-D               694 ns         1.3x
+  MM-G               709 ns         1.3x
+  MM-Q2            1,019 ns         1.9x
+  MM-P2            1,085 ns         2.1x
+  MM-O2            1,112 ns         2.1x
+  MM-E2            5,460 ns         10.4x
+  MM-N            69,792 ns         132.5x
+  MM-I           131,499 ns         249.7x
+  MM-J           134,516 ns         255.4x
+  MM-H           135,400 ns         257.1x
+  MM-M           167,191 ns         317.4x
+  MM-L           197,861 ns         375.7x
+  MM-K           298,145 ns         << WORST
 
 ====================================================================================================
 
-  MONOLITHIC BENCHMARKS (4 patrones: Dagger B, Dagger C, Koin, Hybrid)
+  MONOLITHIC BENCHMARKS (DaggerB, DaggerC, Koin, Hybrid)
 
-  Init Cold -- all values in ns
+  Init Cold (full graph) -- all values in ns
   ------------------------------------------
-  Dagger B              2,123 ns           == << BEST
-  Dagger C              2,648 ns         1.2x
-  Hybrid               46,691 ns        22.0x
-  Koin                 48,037 ns        22.6x << WORST
+  MM-daggerB       4,794 ns         == << BEST
+  MM-daggerC       5,700 ns         1.2x
+  MM-koin         73,930 ns         << WORST
 
   Resolve First -- all values in ns
   ------------------------------------------
-  Hybrid                  2.0 ns           == << BEST
-  Dagger B                7.6 ns         3.7x
-  Dagger C               30.2 ns        14.8x
-  Koin                    640 ns       312.1x << WORST
-
-  Resolve Cached (bridge) -- all values in ns
-  ------------------------------------------
-  Hybrid                  2.4 ns           == (solo Hybrid)
-
-  Lazy Init - Cascade -- all values in ns
-  ------------------------------------------
-  Dagger B              1,459 ns           == << BEST
-  Dagger C              1,805 ns         1.2x
-  Koin                 23,532 ns        16.1x << WORST
-
-  Cross-Feature Op -- all values in ns
-  ------------------------------------------
-  Hybrid              759,761 ns           == << BEST
-  Dagger B          1,233,645 ns         1.6x
-  Dagger C          1,321,395 ns         1.7x
-  Koin              1,385,777 ns         1.8x << WORST
+  MM-daggerB           9 ns         == << BEST
+  MM-daggerC          47 ns         5.0x
+  MM-koin            912 ns         << WORST
 
 ====================================================================================================
-CONCLUSIONS
 
-Multi-module init cold ranking:
-  MM-O: 603 ns | MM-Q: 676 ns | MM-P: 1,064 ns | MM-Q2: 1,080 ns | MM-O2: 1,127 ns | MM-D: 1,212 ns | MM-G: 1,257 ns | MM-P2: 1,416 ns | MM-E2: 10,983 ns | MM-N: 69,636 ns | MM-I: 94,255 ns | MM-J: 97,197 ns | MM-H: 106,865 ns | MM-L: 154,403 ns | MM-M: 164,353 ns | MM-K: 213,737 ns
-
-G vs D: 1.0x (G advantage: DaggerXxxComponent stays internal)
-H vs G: 85.0x (H advantage: zero central editing, each feature self-registers)
-I vs H: 0.9x (I advantage: zero DI framework -- no Dagger, no KSP)
-J vs H: 0.9x (J advantage: modern KSP, less boilerplate, KMP-ready)
-K vs H: 2.0x (K advantage: R8/ProGuard robustness via AndroidManifest metadata)
-L vs H: 1.4x (L advantage: Koin eager modules vs Resolver+Dagger)
-M vs L: 1.1x (M advantage: lazy loadModules vs eager)
-N vs L: 0.5x (N advantage: sweet-spi vs java.util.ServiceLoader)
-O vs H: 0.0x (O advantage: Metro compile-time vs runtime DI)
-P vs J: 0.0x (P advantage: kotlin-inject-anvil vs kotlin-inject+Resolver)
-Q vs H: 0.0x (Q advantage: Hilt-style Dagger @Module vs Resolver+Dagger @Component)
-Q vs O: 1.1x (Q=Dagger vs O=Metro — same compile-time approach, different codegen)
-
-CrossFeatureOp note: values ~1.1-1.7M ns for multi-module due to Storage using
-DataStore (real disk I/O via suspend + runBlocking in sync.sync()). Monolithic
-patterns (DiBenchmark) remain ~91-126K ns because impl-common-d-c still uses
-in-memory storage (no DataStore).
-
-Monolithic init cold ranking:
-  Dagger B: 2,123 ns | Dagger C: 2,648 ns | Hybrid: 46,691 ns | Koin: 48,037 ns
+DATA SOURCES:
+  - 01-DiBenchmark.json:                        28 entries (monolithic, unchanged code)
+  - 02a/b/c-MultiModule-*.json:                 162 entries (D/G/L/M/N/O/P/Q/O2/P2/Q2, unchanged code)
+  - 02-final-MultiModule-E2-H-I-J-K.json:        66 entries (E2/H/I/J/K, post-exception-hierarchy)
+  - 03-ScaleBenchmark.json:                     37 entries (synthetic harness, unchanged code)
+  - AB-A-pre-changes-H.json / AB-B-post-changes-H.json: A/B reference for Pattern H

@@ -1,0 +1,313 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<testsuite name="com.grinwich.benchmark.MemoryBehaviorTest" tests="129" failures="0" errors="0" skipped="88" time="7.74" timestamp="2026-04-24T20:23:15" hostname="localhost">
+  <properties>
+    <property name="device" value="SM-S908B - 16" />
+    <property name="flavor" value="" />
+    <property name="project" value=":benchmark" />
+  </properties>
+  <testcase name="heapFootprint_comparative" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="4.821" />
+  <testcase name="leakDetection_E2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.203" />
+  <testcase name="leakDetection_O2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.008">
+    <skipped />
+  </testcase>
+  <testcase name="leakDetection_P2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.008">
+    <skipped />
+  </testcase>
+  <testcase name="leakDetection_Q2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="fullGraph_E2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.003" />
+  <testcase name="fullGraph_O2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="fullGraph_P2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.008">
+    <skipped />
+  </testcase>
+  <testcase name="fullGraph_Q2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="fullGraph_D" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.004" />
+  <testcase name="fullGraph_G" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.003" />
+  <testcase name="fullGraph_H" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.002" />
+  <testcase name="fullGraph_I" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.002" />
+  <testcase name="fullGraph_J" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="fullGraph_K" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="fullGraph_L" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="fullGraph_M" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="fullGraph_N" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="fullGraph_O" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.008">
+    <skipped />
+  </testcase>
+  <testcase name="fullGraph_P" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="fullGraph_Q" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.008">
+    <skipped />
+  </testcase>
+  <testcase name="getSync_E2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.004" />
+  <testcase name="getSync_O2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="getSync_P2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="getSync_Q2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="leakDetection_D" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.081" />
+  <testcase name="leakDetection_G" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.155" />
+  <testcase name="leakDetection_H" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.365" />
+  <testcase name="leakDetection_I" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.31" />
+  <testcase name="leakDetection_J" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.008">
+    <skipped />
+  </testcase>
+  <testcase name="leakDetection_K" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.008">
+    <skipped />
+  </testcase>
+  <testcase name="leakDetection_L" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.009">
+    <skipped />
+  </testcase>
+  <testcase name="leakDetection_M" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="leakDetection_N" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="leakDetection_O" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="leakDetection_P" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="leakDetection_Q" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="initOnly_E2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.003" />
+  <testcase name="initOnly_O2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="initOnly_P2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="initOnly_Q2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="initOnly_D" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.001" />
+  <testcase name="initOnly_G" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.002" />
+  <testcase name="initOnly_H" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.001" />
+  <testcase name="initOnly_I" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.002" />
+  <testcase name="initOnly_J" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="initOnly_K" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="initOnly_L" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="initOnly_M" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="initOnly_N" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="initOnly_O" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="initOnly_P" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="initOnly_Q" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.009">
+    <skipped />
+  </testcase>
+  <testcase name="getAna_E2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.001" />
+  <testcase name="getAna_O2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="getAna_P2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="getAna_Q2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="getEnc_E2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.002" />
+  <testcase name="getEnc_O2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="getEnc_P2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="getEnc_Q2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="shutdown_D" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.002" />
+  <testcase name="shutdown_G" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.002" />
+  <testcase name="shutdown_H" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.002" />
+  <testcase name="shutdown_I" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.002" />
+  <testcase name="shutdown_J" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="shutdown_K" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="shutdown_L" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.009">
+    <skipped />
+  </testcase>
+  <testcase name="shutdown_M" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="shutdown_N" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.008">
+    <skipped />
+  </testcase>
+  <testcase name="shutdown_O" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="shutdown_P" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.008">
+    <skipped />
+  </testcase>
+  <testcase name="shutdown_Q" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="freshInstances_D" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.002" />
+  <testcase name="freshInstances_G" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.002" />
+  <testcase name="freshInstances_H" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.0" />
+  <testcase name="freshInstances_I" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.002" />
+  <testcase name="freshInstances_J" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.008">
+    <skipped />
+  </testcase>
+  <testcase name="freshInstances_K" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.008">
+    <skipped />
+  </testcase>
+  <testcase name="freshInstances_L" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.009">
+    <skipped />
+  </testcase>
+  <testcase name="freshInstances_M" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.008">
+    <skipped />
+  </testcase>
+  <testcase name="freshInstances_N" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="freshInstances_O" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.008">
+    <skipped />
+  </testcase>
+  <testcase name="freshInstances_P" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="freshInstances_Q" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="getSync_D" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.002" />
+  <testcase name="getSync_G" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.002" />
+  <testcase name="getSync_H" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.002" />
+  <testcase name="getSync_I" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.003" />
+  <testcase name="getSync_J" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="getSync_K" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="getSync_L" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="getSync_M" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="getSync_N" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.009">
+    <skipped />
+  </testcase>
+  <testcase name="getSync_O" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.008">
+    <skipped />
+  </testcase>
+  <testcase name="getSync_P" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.008">
+    <skipped />
+  </testcase>
+  <testcase name="getSync_Q" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="freshInstances_E2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.002" />
+  <testcase name="freshInstances_O2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="freshInstances_P2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="freshInstances_Q2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="shutdown_E2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.002" />
+  <testcase name="shutdown_O2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="shutdown_P2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="shutdown_Q2" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.009">
+    <skipped />
+  </testcase>
+  <testcase name="getAna_D" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.002" />
+  <testcase name="getAna_G" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.003" />
+  <testcase name="getAna_H" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.001" />
+  <testcase name="getAna_I" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.003" />
+  <testcase name="getAna_J" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.008">
+    <skipped />
+  </testcase>
+  <testcase name="getAna_K" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="getAna_L" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="getAna_M" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="getAna_N" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="getAna_O" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="getAna_P" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="getAna_Q" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="getEnc_D" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.001" />
+  <testcase name="getEnc_G" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.001" />
+  <testcase name="getEnc_H" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.001" />
+  <testcase name="getEnc_I" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.002" />
+  <testcase name="getEnc_J" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.008">
+    <skipped />
+  </testcase>
+  <testcase name="getEnc_K" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="getEnc_L" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="getEnc_M" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="getEnc_N" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="getEnc_O" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="getEnc_P" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.008">
+    <skipped />
+  </testcase>
+  <testcase name="getEnc_Q" classname="com.grinwich.benchmark.MemoryBehaviorTest" time="0.005">
+    <skipped />
+  </testcase>
+</testsuite>

@@ -263,9 +263,9 @@ La tabla de rendimiento es contundente, pero la decision depende de que dimensio
 
 | Metrica / Criterio | O2 (Metro Lazy) | P2 (KI-anvil Lazy) | H (ServiceLoader) | Q2 (Dagger Lazy) | E2 (Registry) |
 |--------------------|----------------:|--------------------:|-------------------:|------------------:|---------------:|
-| Init Cold | 1,127 ns | 1,416 ns | 106,865 ns | 1,080 ns | 10,983 ns |
-| Resolve All | 86 ns | 156 ns | 212 ns | 85 ns | 211 ns |
-| Re-Init | 2,305 ns | 2,929 ns | 362,649 ns | 2,157 ns | 17,000 ns |
+| Init Cold | 1,354 ns | 1,677 ns | 104,591 ns | 1,307 ns | 7,665 ns |
+| Resolve All | 388 ns | 620 ns | 183 ns | 388 ns | 198 ns |
+| Re-Init | 2,521 ns | 3,160 ns | 291,735 ns | 2,866 ns | 16,136 ns |
 | Auto-registro (grafo) | OK | OK | OK | **NO** | PARCIAL |
 | Compile-time | OK | OK | PARCIAL | OK | OK |
 | Lazy | OK | OK | OK | OK | OK |
@@ -296,9 +296,9 @@ La decision depende del apetito de riesgo del equipo:
 
 **Pattern O2 (Metro Lazy)** -- objetivamente el mejor balance:
 
-- **95x mas rapido init** que H (1,127 vs 106,865 ns)
-- **2.5x mas rapido resolve** que H (86 vs 212 ns)
-- **157x mas rapido re-init** que H (2,305 vs 362,649 ns)
+- **77x mas rapido init** que H (1,354 vs 104,591 ns)
+- En el hot path resolve, ambos quedan en el mismo orden (388 ns vs 183 ns para H -- H gana por la ruta `services[clazz]` directa del Resolver)
+- **115x mas rapido re-init** que H (2,521 vs 291,735 ns)
 - Auto-registro zero-editing (`@ContributesTo`)
 - Compile-time safety completa
 - Lazy singletons genuinos (`Lazy<T>`)
@@ -324,17 +324,20 @@ tooling support y Amazon como maintainer.
 - Lazy genuino demostrado (builtProvisionCount == 0 tras init)
 - Thread-safe: thunderingHerd (100 threads), concurrentShutdown (200 rounds)
 
-**Trade-off:** 95x mas lento init, 157x mas lento re-init, compile-time parcial.
-**Pero:** 106,865 ns = 0.107 ms. En un app startup de 500-2000 ms, es irrelevante.
+**Trade-off:** 77x mas lento init, 115x mas lento re-init, compile-time parcial.
+**Pero:** 104,591 ns = 0.105 ms. En un app startup de 500-2000 ms, es irrelevante.
 El costo real de H es el riesgo de runtime errors por provider faltante,
-mitigable con test `verify()` en CI.
+mitigable con test `verify()` en CI. Los ciclos entre `FeatureProvider`s se
+detectan en el primer `get()` con `CircularDependencyException` -- ya no
+explotan como `StackOverflowError` (ver
+[exception-hierarchy.md](shared/exception-hierarchy.md)).
 
 #### Opcion C -- Si el equipo prioriza compile-time safety + madurez
 
 **Pattern Q2 (Dagger Lazy)** -- pero aceptar que no tiene auto-registro:
 
 - Dagger maduro (10+ anos, Google-maintained) + compile-time completo + `dagger.Lazy<T>`
-- Re-init ultra-rapido: 2,157 ns (el mas rapido de todos los patrones)
+- Re-init ultra-rapido: 2,866 ns (entre los mas rapidos de todos los patrones)
 - Init rapido: 1,080 ns
 - Con 50 modules, `@Component(modules=[...])` tiene 50 lineas -- gestionable si UN dev
   mantiene el wiring y el equipo tiene disciplina de rebase
@@ -400,8 +403,8 @@ sugeria la version anterior de este doc).
 | 4 | Thread-safe shutdown | **OK** | **OK** | **OK** | **OK** | **OK** | **OK** | **OK** |
 | 5 | Logger persistente | **OK** | **OK** | **OK** | **OK** | PARCIAL | **OK** | PARCIAL |
 | 6 | Madurez ecosistema | **BAJA** | **MEDIA** | **ALTA** | **ALTA** | **ALTA** | **ALTA** | **ALTA** |
-| 7 | Init cold (ns) | **1,127** | **1,416** | 106,865 | **1,080** | 10,983 | 213,737 | 94,255 |
-| 8 | Resolve cached (ns) | **86** | **156** | 212 | **85** | 211 | 213 | 211 |
+| 7 | Init cold (ns) | **1,354** | **1,677** | 104,591 | **1,307** | 7,665 | 250,403 | 109,328 |
+| 8 | Resolve cached (ns) | 388 | 620 | **183** | 388 | 198 | 199 | 189 |
 | 9 | **Wiring del facade inmutable** | **NO** | **NO** | **OK** | **NO** | **OK** | **OK** | **OK** |
 | | **MUST HAVEs cumplidos** | **3/3** | **3/3** | **2.5/3** | **2/3** | **2.5/3** | **2.5/3** | **2/3** |
 | | **Total criterios OK (de 9)** | **8** | **8** | **8** | **6** | **8** | **8** | **7** |
@@ -436,19 +439,19 @@ el caso.
 
 | Operacion | O2<br>*(Metro Lazy)* | P2<br>*(KI-anvil Lazy)* | H<br>*(Resolver+Dagger)* | Q2<br>*(Dagger Lazy)* | Q<br>*(Dagger @Module)* | E2<br>*(Registry DFS)* | K<br>*(Manifest Discovery)* | I<br>*(Pure Resolver)* | O<br>*(Metro eager)* | P<br>*(KI-anvil eager)* | N<br>*(sweet-spi+Koin)* |
 |-----------|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Init Cold (ns) | 1,127 | 1,416 | 106,865 | 1,080 | 676 | 10,983 | 213,737 | 94,255 | 603 | 1,064 | 69,636 |
-| Resolve First (ns) | 315 | 335 | 202 | 306 | 257 | 199 | 203 | 203 | 288 | 336 | 5,855 |
-| Resolve All (ns) | 86 | 156 | 212 | 85 | 64 | 211 | 213 | 211 | 80 | 165 | 6,328 |
-| Lazy noDeps (ns) | 238 | 284 | 1,278 | 236 | 1,735 | 1,049 | 2,996 | 1,112 | 2,098 | 1,941 | 20,018 |
-| Lazy cascade (ns) | 507 | 734 | 3,892 | 504 | 318 | 3,088 | 7,900 | 4,122 | 346 | 607 | 22,706 |
-| E2E Startup (ns) | 1.5M | 993K | 1.7M | 1.3M | 950K | 1.4M | 2.3M | 1.7M | 1.2M | 1.4M | 2.0M |
-| Init/Shutdown (ns) | 516 | 508 | 99,293 | 549 | 403 | 4,418 | 201,490 | 103,695 | 301 | 293 | 42,293 |
-| Re-Init (ns) | 2,305 | 2,929 | 362,649 | 2,157 | 25,000 | 17,000 | 767,000 | 427,000 | 36,000 | 28,000 | 732,000 |
-| Concurrent (ns) | 587K | 638K | 515K | 586K | 591K | 571K | 554K | 608K | 586K | 618K | 784K |
+| Init Cold (ns) | 1,354 | 1,677 | 104,591 | 1,307 | 1,112 | 7,665 | 250,403 | 109,328 | 1,241 | 1,643 | 79,059 |
+| Resolve First (ns) | 65 | 88 | 41 | 63 | 13 | 41 | 41 | 41 | 15 | 43 | 1,585 |
+| Resolve All (ns) | 388 | 620 | 183 | 388 | 85 | 198 | 199 | 189 | 109 | 298 | 6,266 |
+| Lazy noDeps (ns) | 367 | 511 | 1,745 | 394 | 215 | 1,380 | 3,872 | 2,816 | 231 | 338 | 6,526 |
+| Lazy cascade (ns) | 879 | 1,337 | 6,829 | 796 | 455 | 5,171 | 5,672 | 3,370 | 480 | 899 | 20,789 |
+| E2E Startup (ns) | 784K | 774K | 955K | 815K | 828K | 732K | 1.06M | 1.02M | 743K | 798K | 987K |
+| Init/Shutdown (ns) | 843 | 970 | 136,410 | 959 | 518 | 4,422 | 352,897 | 124,323 | 584 | 497 | 72,150 |
+| Re-Init (ns) | 2,521 | 3,160 | 291,735 | 2,866 | 1,939 | 16,136 | 496,327 | 270,261 | 2,220 | 3,025 | 216,153 |
+| Concurrent (ns) | 514K | 497K | 476K | 488K | 499K | 494K | 492K | 492K | 492K | 522K | 673K |
 
 ### Interpretacion para el caso de +50 modulos
 
-1. **Init Cold (una vez por sesion):** O2 paga 1,127 ns. H paga 106,865 ns. La diferencia
+1. **Init Cold (una vez por sesion):** O2 paga 1,354 ns. H paga 104,591 ns. La diferencia
    es 95x pero **ambos son irrelevantes** en un cold start de 500-2000 ms (0.001 vs 0.107 ms).
    Init performance NO es el criterio diferenciador.
 

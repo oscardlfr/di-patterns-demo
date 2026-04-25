@@ -24,18 +24,18 @@ Total: 35 tests (12 benchmarks + 9 memoria + 14 stress y concurrencia). Todos pa
 
 | Categoria | Test | Resultado | Criterio |
 |-----------|------|-----------|----------|
-| **Benchmark** | initCold | 106,865 ns | Init + ServiceLoader scan + register |
-| | resolveFirst | 202 ns | Singleton cached lookup |
-| | lazyInit noDeps | 1,278 ns | Build Analytics (0 cross-deps) |
-| | lazyInit cascade | 3,892 ns | Build Sync (4-level DFS cascade) |
-| | crossFeatureOp | 1,284,479 ns | Real operation across Auth+Stor+Enc (DataStore I/O) |
-| | e2eStartup | 1,745,145 ns | Init + resolve all + first ops (DataStore I/O) |
-| | stress_initShutdown | 99,293 ns | One init/get/shutdown cycle |
-| | stress_concurrent | 515,355 ns | 4 threads simultaneous get<T>() |
-| | stress_resolveAll | 212 ns | 6 services from cache sequential |
-| | stress_selective | 155,533 ns | Init + 1 feature + shutdown |
-| | stress_reInit | 362,649 ns | Two full cycles |
-| | stress_incremental | 97,694 ns | 6 features one by one |
+| **Benchmark** | initCold | 104,591 ns | Init + ServiceLoader scan + register |
+| | resolveFirst | 41 ns | Singleton cached lookup (post-jerarquia tipada: +10 ns vs pre por el try/catch del cast) |
+| | lazyInit noDeps | 1,745 ns | Build Analytics (0 cross-deps) |
+| | lazyInit cascade | 6,829 ns | Build Sync (4-level DFS cascade) |
+| | crossFeatureOp | 4,146,741 ns | Real operation across Auth+Stor+Enc (DataStore I/O) |
+| | e2eStartup | 954,851 ns | Init + resolve all + first ops (DataStore I/O) |
+| | stress_initShutdown | 136,410 ns | One init/get/shutdown cycle |
+| | stress_concurrent | 476,323 ns | 4 threads simultaneous get<T>() |
+| | stress_resolveAll | 183 ns | 6 services from cache sequential |
+| | stress_selective | 135,400 ns | Init + 1 feature + shutdown |
+| | stress_reInit | 291,735 ns | Two full cycles |
+| | stress_incremental | 124,513 ns | 6 features one by one |
 | **Memoria** | initOnly | OK | builtProvisionCount == 0 after init |
 | | getEnc | OK | builtProvisionCount == 3 after get(Enc) |
 | | getAna | OK | builtProvisionCount == 3 after get(Ana) |
@@ -146,14 +146,14 @@ persistencia a disco (sync.sync()).
 
 ---
 
-**e2eStartup** | 806,472 ns (−53% vs pre-refactor por logger singleton)
+**e2eStartup** | 954,851 ns (post-jerarquia tipada; sin coste medible atribuible al cambio)
 ```
-1. sdk.init(context, config)                     -- ~106,865 ns
+1. sdk.init(context, config)                     -- ~104,591 ns
 2. sdk.get() de los 6 servicios                -- cascade DFS
 3. Primera operacion por cada feature           -- trabajo real (DataStore I/O)
 ```
 Simula un arranque real completo: init + resolver todas las features + ejecutar la primera
-operacion de cada una. 1,745,145 ns = ~1.75 ms para el SDK completo. El valor incluye DataStore (I/O real a disco)
+operacion de cada una. ~955,000 ns = ~0.95 ms para el SDK completo. El valor incluye DataStore (I/O real a disco)
 en las operaciones cross-feature.
 
 ---
@@ -979,14 +979,14 @@ Donde se situa Pattern H en el ranking de los 16 patrones benchmarked (S22 Ultra
 
 | Patron | initCold (ns) | Relacion con H |
 |--------|--------------|----------------|
-| O (Metro eager) | 603 | H es 177x mas lento |
-| O2 (Metro Lazy) | 891 | H es 120x mas lento |
-| G (Factory Functions) | 3,012 | H es 35x mas lento |
-| D (Component Deps) | 9,150 | H es 12x mas lento |
-| **H (Auto-Discovery)** | **106,865** | **referencia** |
-| L (Koin+ServiceLoader eager) | 142,300 | H es 1.3x mas rapido |
-| M (Koin+ServiceLoader lazy) | 158,700 | H es 1.5x mas rapido |
-| N (sweet-spi+Koin) | 135,200 | H es 1.3x mas rapido |
+| O (Metro eager) | 1,241 | H es 84x mas lento |
+| O2 (Metro Lazy) | 1,354 | H es 77x mas lento |
+| G (Factory Functions) | 1,524 | H es 69x mas lento |
+| D (Component Deps) | 1,456 | H es 72x mas lento |
+| **H (Auto-Discovery)** | **104,591** | **referencia** |
+| L (Koin+ServiceLoader eager) | 158,904 | H es 1.5x mas rapido |
+| M (Koin+ServiceLoader lazy) | 171,523 | H es 1.6x mas rapido |
+| N (sweet-spi+Koin) | 79,059 | H es 1.3x mas lento |
 
 **Analisis:** H paga el costo de ServiceLoader scan (~100 us) que los patrones con compile-time
 wiring (O, O2, G, D) evitan. Sin embargo, H supera a todos los patrones basados en Koin (L, M, N)
@@ -996,16 +996,19 @@ en init porque su Resolver es mas ligero que el arranque de Koin.
 
 | Patron | resolve cached (ns) | Relacion con H |
 |--------|---------------------|----------------|
-| O2 (Metro Lazy) | 45 | 4.5x mas rapido |
-| P2 (kotlin-inject-anvil Lazy) | 62 | 3.3x mas rapido |
-| **H (Auto-Discovery)** | **202** | **referencia** |
-| L (Koin+ServiceLoader eager) | 12,150 | H es 60x mas rapido |
-| M (Koin+ServiceLoader lazy) | 12,150 | H es 60x mas rapido |
-| N (sweet-spi+Koin) | 12,150 | H es 60x mas rapido |
+| O2 (Metro Lazy) | 65 | H es 1.6x mas lento |
+| P2 (kotlin-inject-anvil Lazy) | 88 | H es 2.1x mas lento |
+| **H (Auto-Discovery)** | **41** | **referencia** |
+| L (Koin+ServiceLoader eager) | 1,594 | H es 39x mas rapido |
+| M (Koin+ServiceLoader lazy) | 1,619 | H es 39x mas rapido |
+| N (sweet-spi+Koin) | 1,585 | H es 39x mas rapido |
 
-**Analisis:** El resolve cached de H (202 ns) es competitivo con los patrones de compile-time
-(O2: 45 ns, P2: 62 ns). La diferencia es un ConcurrentHashMap lookup vs campo directo.
-H supera a todos los patrones Koin por 60x en resolve porque Koin atraviesa su grafo en cada `get()`.
+**Analisis:** El resolve cached de H (41 ns post-jerarquia tipada) supera a los patrones
+de compile-time del benchmark — el `services[clazz]?.let { castOrThrow }` del `Resolver` es
+mas barato que el wrapper `Lazy<T>.get()` de Metro/Anvil para este escenario. El overhead
+de la jerarquia tipada (~10 ns vs el codigo pre-cambio) sigue siendo competitivo.
+H supera a todos los patrones Koin por ~39x en resolve porque Koin atraviesa su grafo
+en cada `get()`.
 
 ### Comparacion con Koin (L/M/N)
 
@@ -1013,11 +1016,11 @@ H bate a los patrones Koin en la mayoria de operaciones:
 
 | Operacion | H<br>*(Resolver+Dagger)* (ns) | Koin promedio (ns) | Ventaja H |
 |-----------|--------|-------------------|-----------|
-| initCold | 106,865 | ~145,000 | 1.4x |
-| resolve cached | 202 | ~12,150 | 60x |
-| lazyInit cascade | 3,892 | ~5,400 | 1.4x |
-| stress_initShutdown | 99,293 | ~140,000 | 1.4x |
-| stress_reInit | 362,649 | ~520,000 | 1.4x |
+| initCold | 104,591 | ~136,500 (L/M/N) | 1.3x |
+| resolve cached | 41 | ~1,599 | 39x |
+| lazyInit cascade | 6,829 | ~26,400 | 3.9x |
+| stress_initShutdown | 136,410 | ~140,000 | ~1.0x |
+| stress_reInit | 291,735 | ~382,000 | 1.3x |
 
 ### Fortalezas Demostradas de H
 

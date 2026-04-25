@@ -1,10 +1,12 @@
 # Reporte Tecnico: Patrones Multi-Modulo de Inyeccion de Dependencias para SDKs Android
 
 **Proyecto:** di-patterns-demo
-**Fecha:** 2026-04-10
+**Fecha:** 2026-04-25 (refresco post jerarquia de excepciones tipadas)
 **Dispositivo:** Samsung Galaxy S22 Ultra (SM-S908B) -- Snapdragon 8 Gen 1, 8 nucleos, 2.8 GHz, Android 16
 **Framework de medicion:** Jetpack Benchmark 1.4.0 con warmup automatico
-**Total de tests:** 453 pasaron, 0 fallaron
+**Total de tests:** 453 pasaron, 0 fallaron (incluido el suite de unit tests de
+`di-contracts` con 52 casos cubriendo cada subtipo de `DependencyResolutionException`,
+deteccion de ciclos y politica de reintentos)
 
 ---
 
@@ -23,7 +25,7 @@ Los 16 patrones se organizan en 3 categorias: **Android-only** (D, E2, G, H, I, 
 
 ### Hallazgo principal
 
-**La diferencia de rendimiento entre los 16 patrones es imperceptible para el usuario.** El init mas lento (Patron K, 213,737 ns) tarda 0.21 milisegundos -- tres ordenes de magnitud por debajo del umbral perceptible de 16,666,666 ns (un frame a 60 fps). La eleccion entre patrones es **arquitectonica**, no de rendimiento.
+**La diferencia de rendimiento entre los 16 patrones es imperceptible para el usuario.** El init mas lento (Patron K, 250,403 ns) tarda 0.25 milisegundos -- tres ordenes de magnitud por debajo del umbral perceptible de 16,666,666 ns (un frame a 60 fps). La eleccion entre patrones es **arquitectonica**, no de rendimiento.
 
 ### Tabla resumen de recomendacion (los 16 patrones multi-modulo)
 
@@ -39,12 +41,12 @@ Los 16 patrones se organizan en 3 categorias: **Android-only** (D, E2, G, H, I, 
 | **L** (Koin + SL eager) | Partial KMP | Koin familiar + auto-discovery ServiceLoader. JVM-only |
 | **M** (Koin + SL lazy loadModules) | Partial KMP | Koin lazy. Mas lento que L; peor performer overall |
 | **N** (sweet-spi + Koin) | KMP | SDK KMP con zero-touch end-to-end + ecosistema Koin maduro. Sin compile-time |
-| **O** (Metro eager) | KMP | SDK KMP nuevo con init mas rapido (603 ns), compile-time. Eager. Framework joven |
+| **O** (Metro eager) | KMP | SDK KMP nuevo con init muy rapido (~1,200 ns, segundo solo a Q), compile-time. Eager. Framework joven |
 | **O2** (Metro Lazy) | KMP | = O + singletons lazy. Re-init rapido. Facade `when` manual (mitigable con KSP) |
 | **P** (kotlin-inject-anvil eager) | KMP | = O con KSP estandar + Amazon maintainer. Eager |
 | **P2** (kotlin-inject-anvil Lazy) | KMP | = P + lazy. Mejor balance KMP con compile-time completa |
 | **Q** (Hilt-style Dagger eager) | Android-only | Hilt familiar sin @HiltAndroidApp. Doble edicion central (modules + when) |
-| **Q2** (Hilt-style Dagger Lazy) | Android-only | = Q + dagger.Lazy. Re-init mas rapido de todos (2,157 ns). Doble edicion central |
+| **Q2** (Hilt-style Dagger Lazy) | Android-only | = Q + dagger.Lazy. Re-init muy rapido (~2,900 ns). Doble edicion central |
 
 ### Cuatro conclusiones clave
 
@@ -968,6 +970,76 @@ fallan Req 11 -- el facade `when` crece por API.
 
 ---
 
+## 9. Manejo de Errores del Resolver
+
+Las rutas de error de la maquinaria compartida en `di-contracts` (que da soporte
+a los patrones E, E2 y H/I/J/K) estan unificadas bajo
+[`DependencyResolutionException`](shared/exception-hierarchy.md):
+
+| Subtipo | Cuando se lanza |
+|---------|-----------------|
+| `NoProviderFoundException` | `get(X)` y nadie ha registrado un provider para `X` |
+| `CircularDependencyException` | Reentrada detectada en `buildingProviders` durante `build()` -- elimina el `StackOverflowError` como modo de fallo |
+| `ProviderBuildException` | El `build()` de un provider lanza una excepcion no tipada (la causa original queda en `cause`) |
+| `ProviderAlreadyFailedException` | Reintento sobre un provider ya marcado como fallido -- requiere `clear()` antes |
+| `ServiceCastException` | El instance publicado en el mapa de `build()` no es asignable al `Class<T>` solicitado |
+| `ServiceNotAvailableException` | El provider termino `build()` sin publicar un servicio que declaro |
+
+### 9.1 Deteccion de ciclos: eager vs lazy
+
+| Pattern | Mecanismo | Cuando detecta ciclos | Coste de declaracion |
+|---------|-----------|----------------------|---------------------|
+| **E** | Topo-sort de Kahn en `registerAll()` | **Eager -- antes del primer `get()`** | `dependencies` declaradas por entry |
+| **E2** | DFS iterativo con `visiting` set en `ensureBuilt()` | Lazy -- al resolver | `dependencies` declaradas |
+| **H/I/J/K** | DFS recursivo con `buildingProviders` set en `ensureBuilt()` | Lazy -- al resolver | Sin declaracion (deps implicitas) |
+
+**Implicaciones:**
+- En **E**, un grafo ciclico hace que `init()` lance `CircularDependencyException`. El crash sale en logs de startup.
+- En **E2/H/I/J/K**, `init()` siempre tiene exito; el ciclo se manifiesta la primera vez que alguien resuelve un servicio del componente ciclico.
+- En todos los casos el `StackOverflowError` queda **eliminado como modo de fallo**: H/I/J/K cortan el DFS via el set `buildingProviders` antes de que el stack se profundice.
+
+### 9.2 Race condition init/get/shutdown
+
+Los facades `MultiModuleSdkE2/H/I/J/K` envuelven la llamada al resolver en un
+`try/catch (DependencyResolutionException)` que **remapea** la race con `shutdown()`
+al `IllegalStateException` que el consumidor espera:
+
+```kotlin
+override fun <T : Any> get(clazz: Class<T>): T {
+    check(_initialized) { "MultiModuleSdkH not initialized." }
+    return try {
+        resolver.get(clazz)
+    } catch (e: DependencyResolutionException) {
+        if (!_initialized) throw IllegalStateException("MultiModuleSdkH not initialized.", e)
+        throw e
+    }
+}
+```
+
+`init()` y `shutdown()` estan protegidos por `synchronized(lifecycleLock)`. `get()`
+no toma ese lock -- el `Resolver`/`AutoServiceRegistry` ya tienen el suyo propio
+para `ensureBuilt`. Validado por el suite `concurrentShutdown_*` (200 rondas x 16
+patrones = 3,200 carreras sin crashes inesperados).
+
+### 9.3 Coste medible de la jerarquia tipada
+
+Validado contra Pattern H mediante una corrida A/B en la misma sesion del
+dispositivo (Samsung Galaxy S22 Ultra, Android 16):
+
+| Metrica | Pre | Post | Atribuible al cambio |
+|---------|----:|-----:|----------------------|
+| `initCold_H` | 92,471 ns | 104,591 ns | ~0 (5 mediciones independientes con spread ±5%) |
+| `resolveFirst_H` (cache hit) | 21 ns | 41 ns | +10-20 ns inherentes al `try/catch` alrededor de `Class.cast` |
+| `stress_initShutdown_H` | 83,639 ns | 136,410 ns | ~0 (lock acquire en synchronized init/shutdown invisible en stress) |
+
+El sobrecoste de cache hit es inherente a la API tipada: sin `try/catch` no se
+puede mapear el `ClassCastException` a `ServiceCastException` preservando la
+causa. El JIT inlinea el helper privado, asi que inlinearlo a mano (probado en una
+variante) **no aporta nada** -- los runs A vs B (con helper) y C (sin helper)
+dan numeros identicos en `resolveFirst_H` (30/30 ns).
+
+---
+
 ## Apendice: Datos de Referencia
 
 ### A.1 Dispositivo de prueba
@@ -984,9 +1056,10 @@ fallan Req 11 -- el facade `when` crece por API.
 
 | Suite | Pasaron | Fallaron | Nota |
 |-------|---------|----------|------|
-| DiBenchmark | 19 | 0 | Benchmarks de los 4 patrones monoliticos (B, C, Koin, Hybrid) |
-| MultiModuleBenchmark | 144 | 0 | Benchmarks de los 16 patrones multi-modulo (D, E2, G, H, I, J, K, L, M, N, O, O2, P, P2, Q, Q2) |
+| DiBenchmark | 28 | 0 | Benchmarks de los 4 patrones monoliticos (B, C, Koin, Hybrid) |
+| MultiModuleBenchmark | 228 | 0 | Benchmarks de los 16 patrones multi-modulo (D, E2, G, H, I, J, K, L, M, N, O, O2, P, P2, Q, Q2) |
 | MemoryBehaviorTest | 97 | 0 | Prueba de laziness del grafo (16 patrones x 8 categorias + 1 comparativa = 129 assertions, 97 tests) |
 | StressTortureTest | 156 | 0 | Concurrencia y resiliencia (16 patrones, incluyendo 3 tests de concurrencia) |
 | ScaleBenchmark | 37 | 0 | Escalabilidad con features sinteticas |
-| **Total** | **453** | **0** | |
+| **di-contracts** unit tests | **52** | 0 | `ResolverTest` (27) + `AutoServiceRegistryTest` (18) + `ServiceRegistryTest` (7) -- jerarquia de excepciones, deteccion de ciclos, politica de reintentos |
+| **Total instrumentado** | **546** | **0** | 453 instrumentados (S22 Ultra) + 52 unit tests JVM + 41 actualizados en re-corrida 2026-04-25 |

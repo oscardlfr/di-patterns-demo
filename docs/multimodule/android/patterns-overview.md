@@ -43,7 +43,7 @@ casi inmutable: anadir modulo = 1 linea en `allEntries()`.
 
 - **Discovery:** Auto (Registry DFS)
 - **Escala:** Si (1 linea por feature)
-- **Init Cold:** 10,983 ns
+- **Init Cold:** 7,665 ns
 
 ### Pattern G -- Factory Functions (wiring-g)
 
@@ -59,12 +59,14 @@ El Component queda `internal`. Mismo patron lazy `ensure*()`.
 
 Cada feature-impl declara un `FeatureProvider` (~8 lineas). Las dependencias son
 implicitas: lo que el provider pide al `Resolver` dentro de `build()` se construye
-via DFS. El wiring module descubre providers via `ServiceLoader` y es completamente
-inmutable.
+via DFS recursivo. El wiring module descubre providers via `ServiceLoader` y es
+completamente inmutable. Los ciclos se detectan en el primer `get()` via el set
+`buildingProviders` y se reportan como `CircularDependencyException`
+(detalles en [docs/shared/exception-hierarchy.md](../../shared/exception-hierarchy.md)).
 
 - **Discovery:** ServiceLoader
 - **Escala:** Si (zero edicion del wiring)
-- **Init Cold:** 106,865 ns
+- **Init Cold:** 104,591 ns
 
 ### Pattern I -- Pure (zero DI framework) (wiring-i)
 
@@ -74,7 +76,7 @@ directamente via constructores Kotlin.
 
 - **Discovery:** ServiceLoader
 - **Escala:** Si (zero edicion del wiring)
-- **Init Cold:** 94,255 ns
+- **Init Cold:** 109,328 ns
 
 ### Pattern K -- AndroidManifest Metadata Discovery (wiring-k)
 
@@ -84,7 +86,7 @@ Es el mas lento en init por el overhead de PackageManager + reflexion.
 
 - **Discovery:** AndroidManifest meta-data
 - **Escala:** Si (zero edicion del wiring)
-- **Init Cold:** 213,737 ns
+- **Init Cold:** 250,403 ns
 
 ---
 
@@ -312,12 +314,12 @@ y el singleton se crea la primera vez que se llama `.get()`.
 
 Impacto en benchmarks:
 - **Init Cold:** Q = 676 ns, Q2 = 1,080 ns (el Lazy wrapper anade ~400 ns)
-- **Re-Init:** Q = 25,000 ns, Q2 = 2,157 ns (**11.6x mas rapido** -- no recrea singletons)
+- **Re-Init:** Q = 1,939 ns, Q2 = 2,866 ns (Q lidera tras el refactor del logger; ambos en el mismo orden de magnitud)
 - **Lazy noDeps:** Q = 1,735 ns, Q2 = 236 ns (6.5x -- singleton bajo demanda)
 
 ### Ventajas
 
-- **Re-init ultra-rapido.** 2,157 ns vs 25,000 ns de Q -- crucial para hot restart.
+- **Re-init ultra-rapido.** 2,866 ns -- en el mismo rango que Q (1,939 ns) tras el refactor del logger singleton; ambos viables para hot restart.
 - **Lazy real.** Singletons se crean solo cuando se usan. Si solo accedes 2 de 5 features,
   las otras 3 nunca se instancian.
 - **Mismo compile-time safety que Q.** Todo validado por Dagger en compilacion.
@@ -350,11 +352,11 @@ Impacto en benchmarks:
 
 | Operacion | D<br>*(Dagger when-block)* | E2<br>*(Registry DFS)* | G<br>*(Factory functions)* | H<br>*(Resolver+Dagger)* | I<br>*(Pure Resolver)* | K<br>*(Manifest Discovery)* | Q<br>*(Dagger @Module)* | Q2<br>*(Dagger Lazy)* |
 |-----------|---:|---:|---:|---:|---:|---:|---:|---:|
-| Init Cold (ns) | 1,212 | 10,983 | 1,257 | 106,865 | 94,255 | 213,737 | 676 | 1,080 |
-| Resolve First (ns) | 346 | 199 | 345 | 202 | 203 | 203 | 257 | 306 |
-| Lazy noDeps (ns) | 255 | 1,049 | 260 | 1,278 | 1,112 | 2,996 | 1,735 | 236 |
-| Lazy cascade (ns) | 696 | 3,088 | 848 | 3,892 | 4,122 | 7,900 | 318 | 504 |
-| Re-Init (ns) | 36,000 | 17,000 | 38,000 | 363,000 | 427,000 | 767,000 | 25,000 | 2,157 |
+| Init Cold (ns) | 1,456 | 7,665 | 1,524 | 104,591 | 109,328 | 250,403 | 1,112 | 1,307 |
+| Resolve First (ns) | 14 | 41 | 14 | 41 | 41 | 41 | 13 | 63 |
+| Lazy noDeps (ns) | 411 | 1,380 | 392 | 1,745 | 2,816 | 3,872 | 215 | 394 |
+| Lazy cascade (ns) | 840 | 5,171 | 1,051 | 6,829 | 3,370 | 5,672 | 455 | 796 |
+| Re-Init (ns) | 4,636 | 16,136 | 4,620 | 291,735 | 270,261 | 496,327 | 1,939 | 2,866 |
 
 ### Ranking Init Cold
 
@@ -362,10 +364,10 @@ Impacto en benchmarks:
 2. **Q2** (1,080 ns) -- Dagger Lazy, setup de tracker anade ~400 ns
 3. **D** (1,212 ns) -- Solo construye CoreComponent en init
 4. **G** (1,257 ns) -- Identico a D con factory functions
-5. **E2** (10,983 ns) -- Catalogar entries en HashMaps
-6. **I** (94,255 ns) -- ServiceLoader sin framework DI
-7. **H** (106,865 ns) -- ServiceLoader + Dagger
-8. **K** (213,737 ns) -- PackageManager + reflexion
+5. **E2** (7,665 ns) -- Catalogar entries en HashMaps
+6. **H** (104,591 ns) -- ServiceLoader + Dagger
+7. **I** (109,328 ns) -- ServiceLoader sin framework DI
+8. **K** (250,403 ns) -- PackageManager + reflexion
 
 ---
 

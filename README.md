@@ -28,6 +28,9 @@ feature-syn-impl/         -> SynComponent + DefaultSyncService + buildSynProvisi
 sdk/
   api/                    -> Umbrella: CoreApis + re-exports all feature-apis + observability-api
   di-contracts/           -> Provisions + Scopes + RegistryInfra + FeatureProvider + Resolver
+                             + error/ (DependencyResolutionException + 6 subtipos: NoProviderFound,
+                                       CircularDependency, ProviderBuild, ProviderAlreadyFailed,
+                                       ServiceCast, ServiceNotAvailable)
   sdk-wiring/             -> Pattern D multi-modulo: direct lazy ensure*()
   wiring-e/               -> Pattern E multi-modulo: ProvisionRegistry + topo-sort
   wiring-e2/              -> Pattern E2 multi-modulo: AutoProvisionRegistry + DFS lazy
@@ -57,6 +60,7 @@ sample-hybrid/      -> KoinSdk + puente Dagger 2
 sample-multimodule/ -> Consumidor de MultiModuleSdkH (Pattern H, provision interfaces)
 
 benchmark/          -> 630 tests (31 monoliticos + 192 multi-modulo + 67 scale + 128 memory + 212 stress)
+                       + 52 unit tests JVM en di-contracts (jerarquia de excepciones del Resolver)
 
 docs/               -> Documentacion tecnica (espanol)
   monolithic/       -> Patrones monoliticos (A, B, C, Koin, Hybrid)
@@ -209,6 +213,30 @@ val bridge = DaggerSdkBridgeComponent.builder().build()
 val enc: EncryptionApi = bridge.encryption()  // Dagger cached (~1.9 ns)
 ```
 
+## Manejo de errores del Resolver
+
+Los patrones que comparten la maquinaria de `di-contracts` (E, E2, H/I/J/K)
+exponen una jerarquia de excepciones unificada bajo `DependencyResolutionException`
+en `com.grinwich.sdk.contracts.error`. Las rutas tipadas son:
+
+- `NoProviderFoundException` — nadie ha registrado un provider para el servicio pedido.
+- `CircularDependencyException` — dependencia circular detectada antes de que el stack se profundice (elimina el `StackOverflowError` como modo de fallo).
+- `ProviderBuildException` — el `build()` del provider lanzo (causa preservada en `cause`).
+- `ProviderAlreadyFailedException` — reintento sobre un provider ya fallido. Se necesita `clear()` para reiniciar.
+- `ServiceCastException` — el instance publicado no es asignable al `Class<T>` solicitado.
+- `ServiceNotAvailableException` — el provider termino sin publicar un servicio que declaro.
+
+**Cuando se detectan los ciclos:**
+
+| Pattern | Mecanismo | Cuando |
+|---|---|---|
+| **E** | Topo-sort de Kahn en `registerAll()` | **Eager — antes del primer `get()`** (init-time) |
+| **E2/H/I/J/K** | DFS con `visiting` / `buildingProviders` set en `ensureBuilt()` | Lazy — al resolver el servicio ciclico |
+
+Ver [docs/shared/exception-hierarchy.md](docs/shared/exception-hierarchy.md)
+para la decision arquitectonica completa, politica de reintentos y costes
+medidos.
+
 ## Compilar
 
 ```bash
@@ -243,6 +271,7 @@ Resultados en `benchmark/build/outputs/connected_android_test_additional_output/
 | [Requisitos](docs/shared/requirements.md) | 11 requisitos (incluye criterio bidimensional auto-registro grafo + facade inmutable), cumplimiento por patron |
 | [Conceptos DI](docs/shared/consumer-isolation.md) | DI vs Service Locator, niveles de aislamiento |
 | [Dependencias cruzadas](docs/shared/cross-feature-deps.md) | Como resuelve cada approach las cross-deps |
+| [Jerarquia de excepciones](docs/shared/exception-hierarchy.md) | DependencyResolutionException + subtipos, deteccion de ciclos eager vs lazy, politica de reintentos |
 | [Configuracion benchmarks](docs/shared/benchmark-configuration.md) | Guia para ejecutar los 630 tests |
 
 ## Stack
