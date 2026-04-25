@@ -1,5 +1,13 @@
 package com.grinwich.sdk.contracts
 
+import com.grinwich.sdk.contracts.error.CircularDependencyException
+import com.grinwich.sdk.contracts.error.DependencyResolutionException
+import com.grinwich.sdk.contracts.error.NoProviderFoundException
+import com.grinwich.sdk.contracts.error.ProviderAlreadyFailedException
+import com.grinwich.sdk.contracts.error.ProviderBuildException
+import com.grinwich.sdk.contracts.error.ServiceCastException
+import com.grinwich.sdk.contracts.error.ServiceNotAvailableException
+
 /**
  * Registry infrastructure for multi-module patterns that do NOT use
  * [ServiceLoader]. Replaces the former `ProvisionRegistry` + `ProvisionEntry`.
@@ -35,11 +43,17 @@ class ServiceEntry(
 ) {
     internal fun installInto(registry: ServiceRegistry) {
         for (dep in dependencies) {
-            check(registry.hasFeature(dep)) {
-                "${dep.simpleName} must be registered before ${featureId.simpleName}"
+            if (!registry.hasFeature(dep)) {
+                throw NoProviderFoundException(dep.simpleName)
             }
         }
-        val services = build(registry)
+        val services = try {
+            build(registry)
+        } catch (e: DependencyResolutionException) {
+            throw e
+        } catch (t: Throwable) {
+            throw ProviderBuildException(featureId.simpleName, t)
+        }
         registry.putFeature(featureId)
         registry.putServices(services)
     }
@@ -64,8 +78,15 @@ class ServiceRegistry {
         }
     }
 
-    fun <T : Any> get(clazz: Class<T>): T =
-        checkNotNull(clazz.cast(services[clazz])) { "Service ${clazz.simpleName} not available." }
+    fun <T : Any> get(clazz: Class<T>): T {
+        val raw = services[clazz] ?: throw NoProviderFoundException(clazz.simpleName)
+        return try {
+            val cast: T = clazz.cast(raw)
+            cast
+        } catch (e: ClassCastException) {
+            throw ServiceCastException(clazz.simpleName, e)
+        }
+    }
 
     fun hasFeature(featureId: Class<*>): Boolean = featureId in featuresBuilt
 
@@ -105,10 +126,12 @@ class ServiceRegistry {
                 }
             }
 
-            check(result.size == entries.size) {
+            if (result.size != entries.size) {
                 val missing = entries.map { it.featureId.simpleName } -
                     result.map { it.featureId.simpleName }.toSet()
-                "Dependency cycle detected involving: $missing"
+                // Kahn's topo-sort leaves every node on a cycle with nonzero
+                // in-degree; report the first survivor as the cycle witness.
+                throw CircularDependencyException(missing.first())
             }
             return result
         }
@@ -155,6 +178,7 @@ class AutoServiceRegistry {
     internal val featuresBuilt = java.util.concurrent.ConcurrentHashMap<Class<*>, Boolean>()
     internal val services = java.util.concurrent.ConcurrentHashMap<Class<*>, Any>()
     private val persistentFeatures = java.util.concurrent.ConcurrentHashMap<Class<*>, Boolean>()
+    private val failedFeatures = java.util.concurrent.ConcurrentHashMap<Class<*>, Boolean>()
 
     /**
      * O(1) read of [builtFeatureCount]. Maintained by [putFeature]/[clear]
@@ -180,16 +204,25 @@ class AutoServiceRegistry {
     }
 
     fun <T : Any> get(clazz: Class<T>): T {
-        services[clazz]?.let { return checkNotNull(clazz.cast(it)) { "Cast failed for ${clazz.simpleName}" } }
+        services[clazz]?.let { return castOrThrow(clazz, it) }
 
-        val featureId = serviceIndex[clazz]
-            ?: error("No entry provides ${clazz.simpleName}.")
+        val featureId = serviceIndex[clazz] ?: throw NoProviderFoundException(clazz.simpleName)
 
         ensureBuilt(featureId)
 
-        return checkNotNull(clazz.cast(services[clazz])) {
-            "${clazz.simpleName} not available after building ${featureId.simpleName}"
-        }
+        val resolved = services[clazz]
+            ?: throw ServiceNotAvailableException(
+                serviceName = clazz.simpleName,
+                providerName = featureId.simpleName,
+            )
+        return castOrThrow(clazz, resolved)
+    }
+
+    private fun <T : Any> castOrThrow(clazz: Class<T>, instance: Any): T = try {
+        val cast: T = clazz.cast(instance)
+        cast
+    } catch (e: ClassCastException) {
+        throw ServiceCastException(clazz.simpleName, e)
     }
 
     fun isBuilt(featureId: Class<*>): Boolean = featuresBuilt.containsKey(featureId)
@@ -224,6 +257,7 @@ class AutoServiceRegistry {
             serviceIndex.clear()
             featuresBuilt.clear()
             services.clear()
+            failedFeatures.clear()
             // persistentFeatures survives — repopulated by install() on next init.
 
             for (id in persistentBuilt) featuresBuilt[id] = true
@@ -245,32 +279,64 @@ class AutoServiceRegistry {
     }
 
     /**
-     * Iterative post-order DFS. Explicit stack to avoid StackOverflowError on
-     * deep chains (500+).
+     * Iterative post-order DFS. Explicit stack avoids a JVM
+     * `StackOverflowError` on deep chains (500+); the accompanying `visiting`
+     * set turns structural cycles into a deterministic
+     * [CircularDependencyException] instead of an unbounded loop that would
+     * balloon the stack and eventually OOM the deque.
      */
     private fun ensureBuilt(featureId: Class<*>) {
         if (featuresBuilt.containsKey(featureId)) return
+        if (failedFeatures.containsKey(featureId)) {
+            throw ProviderAlreadyFailedException(featureId.simpleName)
+        }
         synchronized(lock) {
             if (featuresBuilt.containsKey(featureId)) return
+            if (failedFeatures.containsKey(featureId)) {
+                throw ProviderAlreadyFailedException(featureId.simpleName)
+            }
 
             val stack = ArrayDeque<Pair<Class<*>, Boolean>>()
+            // Tracks ids currently on the DFS path — a dep that points back
+            // into this set closes a cycle. Entries leave when the node is
+            // popped in its `processed = true` pass.
+            val visiting = HashSet<Class<*>>()
             stack.addLast(featureId to false)
 
             while (stack.isNotEmpty()) {
                 val (id, processed) = stack.removeLast()
                 if (featuresBuilt.containsKey(id)) continue
+                if (failedFeatures.containsKey(id)) {
+                    throw ProviderAlreadyFailedException(id.simpleName)
+                }
 
                 val entry = catalog[id]
-                    ?: error("Feature ${id.simpleName} not installed in catalog.")
+                    ?: throw NoProviderFoundException(id.simpleName)
 
                 if (processed) {
-                    entry.buildAndRegister(this)
+                    try {
+                        entry.buildAndRegister(this)
+                    } catch (e: DependencyResolutionException) {
+                        throw e
+                    } catch (t: Throwable) {
+                        failedFeatures[id] = true
+                        throw ProviderBuildException(id.simpleName, t)
+                    }
+                    visiting.remove(id)
                 } else {
+                    if (!visiting.add(id)) {
+                        throw CircularDependencyException(id.simpleName)
+                    }
                     stack.addLast(id to true)
                     for (dep in entry.dependencies) {
-                        if (!featuresBuilt.containsKey(dep)) {
-                            stack.addLast(dep to false)
+                        if (featuresBuilt.containsKey(dep)) continue
+                        if (failedFeatures.containsKey(dep)) {
+                            throw ProviderAlreadyFailedException(dep.simpleName)
                         }
+                        if (dep in visiting) {
+                            throw CircularDependencyException(dep.simpleName)
+                        }
+                        stack.addLast(dep to false)
                     }
                 }
             }

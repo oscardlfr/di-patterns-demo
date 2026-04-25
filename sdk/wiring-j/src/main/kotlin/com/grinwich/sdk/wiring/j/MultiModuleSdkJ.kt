@@ -6,6 +6,7 @@ import com.grinwich.sdk.contracts.FeatureProvider
 import com.grinwich.sdk.contracts.Flavor
 import com.grinwich.sdk.contracts.Resolver
 import com.grinwich.sdk.contracts.SyntheticFeatureProvider
+import com.grinwich.sdk.contracts.error.DependencyResolutionException
 import java.util.ServiceLoader
 
 /**
@@ -22,6 +23,8 @@ import java.util.ServiceLoader
  */
 object MultiModuleSdkJ : MultiModuleSdkApi {
 
+    /** Serializes [init] and [shutdown]; [get] runs lock-free. */
+    private val lifecycleLock = Any()
     private val resolver = Resolver()
     private var _initialized = false
 
@@ -30,30 +33,44 @@ object MultiModuleSdkJ : MultiModuleSdkApi {
     override val builtFeatureCount: Int get() = resolver.builtFeatureCount
 
     override fun init(context: android.content.Context, config: SdkConfig) {
-        check(!_initialized) { "MultiModuleSdkJ already initialized. Call shutdown() first." }
-        resolver.register(SyntheticFeatureProvider(mapOf(
-            SdkConfig::class.java to config,
-            android.content.Context::class.java to context.applicationContext,
-        )))
+        synchronized(lifecycleLock) {
+            check(!_initialized) { "MultiModuleSdkJ already initialized. Call shutdown() first." }
+            resolver.register(SyntheticFeatureProvider(mapOf(
+                SdkConfig::class.java to config,
+                android.content.Context::class.java to context.applicationContext,
+            )))
 
-        // J filters by KI: only consumes providers that use kotlin-inject.
-        ServiceLoader.load(FeatureProvider::class.java)
-            .filter { it.flavor == Flavor.KI }
-            .forEach { resolver.register(it) }
+            // J filters by KI: only consumes providers that use kotlin-inject.
+            ServiceLoader.load(FeatureProvider::class.java)
+                .filter { it.flavor == Flavor.KI }
+                .forEach { resolver.register(it) }
 
-        _initialized = true
+            _initialized = true
+        }
     }
 
     override fun <T : Any> get(clazz: Class<T>): T {
         check(_initialized) { "MultiModuleSdkJ not initialized." }
-        return resolver.get(clazz)
+        return try {
+            resolver.get(clazz)
+        } catch (e: DependencyResolutionException) {
+            // Concurrent shutdown can drain the resolver between the
+            // initialization check above and the resolution below. Surface
+            // that race as a lifecycle error so callers only see two
+            // contracts: either the SDK returns a service, or it reports
+            // "not initialized".
+            if (!_initialized) throw IllegalStateException("MultiModuleSdkJ not initialized.", e)
+            throw e
+        }
     }
 
     inline fun <reified T : Any> get(): T = get(T::class.java)
 
     override fun shutdown() {
-        if (!_initialized) return
-        resolver.clear()
-        _initialized = false
+        synchronized(lifecycleLock) {
+            if (!_initialized) return
+            resolver.clear()
+            _initialized = false
+        }
     }
 }

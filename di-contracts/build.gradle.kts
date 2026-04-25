@@ -5,7 +5,12 @@ plugins {
 android {
     namespace = "com.grinwich.sdk.contracts"
     compileSdk = 36
-    defaultConfig { minSdk = 28 }
+    defaultConfig {
+        minSdk = 28
+        // Propagate ServiceLoader keep rules to every consumer that depends
+        // on this module, transitively or otherwise.
+        consumerProguardFiles("consumer-rules.pro")
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -20,4 +25,6 @@ dependencies {
     //
     // javax.inject sólo para @Scope (annotations genéricas).
     implementation(libs.javax.inject)
+
+    testImplementation(libs.junit)
 }

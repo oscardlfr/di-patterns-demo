@@ -2,6 +2,7 @@ package com.grinwich.sdk.wiring.e2
 
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.contracts.AutoServiceRegistry
+import com.grinwich.sdk.contracts.error.DependencyResolutionException
 
 /**
  * Multi-module SDK facade — Pattern E2 (Auto-Init Registry).
@@ -16,6 +17,8 @@ import com.grinwich.sdk.contracts.AutoServiceRegistry
  */
 object MultiModuleSdkE2 : MultiModuleSdkApi {
 
+    /** Serializes [init] and [shutdown]; [get] runs lock-free. */
+    private val lifecycleLock = Any()
     private var _initialized = false
     private val registry = AutoServiceRegistry()
 
@@ -28,9 +31,11 @@ object MultiModuleSdkE2 : MultiModuleSdkApi {
      * Component construction happens lazily on the first `get<T>()`.
      */
     override fun init(context: android.content.Context, config: SdkConfig) {
-        check(!_initialized) { "MultiModuleSdkE2 already initialized." }
-        registry.installAll(allAutoEntries(context, config))
-        _initialized = true
+        synchronized(lifecycleLock) {
+            check(!_initialized) { "MultiModuleSdkE2 already initialized." }
+            registry.installAll(allAutoEntries(context, config))
+            _initialized = true
+        }
     }
 
     /**
@@ -41,14 +46,26 @@ object MultiModuleSdkE2 : MultiModuleSdkApi {
      */
     override fun <T : Any> get(clazz: Class<T>): T {
         check(_initialized) { "MultiModuleSdkE2 not initialized." }
-        return registry.get(clazz)
+        return try {
+            registry.get(clazz)
+        } catch (e: DependencyResolutionException) {
+            // Concurrent shutdown can drain the registry between the
+            // initialization check above and the resolution below. Surface
+            // that race as a lifecycle error so callers only see two
+            // contracts: either the SDK returns a service, or it reports
+            // "not initialized".
+            if (!_initialized) throw IllegalStateException("MultiModuleSdkE2 not initialized.", e)
+            throw e
+        }
     }
 
     inline fun <reified T : Any> get(): T = get(T::class.java)
 
     override fun shutdown() {
-        if (!_initialized) return
-        registry.clear()
-        _initialized = false
+        synchronized(lifecycleLock) {
+            if (!_initialized) return
+            registry.clear()
+            _initialized = false
+        }
     }
 }

@@ -1,5 +1,11 @@
 package com.grinwich.sdk.contracts
 
+import com.grinwich.sdk.contracts.error.CircularDependencyException
+import com.grinwich.sdk.contracts.error.NoProviderFoundException
+import com.grinwich.sdk.contracts.error.ProviderAlreadyFailedException
+import com.grinwich.sdk.contracts.error.ProviderBuildException
+import com.grinwich.sdk.contracts.error.ServiceCastException
+import com.grinwich.sdk.contracts.error.ServiceNotAvailableException
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -101,6 +107,26 @@ class Resolver {
     private val resolvedServices = ConcurrentHashMap<Class<*>, Any>()
 
     /**
+     * Providers whose `build()` is in progress on some thread. Populated when
+     * entering [ensureBuilt] under [lock] and drained in the `finally` block.
+     * Membership in this set signals a cycle: the provider was reached again
+     * before it finished building, so resolving any of its services would
+     * recurse back into itself.
+     */
+    private val buildingProviders = java.util.Collections.newSetFromMap(
+        ConcurrentHashMap<FeatureProvider, Boolean>()
+    )
+
+    /**
+     * Providers whose last `build()` attempt threw. A registry never retries
+     * a failed provider: [clear] must run first, which also re-registers the
+     * wiring-supplied synthetics with fresh state.
+     */
+    private val failedProviders = java.util.Collections.newSetFromMap(
+        ConcurrentHashMap<FeatureProvider, Boolean>()
+    )
+
+    /**
      * Persistent providers keyed by class — O(1) dedup in [register].
      * `ServiceLoader.load()` returns a fresh instance on every init, but the
      * provider class is stable, so using the class as the key keeps the map
@@ -135,27 +161,66 @@ class Resolver {
     }
 
     fun <T : Any> get(clazz: Class<T>): T {
-        resolvedServices[clazz]?.let {
-            return checkNotNull(clazz.cast(it)) { "Cast failed for ${clazz.simpleName}" }
-        }
-        val provider = serviceIndex[clazz]
-            ?: error("No provider for ${clazz.simpleName}")
+        resolvedServices[clazz]?.let { return castOrThrow(clazz, it) }
+        val provider = serviceIndex[clazz] ?: throw NoProviderFoundException(clazz.simpleName)
         ensureBuilt(provider)
         val resolved = resolvedServices[clazz]
-            ?: error("${clazz.simpleName} not available after building provider (check services declaration)")
-        return checkNotNull(clazz.cast(resolved)) { "Cast failed for ${clazz.simpleName}" }
+            ?: throw ServiceNotAvailableException(
+                serviceName = clazz.simpleName,
+                providerName = provider::class.java.simpleName,
+            )
+        return castOrThrow(clazz, resolved)
+    }
+
+    private fun <T : Any> castOrThrow(clazz: Class<T>, instance: Any): T = try {
+        // `Class.cast` arrives as a Java platform type; assigning it to a
+        // non-nullable T variable lets the compiler coerce without `!!`.
+        val cast: T = clazz.cast(instance)
+        cast
+    } catch (e: ClassCastException) {
+        throw ServiceCastException(clazz.simpleName, e)
     }
 
     private fun ensureBuilt(provider: FeatureProvider) {
         if (provider in built) return
+        // Fast-fail for already-failed providers avoids a lock round-trip on
+        // repeated resolutions. `failedProviders` only grows outside [clear],
+        // so a stale read is harmless — the in-lock check catches it either
+        // way.
+        if (provider in failedProviders) {
+            throw ProviderAlreadyFailedException(provider::class.java.simpleName)
+        }
         synchronized(lock) {
             if (provider in built) return
-            val map = provider.build(this)
-            for ((svc, inst) in map) {
-                resolvedServices[svc] = inst
+            if (provider in failedProviders) {
+                throw ProviderAlreadyFailedException(provider::class.java.simpleName)
             }
-            built.add(provider) // LAST — gate for other threads
-            if (!provider.persistent) nonPersistentBuiltCount.incrementAndGet()
+            // A second thread blocks at [synchronized] and cannot observe this
+            // set mid-build; the only way to reach a provider that is already
+            // here is a reentrant call on the same thread that put it there,
+            // i.e. a cycle.
+            if (provider in buildingProviders) {
+                throw CircularDependencyException(provider::class.java.simpleName)
+            }
+            buildingProviders.add(provider)
+            try {
+                val map = provider.build(this)
+                for ((svc, inst) in map) {
+                    resolvedServices[svc] = inst
+                }
+                built.add(provider) // LAST — gate for other threads
+                if (!provider.persistent) nonPersistentBuiltCount.incrementAndGet()
+            } catch (e: com.grinwich.sdk.contracts.error.DependencyResolutionException) {
+                // Propagate domain failures untouched: wrapping them would
+                // obscure the original cause (cycles, missing providers in
+                // upstream dependencies, ...).
+                throw e
+            } catch (t: Throwable) {
+                failedProviders.add(provider)
+                throw ProviderBuildException(provider::class.java.simpleName, t)
+            } finally {
+                buildingProviders.remove(provider)
+            }
         }
     }
 
@@ -198,6 +263,12 @@ class Resolver {
             built.retainAll(persistent.toHashSet())
             resolvedServices.clear()
             resolvedServices.putAll(toKeep)
+            // Reset transient build state. `buildingProviders` only holds
+            // entries while a thread is inside `ensureBuilt`; if `clear()` is
+            // called concurrently with a build, the losing thread will drain
+            // its own entry in `finally`. `failedProviders` is reset so the
+            // next init starts from a clean slate.
+            failedProviders.clear()
             nonPersistentBuiltCount.set(0)
         }
     }
