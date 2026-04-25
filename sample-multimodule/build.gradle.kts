@@ -13,12 +13,29 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
     buildFeatures { compose = true }
+
+    // R8 release build is the contract that validates the ServiceLoader
+    // keep rules survive shrinking + obfuscation. The integration smoke
+    // test under src/androidTest must run against this configuration.
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+            // Re-sign with the debug key so the release APK can be installed
+            // for instrumented tests without a custom signing config.
+            signingConfig = signingConfigs.getByName("debug")
+        }
+    }
 }
 
 dependencies {
@@ -38,4 +55,10 @@ dependencies {
     implementation(libs.dagger)
     ksp(libs.dagger.compiler)
     implementation(libs.javax.inject)
+
+    // Instrumented integration test — validates that the release APK
+    // (with R8 applied) still resolves every API the app declares.
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.runner)
+    androidTestImplementation(libs.junit)
 }

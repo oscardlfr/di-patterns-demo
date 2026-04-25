@@ -1,0 +1,75 @@
+# Project-wide detekt configuration.
+#
+# Most rules build on the detekt defaults (`buildUponDefaultConfig = true`).
+# The block below enforces the SDK-specific architectural constraint:
+# only the wiring module and sample apps may import the concrete
+# `MultiModuleSdkH` facade. Every other module must consume the SDK
+# through the `:sdk:api` interfaces (typically injected via Dagger).
+
+# Disable the default detekt rule packs by groups — we only enforce the
+# project-specific architectural constraint. Style/complexity/etc. are
+# left to the standard Android Lint + manual review path.
+comments:
+  active: false
+complexity:
+  active: false
+coroutines:
+  active: false
+empty-blocks:
+  active: false
+exceptions:
+  active: false
+naming:
+  active: false
+performance:
+  active: false
+potential-bugs:
+  active: false
+style:
+  active: true
+  # All default `style` rules off — we only opt in to ForbiddenImport.
+  WildcardImport: { active: false }
+  ReturnCount: { active: false }
+  MagicNumber: { active: false }
+  MaxLineLength: { active: false }
+  NewLineAtEndOfFile: { active: false }
+  UnusedPrivateMember: { active: false }
+  UnusedPrivateClass: { active: false }
+  UnusedImports: { active: false }
+  ForbiddenComment: { active: false }
+  UseCheckOrError: { active: false }
+  UseRequire: { active: false }
+  ThrowsCount: { active: false }
+  LoopWithTooManyJumpStatements: { active: false }
+  DataClassContainsFunctions: { active: false }
+  SerialVersionUIDInSerializableClass: { active: false }
+
+  ForbiddenImport:
+    active: true
+    imports:
+      # Wiring objects (concrete SDK facades) — must only be referenced
+      # by the composition root (the app) or by the wiring module itself.
+      # `Resolver` is intentionally NOT in this list: it appears in the
+      # signature `FeatureProvider.build(resolver: Resolver)`, so every
+      # feature-impl legitimately imports it. The boundary we enforce is
+      # the public facade, not the internal protocol type.
+      - reason: >-
+          Direct access to MultiModuleSdkH is forbidden. Consume the SDK
+          via :sdk:api interfaces injected through your DI graph (see
+          docs/confluence/app-consumption-guide.md). Allowed only in
+          :sdk:wiring-h itself, in tests, and in sample-multimodule
+          which is the documented composition root.
+        value: 'com.grinwich.sdk.wiring.h.MultiModuleSdkH'
+    excludes:
+      # The wiring object itself.
+      - '**/sdk/wiring-h/**'
+      # Sample apps — composition root, allowed by design.
+      - '**/sample-*/**'
+      # Benchmark suite — exercises every wiring directly.
+      - '**/benchmark/**'
+      # All test sources (unit + instrumented).
+      - '**/src/test/**'
+      - '**/src/androidTest/**'
+      # KSP / build-generated sources.
+      - '**/build/**'
+      - '**/generated/**'

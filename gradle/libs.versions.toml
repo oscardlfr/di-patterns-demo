@@ -20,6 +20,7 @@ coroutines = "1.10.2"
 sweetSpi = "0.1.3"
 metro = "0.6.6"
 kotlinInjectAnvil = "0.1.7"
+detekt = "1.23.7"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -74,3 +75,4 @@ hilt = { id = "com.google.dagger.hilt.android", version.ref = "dagger" }
 benchmark = { id = "androidx.benchmark", version.ref = "benchmarkJunit4" }
 sweet-spi = { id = "dev.whyoleg.sweetspi", version.ref = "sweetSpi" }
 metro = { id = "dev.zacsweers.metro", version.ref = "metro" }
+detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
