@@ -95,122 +95,134 @@ Los feature-impl contienen sus propias `Default*Service` internamente (sin depen
 
 ## API del consumidor
 
-### Multi-Module con Provision Interfaces (ejemplo realista)
+### Multi-modulo lazy: API uniforme (16 patrones)
+
+Los 16 patrones multi-modulo lazy implementan la misma interfaz
+`MultiModuleSdkApi` -- consumo identico, solo cambia el `object` de wiring
+que importas. Sin enum de features, sin set de modulos, sin parametros
+de subset: la app declara `runtimeOnly` los `feature-X-impl` que necesita
+y el wiring descubre lo que esta en classpath.
 
 ```kotlin
-// Init -- solo core. Features se construyen on demand.
-MultiModuleSdk.init(context, SdkConfig(debug = true))
-
-// get<T>() auto-construye la cadena de deps via provision interfaces
-val auth: AuthApi = MultiModuleSdk.get()    // builds: Core -> Enc -> Auth
-val sync: SyncApi = MultiModuleSdk.get()    // builds: Stor + Syn (rest cached)
-
-// La app SOLO depende de :sdk:sdk-wiring (o wiring-e2/wiring-g/wiring-h/wiring-i/wiring-j/wiring-k/wiring-l/wiring-m/wiring-n/wiring-o/wiring-o2/wiring-p/wiring-p2/wiring-q/wiring-q2). Zero imports de feature-impl.
-MultiModuleSdk.shutdown()
-```
-
-Features dependen de **provision interfaces** (contratos), no de `@Component` (impl).
-Cada `feature-xxx-impl` compila independientemente -- solo necesita `sdk:di-contracts` (provision interfaces) + `feature-xxx-api`.
-
-### Multi-Module Pattern G (Factory Functions)
-
-```kotlin
-// Misma API que D, pero DaggerXxxComponent es internal en cada feature-impl.
-// El wiring llama factory functions en vez de importar DaggerXxx builders.
-MultiModuleSdkG.init(context, SdkConfig(debug = true))
-val sync: SyncApi = MultiModuleSdkG.get()  // lazy ensure*() via factory functions
-MultiModuleSdkG.shutdown()
-```
-
-### Multi-Module Pattern H (Auto-Discovery + Dagger)
-
-```kotlin
-// Wiring inmutable — descubre FeatureProviders via ServiceLoader, resuelve deps via DFS.
+// Mismo codigo para D, E2, G, H, I, J, K, L, M, N, O, O2, P, P2, Q, Q2.
 MultiModuleSdkH.init(context, SdkConfig(debug = true))
-val sync: SyncApi = MultiModuleSdkH.get()  // resolver.provision() auto-builds chain
+val auth: AuthApi = MultiModuleSdkH.get()
+val sync: SyncApi = MultiModuleSdkH.get()
 MultiModuleSdkH.shutdown()
 ```
 
-### Multi-Module Pattern I (Pure Resolver — zero DI framework)
+Reemplaza `MultiModuleSdkH` por el wiring `object` que corresponda al
+patron elegido:
+
+| Pattern | Wiring `object` | Modulo Gradle | Discovery |
+|---|---|---|---|
+| D  | `MultiModuleSdk`         | `:sdk:sdk-wiring` | when-block + lazy ensure |
+| E2 | `MultiModuleSdkE2`       | `:sdk:wiring-e2`  | AutoServiceRegistry DFS |
+| G  | `MultiModuleSdkG`        | `:sdk:wiring-g`   | factory functions per feature |
+| H  | `MultiModuleSdkH`        | `:sdk:wiring-h`   | ServiceLoader + Dagger |
+| I  | `MultiModuleSdkI`        | `:sdk:wiring-i`   | ServiceLoader + Pure (zero DI) |
+| J  | `MultiModuleSdkJ`        | `:sdk:wiring-j`   | ServiceLoader + kotlin-inject |
+| K  | `MultiModuleSdkK`        | `:sdk:wiring-k`   | AndroidManifest meta-data |
+| L  | `MultiModuleSdkL`        | `:sdk:wiring-l`   | Koin eager + ServiceLoader |
+| M  | `MultiModuleSdkM`        | `:sdk:wiring-m`   | Koin lazy loadModules + ServiceLoader |
+| N  | `MultiModuleSdkN`        | `:sdk:wiring-n`   | sweet-spi + Koin (Full KMP) |
+| O  | `MultiModuleSdkO`        | `:sdk:wiring-o`   | Metro eager (Full KMP) |
+| O2 | `MultiModuleSdkO2`       | `:sdk:wiring-o2`  | Metro `Lazy<T>` (Full KMP) |
+| P  | `MultiModuleSdkP`        | `:sdk:wiring-p`   | kotlin-inject-anvil eager (Full KMP) |
+| P2 | `MultiModuleSdkP2`       | `:sdk:wiring-p2`  | kotlin-inject-anvil lazy (Full KMP) |
+| Q  | `MultiModuleSdkQ`        | `:sdk:wiring-q`   | Hilt-style Dagger eager |
+| Q2 | `MultiModuleSdkQ2`       | `:sdk:wiring-q2`  | Hilt-style Dagger + `dagger.Lazy<T>` |
+
+La app declara su subset asi:
 
 ```kotlin
-// Misma arquitectura que H, pero features construidas via constructor injection.
-// Zero Dagger, zero KSP, zero codegen.
-MultiModuleSdkI.init(context, SdkConfig(debug = true))
-val sync: SyncApi = MultiModuleSdkI.get()
-MultiModuleSdkI.shutdown()
+// :app/build.gradle.kts -- ejemplo Pattern H
+dependencies {
+    implementation(project(":sdk:wiring-h"))                       // wiring real
+    runtimeOnly(project(":features:feature-observability-impl"))   // features que esta app usa
+    runtimeOnly(project(":features:feature-core-impl"))
+    runtimeOnly(project(":features:feature-enc-impl"))
+    runtimeOnly(project(":features:feature-auth-impl"))
+    runtimeOnly(project(":features:feature-stor-impl"))
+    runtimeOnly(project(":features:feature-ana-impl"))
+    runtimeOnly(project(":features:feature-syn-impl"))
+}
 ```
 
-### Multi-Module Pattern J (kotlin-inject)
+Los `feature-X-impl` no tocan `:sdk:wiring-*`; cada feature compila aislado
+contra `:di-contracts` y `:feature-X-api` solamente.
+
+### Patrones que SI requieren parametros adicionales
+
+#### Multi-Module Pattern E (eager, requiere features upfront)
+
+Pattern E construye el grafo eager con topo-sort en init, asi que el
+consumidor declara que features quiere arrancar:
 
 ```kotlin
-// Misma arquitectura que H, pero features usan kotlin-inject Components.
-// KSP genera Kotlin (no Java). Menos boilerplate que Dagger.
-MultiModuleSdkJ.init(context, SdkConfig(debug = true))
-val sync: SyncApi = MultiModuleSdkJ.get()
-MultiModuleSdkJ.shutdown()
-```
+import com.grinwich.sdk.wiring.e.MultiModuleSdkE
+import com.grinwich.sdk.wiring.e.MultiModuleSdkE.Feature
 
-### Multi-Module Pattern K (AndroidManifest Discovery — Firebase-style)
-
-```kotlin
-// Mismo principio que Firebase SDK: descubre providers via AndroidManifest <meta-data>.
-// PackageManager.getServiceInfo() en vez de ServiceLoader.
-MultiModuleSdkK.init(context, SdkConfig(debug = true))
-val sync: SyncApi = MultiModuleSdkK.get()
-MultiModuleSdkK.shutdown()
-```
-
-### Multi-Module Pattern E (Registry + topo-sort)
-
-```kotlin
-// Feature enum expuesto al consumidor.
-MultiModuleSdkE.init(context, SdkConfig(debug = true), features = setOf(Feature.SYNC))
-val sync: SyncApi = MultiModuleSdkE.get()
+MultiModuleSdkE.init(
+    context,
+    SdkConfig(debug = true),
+    features = setOf(Feature.SYNC),  // Sync arrastra Auth + Stor + Enc por dependencias
+)
+val sync: SyncApi = MultiModuleSdkE.get(SyncApi::class.java)
 MultiModuleSdkE.shutdown()
 ```
 
-### Multi-Module Pattern E2 (Registry + auto-init)
+#### Monolitico B (Per-Feature Components)
 
 ```kotlin
-// API minima: init() + get<T>(). Sin Feature enum.
-MultiModuleSdkE2.init(context, SdkConfig(debug = true))
-val sync: SyncApi = MultiModuleSdkE2.get()  // auto-builds entire chain
-MultiModuleSdkE2.shutdown()
-```
+import com.grinwich.sdk.daggerb.DaggerBSdk
+import com.grinwich.sdk.daggerb.DaggerBSdk.Feature
 
-### Monolitico B (Per-Feature Components)
-
-```kotlin
-DaggerBSdk.init(SdkConfig(debug = true), setOf(Feature.ENCRYPTION, Feature.SYNC))
-val enc: EncryptionApi = DaggerBSdk.get()
+DaggerBSdk.init(
+    context,
+    SdkConfig(debug = true),
+    features = setOf(Feature.ENCRYPTION, Feature.SYNC),
+)
+val enc: EncryptionApi = DaggerBSdk.get<EncryptionApi>()
 DaggerBSdk.shutdown()
 ```
 
-### Monolitico C (ServiceLoader Discovery)
+#### Monolitico C (ServiceLoader Discovery)
 
 ```kotlin
-DaggerCSdk.init(SdkConfig(debug = true), setOf("encryption", "sync"))
-val enc: EncryptionApi = DaggerCSdk.get()
+DaggerCSdk.init(
+    context,
+    SdkConfig(debug = true),
+    features = setOf("encryption", "sync"),  // strings -- discovery por nombre via ServiceLoader
+)
+val enc: EncryptionApi = DaggerCSdk.get<EncryptionApi>()
 DaggerCSdk.shutdown()
 ```
 
-### Koin
+#### Koin (Service Locator)
 
 ```kotlin
-KoinSdk.init(modules = setOf(SdkModule.Encryption.Default), config = SdkConfig(debug = true))
-val enc: EncryptionApi = KoinSdk.get()
+KoinSdk.init(
+    context,
+    modules = setOf(SdkModule.Encryption.Default),
+    config = SdkConfig(debug = true),
+)
+val enc: EncryptionApi = KoinSdk.get<EncryptionApi>()
 KoinSdk.shutdown()
 ```
 
-### Hybrid (Koin SDK + Dagger 2 app)
+#### Hybrid (SDK Koin + bridge Dagger 2 a la app)
 
 ```kotlin
 // SDK init (Koin interno)
-KoinSdk.init(modules = setOf(SdkModule.Encryption.Default), config = SdkConfig(debug = true))
-// Bridge Dagger — la app nunca importa Koin
+KoinSdk.init(
+    context,
+    modules = setOf(SdkModule.Encryption.Default),
+    config = SdkConfig(debug = true),
+)
+// Bridge Dagger -- la app nunca importa Koin
 val bridge = DaggerSdkBridgeComponent.builder().build()
-val enc: EncryptionApi = bridge.encryption()  // Dagger cached (~1.9 ns)
+val enc: EncryptionApi = bridge.encryption()
 ```
 
 ## Manejo de errores del Resolver
