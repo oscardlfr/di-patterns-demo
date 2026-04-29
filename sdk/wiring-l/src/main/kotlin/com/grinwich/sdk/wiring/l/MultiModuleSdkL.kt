@@ -2,7 +2,9 @@ package com.grinwich.sdk.wiring.l
 
 import android.content.Context
 import com.grinwich.sdk.api.*
+import com.grinwich.sdk.contracts.ProviderAllowlist
 import com.grinwich.sdk.contracts.koin.CreationTracker
+import com.grinwich.sdk.contracts.koin.KoinApprovedProviders
 import com.grinwich.sdk.contracts.koin.KoinFeatureProvider
 import org.koin.core.KoinApplication
 import org.koin.dsl.koinApplication
@@ -25,6 +27,15 @@ object MultiModuleSdkL : MultiModuleSdkApi {
     private var _koinApp: KoinApplication? = null
     private var _initialized = false
     private var _tracker: CreationTracker? = null
+
+    /**
+     * Strict allowlist of approved [KoinFeatureProvider] FQNs. Any
+     * provider discovered via ServiceLoader whose class is not on
+     * this list is filtered out before module composition — same
+     * supply-chain defence as Pattern H.
+     */
+    private val allowlist: ProviderAllowlist =
+        ProviderAllowlist.strict(KoinApprovedProviders.JAVA_SPI)
 
     /**
      * Serialises lifecycle transitions (init/shutdown) with `writeLock` and lets
@@ -58,8 +69,10 @@ object MultiModuleSdkL : MultiModuleSdkApi {
                 single<CreationTracker> { tracker }
             }
 
-            // Discover business feature providers
-            val providers = ServiceLoader.load(KoinFeatureProvider::class.java).toList()
+            // Discover business feature providers, gated by the allowlist.
+            val providers = ServiceLoader.load(KoinFeatureProvider::class.java)
+                .filter { allowlist.isApproved(it) }
+                .toList()
 
             // Compose ALL modules eagerly
             val featureModules = providers.map { it.module() }

@@ -15,6 +15,7 @@ android {
 
 dependencies {
     api(project(":sdk:impl-common-d-c"))
+    implementation(project(":di-contracts")) // ProviderAllowlist
     implementation(project(":features:feature-observability-impl")) // AndroidSdkLogger
     implementation(libs.dagger)
     ksp(libs.dagger.compiler)

@@ -2,7 +2,9 @@ package com.grinwich.sdk.wiring.n
 
 import android.content.Context
 import com.grinwich.sdk.api.*
+import com.grinwich.sdk.contracts.ProviderAllowlist
 import com.grinwich.sdk.contracts.koin.CreationTracker
+import com.grinwich.sdk.contracts.koin.KoinApprovedProviders
 import com.grinwich.sdk.contracts.koin.KoinFeatureProvider
 import org.koin.core.KoinApplication
 import org.koin.dsl.koinApplication
@@ -25,6 +27,18 @@ object MultiModuleSdkN : MultiModuleSdkApi {
     private var _koinApp: KoinApplication? = null
     private var _initialized = false
     private var _tracker: CreationTracker? = null
+
+    /**
+     * Strict allowlist of approved [KoinFeatureProvider] FQNs. The
+     * sweet-spi vector is smaller than ServiceLoader's (sweet-spi
+     * resolves implementations at compile time, so an unrelated JAR
+     * cannot inject a provider just by shipping a META-INF descriptor)
+     * but the same gate is applied here for coherence with Patterns
+     * L and M and to defend against direct compile-time dependency
+     * additions.
+     */
+    private val allowlist: ProviderAllowlist =
+        ProviderAllowlist.strict(KoinApprovedProviders.SWEET_SPI)
 
     /**
      * Serialises lifecycle transitions (init/shutdown) with `writeLock` and lets
@@ -60,6 +74,7 @@ object MultiModuleSdkN : MultiModuleSdkApi {
             // sweet-spi discovery — on JVM delegates to java.util.ServiceLoader
             // reading the same META-INF/services/com.grinwich.sdk.contracts.koin.KoinFeatureProvider
             val providers = dev.whyoleg.sweetspi.ServiceLoader.load<KoinFeatureProvider>()
+                .filter { allowlist.isApproved(it) }
 
             val featureModules = providers.map { it.module() }
             _koinApp = koinApplication {

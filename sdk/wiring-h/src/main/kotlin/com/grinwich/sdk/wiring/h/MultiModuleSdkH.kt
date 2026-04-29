@@ -4,6 +4,7 @@ import com.grinwich.sdk.api.MultiModuleSdkApi
 import com.grinwich.sdk.api.SdkConfig
 import com.grinwich.sdk.contracts.FeatureProvider
 import com.grinwich.sdk.contracts.Flavor
+import com.grinwich.sdk.contracts.ProviderAllowlist
 import com.grinwich.sdk.contracts.Resolver
 import com.grinwich.sdk.contracts.SyntheticFeatureProvider
 import com.grinwich.sdk.contracts.error.DependencyResolutionException
@@ -22,7 +23,17 @@ object MultiModuleSdkH : MultiModuleSdkApi {
 
     /** Serializes [init] and [shutdown]; [get] runs lock-free. */
     private val lifecycleLock = Any()
-    private val resolver = Resolver()
+
+    /**
+     * Resolver constructed with a strict allowlist of approved provider
+     * FQNs. Any provider discovered via ServiceLoader whose class is
+     * not in [HApprovedProviders.FQNS] is rejected at
+     * [Resolver.register] time with `UnapprovedProviderException` —
+     * supply-chain compile-time defence.
+     */
+    private val resolver = Resolver(
+        allowlist = ProviderAllowlist.strict(HApprovedProviders.FQNS),
+    )
     private var _initialized = false
 
     override val isInitialized: Boolean get() = _initialized

@@ -2,6 +2,7 @@ package com.grinwich.sdk.daggerc
 
 import com.grinwich.sdk.api.*
 import com.grinwich.sdk.common.*
+import com.grinwich.sdk.contracts.ProviderAllowlist
 import com.grinwich.sdk.feature.observability.buildLogger
 import java.util.ServiceLoader
 
@@ -28,11 +29,21 @@ object DaggerCSdk {
     internal var _appContext: android.content.Context? = null
     internal var _storageBackend: StorageBackend = StorageBackend.DATA_STORE
 
+    /**
+     * Strict allowlist of approved [FeatureInitializer] FQNs. Any
+     * descriptor on the runtime classpath that points to a class
+     * outside this set is filtered out at [discover] time — same
+     * supply-chain defence as Pattern H.
+     */
+    private val allowlist: ProviderAllowlist =
+        ProviderAllowlist.strict(CApprovedInitializers.FQNS)
+
     val isInitialized: Boolean get() = _initialized
     val initializedModules: Set<String> get() = _initializers.keys.toSet()
 
     private fun discover(): Map<String, FeatureInitializer> =
         _available ?: ServiceLoader.load(FeatureInitializer::class.java)
+            .filter { allowlist.isApproved(it) }
             .associateBy { it.featureName }.also { _available = it }
 
     private val resolver = object : ServiceResolver {

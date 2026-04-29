@@ -2,7 +2,9 @@ package com.grinwich.sdk.wiring.m
 
 import android.content.Context
 import com.grinwich.sdk.api.*
+import com.grinwich.sdk.contracts.ProviderAllowlist
 import com.grinwich.sdk.contracts.koin.CreationTracker
+import com.grinwich.sdk.contracts.koin.KoinApprovedProviders
 import com.grinwich.sdk.contracts.koin.KoinFeatureProvider
 import org.koin.core.KoinApplication
 import org.koin.dsl.koinApplication
@@ -44,6 +46,15 @@ object MultiModuleSdkM : MultiModuleSdkApi {
 
     private var _tracker: CreationTracker? = null
 
+    /**
+     * Strict allowlist of approved [KoinFeatureProvider] FQNs. Any
+     * provider discovered via ServiceLoader whose class is not on
+     * this list is filtered out before being indexed — same
+     * supply-chain defence as Pattern H.
+     */
+    private val allowlist: ProviderAllowlist =
+        ProviderAllowlist.strict(KoinApprovedProviders.JAVA_SPI)
+
     override val isInitialized: Boolean get() = _initialized
 
     /**
@@ -74,8 +85,10 @@ object MultiModuleSdkM : MultiModuleSdkApi {
                 single<CreationTracker> { tracker }
             }
 
-            // Discover (but don't load) business feature providers
-            _providers = ServiceLoader.load(KoinFeatureProvider::class.java).toList()
+            // Discover (but don't load) business feature providers, gated by the allowlist.
+            _providers = ServiceLoader.load(KoinFeatureProvider::class.java)
+                .filter { allowlist.isApproved(it) }
+                .toList()
 
             _serviceToProvider.clear()
             for (provider in _providers) {

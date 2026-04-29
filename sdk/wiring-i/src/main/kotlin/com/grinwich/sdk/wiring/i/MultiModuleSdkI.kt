@@ -4,6 +4,7 @@ import com.grinwich.sdk.api.MultiModuleSdkApi
 import com.grinwich.sdk.api.SdkConfig
 import com.grinwich.sdk.contracts.FeatureProvider
 import com.grinwich.sdk.contracts.Flavor
+import com.grinwich.sdk.contracts.ProviderAllowlist
 import com.grinwich.sdk.contracts.Resolver
 import com.grinwich.sdk.contracts.SyntheticFeatureProvider
 import com.grinwich.sdk.contracts.error.DependencyResolutionException
@@ -25,7 +26,14 @@ object MultiModuleSdkI : MultiModuleSdkApi {
 
     /** Serializes [init] and [shutdown]; [get] runs lock-free. */
     private val lifecycleLock = Any()
-    private val resolver = Resolver()
+
+    /**
+     * Resolver constructed with a strict allowlist of approved provider
+     * FQNs (PURE flavor variants). Same supply-chain defence as Pattern H.
+     */
+    private val resolver = Resolver(
+        allowlist = ProviderAllowlist.strict(IApprovedProviders.FQNS),
+    )
     private var _initialized = false
 
     override val isInitialized: Boolean get() = _initialized

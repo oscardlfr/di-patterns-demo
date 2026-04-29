@@ -85,3 +85,39 @@ class ServiceNotAvailableException(
 ) : DependencyResolutionException(
     "Service `$serviceName` was not published by provider `$providerName` after build()."
 )
+
+/**
+ * Discovered provider rejected at registration time because its
+ * fully-qualified name is not present in the SDK's approved allowlist.
+ *
+ * Thrown by [com.grinwich.sdk.contracts.Resolver.register] when configured
+ * with a strict [com.grinwich.sdk.contracts.ProviderAllowlist] and the
+ * provider's class is not on the list. Defends against compile-time
+ * supply-chain injection: a malicious dependency that ships a
+ * `META-INF/services/com.grinwich.sdk.contracts.FeatureProvider`
+ * descriptor pointing to its own class will be rejected here, before
+ * its `build()` method can run.
+ */
+class UnapprovedProviderException(providerFqn: String) : DependencyResolutionException(
+    "Provider `$providerFqn` is not on the SDK approved allowlist."
+)
+
+/**
+ * Two distinct providers attempted to register the same service class.
+ * Defends against service hijacking: a malicious provider that declares
+ * `services = setOf(EncryptionApi::class.java)` alongside the legitimate
+ * one cannot silently overwrite the index. The first provider to
+ * register keeps the slot; subsequent overrides fail loudly.
+ *
+ * If you intentionally need to swap a provider, call
+ * [com.grinwich.sdk.contracts.Resolver.clear] before registering the
+ * replacement.
+ */
+class ServiceOverrideException(
+    serviceName: String,
+    existingProviderName: String,
+    attemptedProviderName: String,
+) : DependencyResolutionException(
+    "Service `$serviceName` is already provided by `$existingProviderName`; " +
+        "`$attemptedProviderName` attempted to register it."
+)

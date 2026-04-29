@@ -1,0 +1,600 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<testsuite name="com.grinwich.benchmark.StressTortureTest" tests="208" failures="0" errors="0" skipped="192" time="4.879" timestamp="2026-04-25T12:14:08" hostname="localhost">
+  <properties>
+    <property name="device" value="SM-S908B - 16" />
+    <property name="flavor" value="" />
+    <property name="project" value=":benchmark" />
+  </properties>
+  <testcase name="freshness_D" classname="com.grinwich.benchmark.StressTortureTest" time="1.153">
+    <skipped />
+  </testcase>
+  <testcase name="freshness_G" classname="com.grinwich.benchmark.StressTortureTest" time="0.002">
+    <skipped />
+  </testcase>
+  <testcase name="freshness_H" classname="com.grinwich.benchmark.StressTortureTest" time="0.006" />
+  <testcase name="freshness_I" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="freshness_J" classname="com.grinwich.benchmark.StressTortureTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="freshness_K" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="freshness_L" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="freshness_M" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="freshness_N" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="freshness_O" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="freshness_P" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="freshness_Q" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="contextPersistence_O2" classname="com.grinwich.benchmark.StressTortureTest" time="0.004">
+    <skipped />
+  </testcase>
+  <testcase name="contextPersistence_P2" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="contextPersistence_Q2" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentShutdown_D" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentShutdown_G" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentShutdown_H" classname="com.grinwich.benchmark.StressTortureTest" time="0.001" />
+  <testcase name="concurrentShutdown_I" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentShutdown_J" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentShutdown_K" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentShutdown_L" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentShutdown_M" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentShutdown_N" classname="com.grinwich.benchmark.StressTortureTest" time="0.004">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentShutdown_O" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentShutdown_P" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentShutdown_Q" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentSelective_D" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentSelective_G" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentSelective_H" classname="com.grinwich.benchmark.StressTortureTest" time="0.002" />
+  <testcase name="concurrentSelective_I" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentSelective_J" classname="com.grinwich.benchmark.StressTortureTest" time="0.004">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentSelective_K" classname="com.grinwich.benchmark.StressTortureTest" time="0.004">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentSelective_L" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentSelective_M" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentSelective_N" classname="com.grinwich.benchmark.StressTortureTest" time="0.004">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentSelective_O" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentSelective_P" classname="com.grinwich.benchmark.StressTortureTest" time="0.004">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentSelective_Q" classname="com.grinwich.benchmark.StressTortureTest" time="0.004">
+    <skipped />
+  </testcase>
+  <testcase name="singleton_D" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="singleton_G" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="singleton_H" classname="com.grinwich.benchmark.StressTortureTest" time="0.001" />
+  <testcase name="singleton_I" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="singleton_J" classname="com.grinwich.benchmark.StressTortureTest" time="0.004">
+    <skipped />
+  </testcase>
+  <testcase name="singleton_K" classname="com.grinwich.benchmark.StressTortureTest" time="0.004">
+    <skipped />
+  </testcase>
+  <testcase name="singleton_L" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="singleton_M" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="singleton_N" classname="com.grinwich.benchmark.StressTortureTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="singleton_O" classname="com.grinwich.benchmark.StressTortureTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="singleton_P" classname="com.grinwich.benchmark.StressTortureTest" time="0.008">
+    <skipped />
+  </testcase>
+  <testcase name="singleton_Q" classname="com.grinwich.benchmark.StressTortureTest" time="0.008">
+    <skipped />
+  </testcase>
+  <testcase name="crossPatternIsolation" classname="com.grinwich.benchmark.StressTortureTest" time="0.002" />
+  <testcase name="singleton_E2" classname="com.grinwich.benchmark.StressTortureTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="singleton_O2" classname="com.grinwich.benchmark.StressTortureTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="singleton_P2" classname="com.grinwich.benchmark.StressTortureTest" time="0.008">
+    <skipped />
+  </testcase>
+  <testcase name="singleton_Q2" classname="com.grinwich.benchmark.StressTortureTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="errorResilience_E2" classname="com.grinwich.benchmark.StressTortureTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="errorResilience_O2" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="errorResilience_P2" classname="com.grinwich.benchmark.StressTortureTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="errorResilience_Q2" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="memoryPressure_D" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="memoryPressure_G" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="memoryPressure_H" classname="com.grinwich.benchmark.StressTortureTest" time="0.002" />
+  <testcase name="memoryPressure_I" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="memoryPressure_J" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="memoryPressure_K" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="memoryPressure_L" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="memoryPressure_M" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="memoryPressure_N" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="memoryPressure_O" classname="com.grinwich.benchmark.StressTortureTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="memoryPressure_P" classname="com.grinwich.benchmark.StressTortureTest" time="0.009">
+    <skipped />
+  </testcase>
+  <testcase name="memoryPressure_Q" classname="com.grinwich.benchmark.StressTortureTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="coldCascadeTiming_allPatterns" classname="com.grinwich.benchmark.StressTortureTest" time="0.002" />
+  <testcase name="concurrentShutdown_E2" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentShutdown_O2" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentShutdown_P2" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentShutdown_Q2" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="loggerPersistence_E2" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="loggerPersistence_O2" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="loggerPersistence_P2" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="loggerPersistence_Q2" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="functional_D" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="functional_G" classname="com.grinwich.benchmark.StressTortureTest" time="0.004">
+    <skipped />
+  </testcase>
+  <testcase name="functional_H" classname="com.grinwich.benchmark.StressTortureTest" time="0.082" />
+  <testcase name="functional_I" classname="com.grinwich.benchmark.StressTortureTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="functional_J" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="functional_K" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="functional_L" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="functional_M" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="functional_N" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="functional_O" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="functional_P" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="functional_Q" classname="com.grinwich.benchmark.StressTortureTest" time="0.009">
+    <skipped />
+  </testcase>
+  <testcase name="stress10K_E2" classname="com.grinwich.benchmark.StressTortureTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="stress10K_O2" classname="com.grinwich.benchmark.StressTortureTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="stress10K_P2" classname="com.grinwich.benchmark.StressTortureTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="stress10K_Q2" classname="com.grinwich.benchmark.StressTortureTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="freshness_E2" classname="com.grinwich.benchmark.StressTortureTest" time="0.008">
+    <skipped />
+  </testcase>
+  <testcase name="freshness_O2" classname="com.grinwich.benchmark.StressTortureTest" time="0.009">
+    <skipped />
+  </testcase>
+  <testcase name="freshness_P2" classname="com.grinwich.benchmark.StressTortureTest" time="0.009">
+    <skipped />
+  </testcase>
+  <testcase name="freshness_Q2" classname="com.grinwich.benchmark.StressTortureTest" time="0.008">
+    <skipped />
+  </testcase>
+  <testcase name="contextPersistence_H" classname="com.grinwich.benchmark.StressTortureTest" time="0.002" />
+  <testcase name="contextPersistence_I" classname="com.grinwich.benchmark.StressTortureTest" time="0.008">
+    <skipped />
+  </testcase>
+  <testcase name="contextPersistence_J" classname="com.grinwich.benchmark.StressTortureTest" time="0.008">
+    <skipped />
+  </testcase>
+  <testcase name="contextPersistence_K" classname="com.grinwich.benchmark.StressTortureTest" time="0.011">
+    <skipped />
+  </testcase>
+  <testcase name="contextPersistence_L" classname="com.grinwich.benchmark.StressTortureTest" time="0.008">
+    <skipped />
+  </testcase>
+  <testcase name="contextPersistence_M" classname="com.grinwich.benchmark.StressTortureTest" time="0.009">
+    <skipped />
+  </testcase>
+  <testcase name="contextPersistence_N" classname="com.grinwich.benchmark.StressTortureTest" time="0.009">
+    <skipped />
+  </testcase>
+  <testcase name="contextPersistence_O" classname="com.grinwich.benchmark.StressTortureTest" time="0.008">
+    <skipped />
+  </testcase>
+  <testcase name="contextPersistence_P" classname="com.grinwich.benchmark.StressTortureTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="contextPersistence_Q" classname="com.grinwich.benchmark.StressTortureTest" time="0.008">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentSelective_E2" classname="com.grinwich.benchmark.StressTortureTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentSelective_O2" classname="com.grinwich.benchmark.StressTortureTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentSelective_P2" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentSelective_Q2" classname="com.grinwich.benchmark.StressTortureTest" time="0.009">
+    <skipped />
+  </testcase>
+  <testcase name="loggerPersistence_D" classname="com.grinwich.benchmark.StressTortureTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="loggerPersistence_G" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="loggerPersistence_H" classname="com.grinwich.benchmark.StressTortureTest" time="0.001" />
+  <testcase name="loggerPersistence_I" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="loggerPersistence_J" classname="com.grinwich.benchmark.StressTortureTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="loggerPersistence_K" classname="com.grinwich.benchmark.StressTortureTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="loggerPersistence_L" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="loggerPersistence_M" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="loggerPersistence_N" classname="com.grinwich.benchmark.StressTortureTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="loggerPersistence_O" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="loggerPersistence_P" classname="com.grinwich.benchmark.StressTortureTest" time="0.009">
+    <skipped />
+  </testcase>
+  <testcase name="loggerPersistence_Q" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="thunderingHerd_E2" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="thunderingHerd_O2" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="thunderingHerd_P2" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="thunderingHerd_Q2" classname="com.grinwich.benchmark.StressTortureTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentBuild_E2" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentBuild_O2" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentBuild_P2" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentBuild_Q2" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="stress10K_D" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="stress10K_G" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="stress10K_H" classname="com.grinwich.benchmark.StressTortureTest" time="0.96" />
+  <testcase name="stress10K_I" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="stress10K_J" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="stress10K_K" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="stress10K_L" classname="com.grinwich.benchmark.StressTortureTest" time="0.007">
+    <skipped />
+  </testcase>
+  <testcase name="stress10K_M" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="stress10K_N" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="stress10K_O" classname="com.grinwich.benchmark.StressTortureTest" time="0.004">
+    <skipped />
+  </testcase>
+  <testcase name="stress10K_P" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="stress10K_Q" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="thunderingHerd_D" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="thunderingHerd_G" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="thunderingHerd_H" classname="com.grinwich.benchmark.StressTortureTest" time="0.001" />
+  <testcase name="thunderingHerd_I" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="thunderingHerd_J" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="thunderingHerd_K" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="thunderingHerd_L" classname="com.grinwich.benchmark.StressTortureTest" time="0.004">
+    <skipped />
+  </testcase>
+  <testcase name="thunderingHerd_M" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="thunderingHerd_N" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="thunderingHerd_O" classname="com.grinwich.benchmark.StressTortureTest" time="0.004">
+    <skipped />
+  </testcase>
+  <testcase name="thunderingHerd_P" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="thunderingHerd_Q" classname="com.grinwich.benchmark.StressTortureTest" time="0.004">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentBuild_D" classname="com.grinwich.benchmark.StressTortureTest" time="0.004">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentBuild_G" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentBuild_H" classname="com.grinwich.benchmark.StressTortureTest" time="0.054" />
+  <testcase name="concurrentBuild_I" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentBuild_J" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentBuild_K" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentBuild_L" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentBuild_M" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentBuild_N" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentBuild_O" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentBuild_P" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="concurrentBuild_Q" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="rapidFire_E2" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="rapidFire_O2" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="rapidFire_P2" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="rapidFire_Q2" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="alternatingPatterns" classname="com.grinwich.benchmark.StressTortureTest" time="0.079" />
+  <testcase name="errorResilience_D" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="errorResilience_G" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="errorResilience_H" classname="com.grinwich.benchmark.StressTortureTest" time="0.001" />
+  <testcase name="errorResilience_I" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="errorResilience_J" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="errorResilience_K" classname="com.grinwich.benchmark.StressTortureTest" time="0.004">
+    <skipped />
+  </testcase>
+  <testcase name="errorResilience_L" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="errorResilience_M" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="errorResilience_N" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="errorResilience_O" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="errorResilience_P" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="errorResilience_Q" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="memoryPressure_E2" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="memoryPressure_O2" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="memoryPressure_P2" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="memoryPressure_Q2" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="functional_E2" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="functional_O2" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="functional_P2" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="functional_Q2" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="rapidFire_D" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="rapidFire_G" classname="com.grinwich.benchmark.StressTortureTest" time="0.006">
+    <skipped />
+  </testcase>
+  <testcase name="rapidFire_H" classname="com.grinwich.benchmark.StressTortureTest" time="0.39" />
+  <testcase name="rapidFire_I" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="rapidFire_J" classname="com.grinwich.benchmark.StressTortureTest" time="0.004">
+    <skipped />
+  </testcase>
+  <testcase name="rapidFire_K" classname="com.grinwich.benchmark.StressTortureTest" time="0.004">
+    <skipped />
+  </testcase>
+  <testcase name="rapidFire_L" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="rapidFire_M" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="rapidFire_N" classname="com.grinwich.benchmark.StressTortureTest" time="0.004">
+    <skipped />
+  </testcase>
+  <testcase name="rapidFire_O" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="rapidFire_P" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+  <testcase name="rapidFire_Q" classname="com.grinwich.benchmark.StressTortureTest" time="0.005">
+    <skipped />
+  </testcase>
+</testsuite>

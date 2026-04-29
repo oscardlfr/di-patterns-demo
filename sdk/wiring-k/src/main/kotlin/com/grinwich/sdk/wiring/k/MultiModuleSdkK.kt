@@ -2,6 +2,7 @@ package com.grinwich.sdk.wiring.k
 
 import android.content.Context
 import com.grinwich.sdk.api.SdkConfig
+import com.grinwich.sdk.contracts.ProviderAllowlist
 import com.grinwich.sdk.contracts.Resolver
 import com.grinwich.sdk.contracts.SyntheticFeatureProvider
 import com.grinwich.sdk.contracts.error.DependencyResolutionException
@@ -20,7 +21,16 @@ object MultiModuleSdkK : com.grinwich.sdk.api.MultiModuleSdkApi {
 
     /** Serializes [init] and [shutdown]; [get] runs lock-free. */
     private val lifecycleLock = Any()
-    private val resolver = Resolver()
+
+    /**
+     * Resolver constructed with a strict allowlist of approved provider
+     * FQNs. A `<meta-data>` entry declared by an unapproved dependency
+     * is rejected at [Resolver.register] time with
+     * `UnapprovedProviderException`.
+     */
+    private val resolver = Resolver(
+        allowlist = ProviderAllowlist.strict(KApprovedProviders.FQNS),
+    )
     private var _initialized = false
 
     override val isInitialized: Boolean get() = _initialized
