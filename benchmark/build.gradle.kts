@@ -10,14 +10,13 @@ plugins {
 val minifyBenchmarks = (project.findProperty("minify") as? String)?.toBoolean() ?: false
 val benchmarkBuildType = (project.findProperty("benchmarkBuildType") as? String) ?: "release"
 
-// Suppress flags differ per build type:
-//   - release: standard set
-//   - release+R8: add CODE-COVERAGE (R8 may strip JaCoCo if enabled elsewhere)
-//   - debug: must add DEBUGGABLE (and accept that numbers are unreliable)
-val suppressErrors = buildString {
-    append("EMULATOR,LOW-BATTERY,ACTIVITY-MISSING")
-    if (benchmarkBuildType == "debug") append(",DEBUGGABLE,METHOD-TRACING-ENABLED")
-}
+// Suppress flags applied to BOTH variants (see `androidComponents` block below):
+//   - EMULATOR,LOW-BATTERY,ACTIVITY-MISSING: always relevant
+//   - DEBUGGABLE,METHOD-TRACING-ENABLED: required for the debug instrumented
+//     variant (which we keep testable for orchestrator sweeps); inert on
+//     release — the runner only triggers them when the variant is actually
+//     debuggable / has method-tracing on.
+val suppressErrors = "EMULATOR,LOW-BATTERY,ACTIVITY-MISSING,DEBUGGABLE,METHOD-TRACING-ENABLED"
 
 android {
     namespace = "com.grinwich.benchmark"
@@ -34,6 +33,10 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+    // `testBuildType = "release"` is what makes benchmark numbers trustworthy
+    // (R8-optimized, non-debuggable). The `androidComponents` block below
+    // ALSO enables androidTest on the debug variant — see that block for the
+    // rationale (kmp-test-runner sweep compatibility).
     testBuildType = benchmarkBuildType
     buildTypes {
         debug {
@@ -53,6 +56,20 @@ android {
                 )
             }
         }
+    }
+}
+
+// `testBuildType = "release"` above only generates androidTest for the
+// release variant. kmp-test-runner's `parallel --test-type=androidInstrumented`
+// dispatches `connectedDebugAndroidTest` unconditionally and would fail this
+// module with `task_not_found`. Force-enable androidTest for the debug
+// variant so both `connectedDebugAndroidTest` and `connectedReleaseAndroidTest`
+// exist. Real benchmark numbers still come from release; debug runs are a
+// sanity check only (DEBUGGABLE/METHOD-TRACING-ENABLED suppressors above
+// allow them to complete).
+androidComponents {
+    beforeVariants(selector().withBuildType("debug")) { variant ->
+        variant.androidTest.enable = true
     }
 }
 
